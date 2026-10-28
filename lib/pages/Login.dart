@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -92,10 +91,7 @@ class _LoginPageState extends State<LoginPage>
           .map((account) => Map<String, String>.from(account))
           .toList();
 
-      await prefs.setString(
-        _storageKey,
-        jsonEncode(initialAccounts),
-      );
+      await prefs.setString(_storageKey, jsonEncode(initialAccounts));
 
       return initialAccounts;
     }
@@ -103,9 +99,7 @@ class _LoginPageState extends State<LoginPage>
     final decoded = jsonDecode(savedData);
 
     if (decoded is! List) {
-      throw const FormatException(
-        'Format data akun lokal tidak valid.',
-      );
+      throw const FormatException('Format data akun lokal tidak valid.');
     }
 
     var migrated = false;
@@ -113,15 +107,12 @@ class _LoginPageState extends State<LoginPage>
 
     for (final item in decoded) {
       if (item is! Map) {
-        throw const FormatException(
-          'Data akun lokal tidak valid.',
-        );
+        throw const FormatException('Data akun lokal tidak valid.');
       }
 
       final values = Map<String, dynamic>.from(item);
 
-      final username =
-          values['username']?.toString().trim().toLowerCase();
+      final username = values['username']?.toString().trim().toLowerCase();
 
       final password = values['password']?.toString();
       final role = values['role']?.toString();
@@ -164,15 +155,10 @@ class _LoginPageState extends State<LoginPage>
     return accounts;
   }
 
-  Future<void> _saveAccounts(
-    List<Map<String, String>> accounts,
-  ) async {
+  Future<void> _saveAccounts(List<Map<String, String>> accounts) async {
     final prefs = await SharedPreferences.getInstance();
 
-    await prefs.setString(
-      _storageKey,
-      jsonEncode(accounts),
-    );
+    await prefs.setString(_storageKey, jsonEncode(accounts));
   }
 
   // ==========================================
@@ -186,33 +172,11 @@ class _LoginPageState extends State<LoginPage>
     final password = _passwordController.text;
 
     if (username.isEmpty || password.isEmpty) {
-      _showMessage(
-        'Username dan password wajib diisi.',
-        isError: true,
-      );
+      _showMessage('Username dan password wajib diisi.', isError: true);
       return;
     }
 
     final validUsername = RegExp(r'^[a-z0-9_]{4,20}$');
-
-    if (!validUsername.hasMatch(username)) {
-      _showMessage(
-        'Username harus 4–20 karakter, hanya huruf, angka, '
-        'atau underscore.',
-        isError: true,
-      );
-      return;
-    }
-
-    if (password.length < 6) {
-      _showMessage(
-        'Password minimal 6 karakter.',
-        isError: true,
-      );
-      return;
-    }
-
-    setState(() => _isVerifying = true);
 
     try {
       final accounts = await _loadAccounts();
@@ -251,9 +215,7 @@ class _LoginPageState extends State<LoginPage>
           _passwordController.clear();
         });
 
-        _showMessage(
-          'Pendaftaran berhasil! Silakan login dengan akun baru.',
-        );
+        _showMessage('Pendaftaran berhasil! Silakan login dengan akun baru.');
 
         return;
       }
@@ -262,18 +224,14 @@ class _LoginPageState extends State<LoginPage>
       Map<String, String>? account;
 
       for (final item in accounts) {
-        if (item['username'] == username &&
-            item['password'] == password) {
+        if (item['username'] == username && item['password'] == password) {
           account = item;
           break;
         }
       }
 
       if (account == null) {
-        _showMessage(
-          'Username atau password salah.',
-          isError: true,
-        );
+        _showMessage('Username atau password salah.', isError: true);
         return;
       }
 
@@ -290,9 +248,7 @@ class _LoginPageState extends State<LoginPage>
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(22),
             ),
-            contentPadding: const EdgeInsets.fromLTRB(
-              24, 24, 24, 12,
-            ),
+            contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -302,11 +258,8 @@ class _LoginPageState extends State<LoginPage>
                   decoration: BoxDecoration(
                     color: const Color.fromARGB(255, 255, 255, 255),
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: navy.withValues(alpha: 0.15),
-                    ),
+                    border: Border.all(color: navy.withValues(alpha: 0.15)),
                   ),
-                  
                 ),
                 const SizedBox(height: 18),
                 const Text(
@@ -334,7 +287,12 @@ class _LoginPageState extends State<LoginPage>
                   width: double.infinity,
                   padding: const EdgeInsets.all(15),
                   decoration: BoxDecoration(
-                    color: const Color.fromARGB(255, 249, 250, 252).withValues(alpha: 0.65),
+                    color: const Color.fromARGB(
+                      255,
+                      249,
+                      250,
+                      252,
+                    ).withValues(alpha: 0.65),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Column(
@@ -398,9 +356,7 @@ class _LoginPageState extends State<LoginPage>
                 ),
               ],
             ),
-            actionsPadding: const EdgeInsets.fromLTRB(
-              20, 8, 20, 20,
-            ),
+            actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
             actions: [
               Row(
                 children: [
@@ -412,9 +368,7 @@ class _LoginPageState extends State<LoginPage>
                       style: OutlinedButton.styleFrom(
                         foregroundColor: navy,
                         side: const BorderSide(color: navy),
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 13,
-                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -431,18 +385,14 @@ class _LoginPageState extends State<LoginPage>
                       style: ElevatedButton.styleFrom(
                         backgroundColor: navy,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 13,
-                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text(
                         'Konfirmasi',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
@@ -463,9 +413,7 @@ class _LoginPageState extends State<LoginPage>
               namaOwner: displayName,
               onLogout: () {
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(
-                    builder: (_) => const LoginPage(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
                   (route) => false,
                 );
               },
@@ -473,22 +421,14 @@ class _LoginPageState extends State<LoginPage>
           ),
         );
       } else if (role == 'Kasir') {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => const kasirPage(),
-          ),
-        );
+        Navigator.of(
+          context,
+        ).pushReplacement(MaterialPageRoute(builder: (_) => const kasirPage()));
       } else {
-        _showMessage(
-          'Role akun tidak dikenali.',
-          isError: true,
-        );
+        _showMessage('Role akun tidak dikenali.', isError: true);
       }
     } catch (e) {
-      _showMessage(
-        'Terjadi kesalahan saat memproses akun.',
-        isError: true,
-      );
+      _showMessage('Terjadi kesalahan saat memproses akun.', isError: true);
     } finally {
       if (mounted) {
         setState(() => _isVerifying = false);
@@ -509,14 +449,13 @@ class _LoginPageState extends State<LoginPage>
           builder: (context, constraints) {
             final screenWidth = constraints.maxWidth;
             final isMobile = screenWidth < 600;
-            final isTablet = screenWidth >= 600 &&
-                screenWidth < 1000;
+            final isTablet = screenWidth >= 600 && screenWidth < 1000;
 
             final cardWidth = isMobile
                 ? math.max(0.0, screenWidth - 32)
                 : isTablet
-                    ? 440.0
-                    : 460.0;
+                ? 440.0
+                : 460.0;
 
             return Stack(
               children: [
@@ -541,9 +480,7 @@ class _LoginPageState extends State<LoginPage>
                 AnimatedBuilder(
                   animation: _borderController,
                   builder: (context, child) {
-                    final t = _borderController.value *
-                        2 *
-                        math.pi;
+                    final t = _borderController.value * 2 * math.pi;
 
                     return Stack(
                       children: [
@@ -572,15 +509,12 @@ class _LoginPageState extends State<LoginPage>
                 AnimatedBuilder(
                   animation: _borderController,
                   builder: (context, child) {
-                    final t = _borderController.value *
-                        2 *
-                        math.pi;
+                    final t = _borderController.value * 2 * math.pi;
 
                     return Stack(
                       children: [
                         Positioned(
-                          top: constraints.maxHeight * 0.13 +
-                              math.sin(t) * 12,
+                          top: constraints.maxHeight * 0.13 + math.sin(t) * 12,
                           right: screenWidth * 0.10,
                           child: Transform.rotate(
                             angle: math.sin(t) * 0.18,
@@ -592,8 +526,8 @@ class _LoginPageState extends State<LoginPage>
                           ),
                         ),
                         Positioned(
-                          bottom: constraints.maxHeight * 0.15 +
-                              math.cos(t) * 14,
+                          bottom:
+                              constraints.maxHeight * 0.15 + math.cos(t) * 14,
                           left: screenWidth * 0.08,
                           child: Transform.rotate(
                             angle: math.cos(t) * 0.15,
@@ -605,7 +539,8 @@ class _LoginPageState extends State<LoginPage>
                           ),
                         ),
                         Positioned(
-                          top: constraints.maxHeight * 0.23 +
+                          top:
+                              constraints.maxHeight * 0.23 +
                               math.cos(t + 1) * 10,
                           left: screenWidth * 0.17,
                           child: Transform.rotate(
@@ -618,7 +553,8 @@ class _LoginPageState extends State<LoginPage>
                           ),
                         ),
                         Positioned(
-                          bottom: constraints.maxHeight * 0.25 +
+                          bottom:
+                              constraints.maxHeight * 0.25 +
                               math.sin(t + 1) * 12,
                           right: screenWidth * 0.15,
                           child: Transform.rotate(
@@ -643,19 +579,11 @@ class _LoginPageState extends State<LoginPage>
                       vertical: 14,
                     ),
                     child: TweenAnimationBuilder<double>(
-                      tween: Tween(
-                        begin: 0.88,
-                        end: 1.0,
-                      ),
-                      duration: const Duration(
-                        milliseconds: 700,
-                      ),
+                      tween: Tween(begin: 0.88, end: 1.0),
+                      duration: const Duration(milliseconds: 700),
                       curve: Curves.easeOutBack,
                       builder: (context, scale, child) {
-                        return Transform.scale(
-                          scale: scale,
-                          child: child,
-                        );
+                        return Transform.scale(scale: scale, child: child);
                       },
                       child: AnimatedBuilder(
                         animation: _borderController,
@@ -669,26 +597,26 @@ class _LoginPageState extends State<LoginPage>
                         },
                         child: Container(
                           width: cardWidth,
-                          constraints: const BoxConstraints(
-                            maxWidth: 335,
-                          ),
+                          constraints: const BoxConstraints(maxWidth: 335),
                           padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(
-                              alpha: 0.08,
-                            ),
+                            color: Colors.white.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(28),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xff58b9f5)
-                                    .withValues(alpha: 0.15),
+                                color: const Color(
+                                  0xff58b9f5,
+                                ).withValues(alpha: 0.15),
                                 blurRadius: 25,
                                 spreadRadius: 2,
                               ),
                               BoxShadow(
-                                color: const Color.fromARGB(255, 102, 100, 100).withValues(
-                                  alpha: 0.30,
-                                ),
+                                color: const Color.fromARGB(
+                                  255,
+                                  102,
+                                  100,
+                                  100,
+                                ).withValues(alpha: 0.30),
                                 blurRadius: 25,
                                 offset: const Offset(0, 12),
                               ),
@@ -702,11 +630,7 @@ class _LoginPageState extends State<LoginPage>
                                   child: Image.asset(
                                     'assets/images/Login_bg.jpg',
                                     fit: BoxFit.cover,
-                                    errorBuilder: (
-                                      context,
-                                      error,
-                                      stackTrace,
-                                    ) {
+                                    errorBuilder: (context, error, stackTrace) {
                                       return const ColoredBox(
                                         color: Color(0xff273b4b),
                                       );
@@ -721,15 +645,9 @@ class _LoginPageState extends State<LoginPage>
                                         begin: Alignment.topLeft,
                                         end: Alignment.bottomRight,
                                         colors: [
-                                          navy.withValues(
-                                            alpha: 0.78,
-                                          ),
-                                          navy.withValues(
-                                            alpha: 0.73,
-                                          ),
-                                          Colors.black.withValues(
-                                            alpha: 0.86,
-                                          ),
+                                          navy.withValues(alpha: 0.78),
+                                          navy.withValues(alpha: 0.73),
+                                          Colors.black.withValues(alpha: 0.86),
                                         ],
                                       ),
                                     ),
@@ -761,12 +679,13 @@ class _LoginPageState extends State<LoginPage>
                                       AnimatedBuilder(
                                         animation: _borderController,
                                         builder: (context, child) {
-                                          final pulse = 1 +
+                                          final pulse =
+                                              1 +
                                               math.sin(
-                                                _borderController.value *
-                                                    2 *
-                                                    math.pi,
-                                              ) *
+                                                    _borderController.value *
+                                                        2 *
+                                                        math.pi,
+                                                  ) *
                                                   0.035;
 
                                           return Transform.scale(
@@ -777,16 +696,14 @@ class _LoginPageState extends State<LoginPage>
                                         child: Container(
                                           width: isMobile ? 76 : 86,
                                           height: isMobile ? 76 : 86,
-                                          padding:
-                                              const EdgeInsets.all(5),
+                                          padding: const EdgeInsets.all(5),
                                           decoration: BoxDecoration(
                                             shape: BoxShape.circle,
                                             color: const Color(
                                               0xff3979ad,
                                             ).withValues(alpha: 0.65),
                                             border: Border.all(
-                                              color: Colors.white
-                                                  .withValues(
+                                              color: Colors.white.withValues(
                                                 alpha: 0.70,
                                               ),
                                               width: 1.5,
@@ -795,9 +712,7 @@ class _LoginPageState extends State<LoginPage>
                                               BoxShadow(
                                                 color: const Color(
                                                   0xff58b9f5,
-                                                ).withValues(
-                                                  alpha: 0.28,
-                                                ),
+                                                ).withValues(alpha: 0.28),
                                                 blurRadius: 22,
                                               ),
                                             ],
@@ -816,17 +731,16 @@ class _LoginPageState extends State<LoginPage>
                                       // TOMBOL LOGIN / DAFTAR
                                       Container(
                                         height: 45,
-                                        padding:
-                                            const EdgeInsets.all(4),
+                                        padding: const EdgeInsets.all(4),
                                         decoration: BoxDecoration(
                                           color: Colors.white.withValues(
                                             alpha: 0.12,
                                           ),
-                                          borderRadius:
-                                              BorderRadius.circular(25),
+                                          borderRadius: BorderRadius.circular(
+                                            25,
+                                          ),
                                           border: Border.all(
-                                            color: Colors.white
-                                                .withValues(
+                                            color: Colors.white.withValues(
                                               alpha: 0.28,
                                             ),
                                           ),
@@ -834,7 +748,6 @@ class _LoginPageState extends State<LoginPage>
                                         child: Row(
                                           children: [
                                             _modeButton('Login', true),
-                                            _modeButton('Daftar', false),
                                           ],
                                         ),
                                       ),
@@ -842,18 +755,15 @@ class _LoginPageState extends State<LoginPage>
                                       const SizedBox(height: 50),
 
                                       _inputField(
-                                        controller:
-                                            _usernameController,
+                                        controller: _usernameController,
                                         hint: 'Username',
-                                        icon: Icons
-                                            .person_outline_rounded,
+                                        icon: Icons.person_outline_rounded,
                                       ),
 
                                       const SizedBox(height: 13),
 
                                       _inputField(
-                                        controller:
-                                            _passwordController,
+                                        controller: _passwordController,
                                         hint: 'Password',
                                         icon: Icons.lock_outline_rounded,
                                         obscure: _hidePassword,
@@ -863,16 +773,13 @@ class _LoginPageState extends State<LoginPage>
                                               : 'Sembunyikan password',
                                           onPressed: () {
                                             setState(() {
-                                              _hidePassword =
-                                                  !_hidePassword;
+                                              _hidePassword = !_hidePassword;
                                             });
                                           },
                                           icon: Icon(
                                             _hidePassword
-                                                ? Icons
-                                                    .visibility_off_outlined
-                                                : Icons
-                                                    .visibility_outlined,
+                                                ? Icons.visibility_off_outlined
+                                                : Icons.visibility_outlined,
                                             size: 19,
                                             color: navy,
                                           ),
@@ -882,45 +789,56 @@ class _LoginPageState extends State<LoginPage>
                                       const SizedBox(height: 20),
 
                                       // TOMBOL MASUK
-                                     Center(
-  child: SizedBox(
-    width: 220, // Atur lebar tombol di sini
-    height: 45,
-    child: ElevatedButton(
-      onPressed: _isVerifying ? null : _submit,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xff082640),
-        disabledBackgroundColor: const Color(0xff082640),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        shadowColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(25),
-          // Tidak ada stroke atau garis tepi
-          side: BorderSide.none,
-        ),
-        padding: EdgeInsets.zero,
-      ),
-      child: _isVerifying
-          ? const SizedBox(
-              height: 19,
-              width: 17,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white,
-              ),
-            )
-          : Text(
-              _isLogin ? 'Login' : 'Daftar',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
-            ),
-    ),
-  ),
-),
+                                      Center(
+                                        child: SizedBox(
+                                          width:
+                                              220, // Atur lebar tombol di sini
+                                          height: 45,
+                                          child: ElevatedButton(
+                                            onPressed: _isVerifying
+                                                ? null
+                                                : _submit,
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(
+                                                0xff082640,
+                                              ),
+                                              disabledBackgroundColor:
+                                                  const Color(0xff082640),
+                                              foregroundColor: Colors.white,
+                                              elevation: 0,
+                                              shadowColor: Colors.transparent,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(25),
+                                                // Tidak ada stroke atau garis tepi
+                                                side: BorderSide.none,
+                                              ),
+                                              padding: EdgeInsets.zero,
+                                            ),
+                                            child: _isVerifying
+                                                ? const SizedBox(
+                                                    height: 19,
+                                                    width: 17,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color: Colors.white,
+                                                        ),
+                                                  )
+                                                : Text(
+                                                    _isLogin
+                                                        ? 'Login'
+                                                        : 'Daftar',
+                                                    style: const TextStyle(
+                                                      fontSize: 18,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                          ),
+                                        ),
+                                      ),
                                       const SizedBox(height: 10),
 
                                       if (_isLogin)
@@ -941,8 +859,7 @@ class _LoginPageState extends State<LoginPage>
                                         )
                                       else
                                         Padding(
-                                          padding:
-                                              const EdgeInsets.only(
+                                          padding: const EdgeInsets.only(
                                             bottom: 12,
                                           ),
                                           child: Text(
@@ -950,8 +867,7 @@ class _LoginPageState extends State<LoginPage>
                                             'password minimal 6 karakter.',
                                             textAlign: TextAlign.center,
                                             style: TextStyle(
-                                              color: Colors.white
-                                                  .withValues(
+                                              color: Colors.white.withValues(
                                                 alpha: 0.78,
                                               ),
                                               fontSize: 10,
@@ -983,10 +899,7 @@ class _LoginPageState extends State<LoginPage>
   // DEKORASI ANIMASI
   // ==========================================
 
-  Widget _ambientGlow({
-    required double size,
-    required Color color,
-  }) {
+  Widget _ambientGlow({required double size, required Color color}) {
     return IgnorePointer(
       child: Container(
         width: size,
@@ -1005,11 +918,7 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  Widget _floatingDecoration(
-    IconData icon,
-    double size,
-    double opacity,
-  ) {
+  Widget _floatingDecoration(IconData icon, double size, double opacity) {
     return IgnorePointer(
       child: Icon(
         icon,
@@ -1040,16 +949,12 @@ class _LoginPageState extends State<LoginPage>
           curve: Curves.easeOutCubic,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected
-                ? navy.withValues(alpha: 0.95)
-                : Colors.transparent,
+            color: selected ? navy.withValues(alpha: 0.95) : Colors.transparent,
             borderRadius: BorderRadius.circular(22),
             boxShadow: selected
                 ? [
                     BoxShadow(
-                      color: const Color(0xff58b9f5).withValues(
-                        alpha: 0.20,
-                      ),
+                      color: const Color(0xff58b9f5).withValues(alpha: 0.20),
                       blurRadius: 12,
                     ),
                   ]
@@ -1058,13 +963,9 @@ class _LoginPageState extends State<LoginPage>
           child: AnimatedDefaultTextStyle(
             duration: const Duration(milliseconds: 250),
             style: TextStyle(
-              color: Colors.white.withValues(
-                alpha: selected ? 1 : 0.72,
-              ),
+              color: Colors.white.withValues(alpha: selected ? 1 : 0.72),
               fontSize: 19,
-              fontWeight: selected
-                  ? FontWeight.w800
-                  : FontWeight.w600,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
             ),
             child: Text(label),
           ),
@@ -1088,9 +989,7 @@ class _LoginPageState extends State<LoginPage>
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(35),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.55),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
@@ -1104,17 +1003,14 @@ class _LoginPageState extends State<LoginPage>
         obscureText: obscure,
         autocorrect: false,
         enableSuggestions: !obscure,
-        style: const TextStyle(
-          color: navy,
-          fontSize: 16,
-        ),
+        style: const TextStyle(color: navy, fontSize: 16),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: const TextStyle(
             color: Color.fromARGB(255, 183, 185, 185),
             fontSize: 17,
           ),
-         
+
           suffixIcon: suffix,
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
@@ -1137,9 +1033,7 @@ class _LoginPageState extends State<LoginPage>
 // ==========================================
 
 class _GlowBorderPainter extends CustomPainter {
-  _GlowBorderPainter({
-    required this.progress,
-  });
+  _GlowBorderPainter({required this.progress});
 
   final double progress;
 
@@ -1152,9 +1046,7 @@ class _GlowBorderPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.2
       ..shader = SweepGradient(
-        transform: GradientRotation(
-          progress * 2 * math.pi,
-        ),
+        transform: GradientRotation(progress * 2 * math.pi),
         colors: const [
           Colors.transparent,
           Color(0xffdce9f4),
@@ -1163,23 +1055,14 @@ class _GlowBorderPainter extends CustomPainter {
           Colors.transparent,
           Colors.transparent,
         ],
-        stops: const [
-          0.15,
-          0.35,
-          0.42,
-          0.48,
-          0.58,
-          1,
-        ],
+        stops: const [0.15, 0.35, 0.42, 0.48, 0.58, 1],
       ).createShader(rect);
 
     canvas.drawRRect(radius, paint);
   }
 
   @override
-  bool shouldRepaint(
-    covariant _GlowBorderPainter oldDelegate,
-  ) {
+  bool shouldRepaint(covariant _GlowBorderPainter oldDelegate) {
     return oldDelegate.progress != progress;
   }
 }

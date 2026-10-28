@@ -122,9 +122,11 @@ class _DashboardOwnerState extends State<DashboardOwner> {
               ],
             ),
           ),
+          // PERBAIKAN: pakai OwnerBottomNavigation (widget asli dari
+          // Navigation.dart), bukan method kosong "BottomNavigation".
           bottomNavigationBar: isDesktop
               ? null
-              : BottomNavigation(
+              : OwnerBottomNavigation(
                   selectedIndex: selectedMenu,
                   onDestinationSelected: selectMenu,
                 ),
@@ -365,7 +367,8 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     );
   }
 
-  BottomNavigation({required int selectedIndex, required void Function(int index) onDestinationSelected}) {}
+  // PERBAIKAN: method kosong "BottomNavigation(...) {}" yang dulu ada di
+  // sini sudah dihapus.
 }
 
 // ============================================================
