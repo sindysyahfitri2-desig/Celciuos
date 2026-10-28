@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../widgets/Navigation.dart';
 import '/widgets/product_cart.dart';
 import '../widgets/app_branding_logo.dart';
@@ -537,13 +538,16 @@ class _kasirPageState extends State<kasirPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: appPageBackground,
-      body: AppNavigationShell(
-        namaKasir: namaKasir,
-        headerBuilder: (_) => _header(),
-        cashierBuilder: (_) => _cashierContent(),
-        onShiftClosed: _resetAfterShiftClosed,
+    return DefaultTextStyle.merge(
+      style: GoogleFonts.poppins(),
+      child: Scaffold(
+        backgroundColor: appPageBackground,
+        body: AppNavigationShell(
+          namaKasir: namaKasir,
+          headerBuilder: (_) => _header(),
+          cashierBuilder: (_) => _cashierContent(),
+          onShiftClosed: _resetAfterShiftClosed,
+        ),
       ),
     );
   }
@@ -755,8 +759,10 @@ class _kasirPageState extends State<kasirPage> {
           SizedBox(
             width: 170,
             height: 65,
-            child: ElevatedButton(
-              onPressed: cart.isEmpty
+            child: _AnimatedTouch(
+              scale: 0.95,
+              child: ElevatedButton(
+                onPressed: cart.isEmpty
                   ? null
                   : () {
                       setState(() {
@@ -778,9 +784,10 @@ class _kasirPageState extends State<kasirPage> {
                   borderRadius: BorderRadius.circular(25),
                 ),
               ),
-              child: const Text(
-                'Check Out',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                child: const Text(
+                  'Check Out',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ),
@@ -927,13 +934,16 @@ class _kasirPageState extends State<kasirPage> {
   Widget _category(IconData icon, String title) {
     final bool active = selectedCategory == title;
 
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedCategory = title;
-        });
-      },
-      child: AnimatedContainer(
+    return _AnimatedTouch(
+      scale: 0.94,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          setState(() {
+            selectedCategory = title;
+          });
+        },
+        child: AnimatedContainer(
         duration: const Duration(milliseconds: 380),
         margin: const EdgeInsets.only(right: 9),
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
@@ -974,6 +984,7 @@ class _kasirPageState extends State<kasirPage> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -1117,34 +1128,29 @@ class _kasirPageState extends State<kasirPage> {
                     ? cart[cartIndex]['quantity'] as int
                     : 0;
 
-                return ProductCard(
-                  name: product['name'],
-
-                  price: (product['price'] as num).toDouble(),
-
-                  image: product['image'],
-
-                  category: product['category'],
-
-                  quantity: jumlah,
-
-                  onAdd: () {
-                    tambahKeKeranjang(product);
-                  },
-
-                  onMinus: () {
-                    if (cartIndex >= 0) {
-                      ubahJumlah(cartIndex, -1);
-                    }
-                  },
-
-                  onDelete: () {
-                    if (cartIndex >= 0) {
-                      setState(() {
-                        cart.removeAt(cartIndex);
-                      });
-                    }
-                  },
+                return _AnimatedTouch(
+                  child: ProductCard(
+                    name: product['name'],
+                    price: (product['price'] as num).toDouble(),
+                    image: product['image'],
+                    category: product['category'],
+                    quantity: jumlah,
+                    onAdd: () {
+                      tambahKeKeranjang(product);
+                    },
+                    onMinus: () {
+                      if (cartIndex >= 0) {
+                        ubahJumlah(cartIndex, -1);
+                      }
+                    },
+                    onDelete: () {
+                      if (cartIndex >= 0) {
+                        setState(() {
+                          cart.removeAt(cartIndex);
+                        });
+                      }
+                    },
+                  ),
                 );
               },
             );
@@ -1343,6 +1349,46 @@ class _kasirPageState extends State<kasirPage> {
             vertical: 11,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Animasi tekan yang tidak mengambil alih gesture milik widget di dalamnya.
+/// Bisa digunakan untuk kartu produk, kategori, dan tombol.
+class _AnimatedTouch extends StatefulWidget {
+  final Widget child;
+  final double scale;
+
+  const _AnimatedTouch({
+    required this.child,
+    this.scale = 0.97,
+  });
+
+  @override
+  State<_AnimatedTouch> createState() => _AnimatedTouchState();
+}
+
+class _AnimatedTouchState extends State<_AnimatedTouch> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value || !mounted) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => _setPressed(true),
+      onPointerUp: (_) => _setPressed(false),
+      onPointerCancel: (_) => _setPressed(false),
+      child: AnimatedScale(
+        scale: _pressed ? widget.scale : 1,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
       ),
     );
   }

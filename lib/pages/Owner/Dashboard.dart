@@ -1,10 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../widgets/app_branding_logo.dart';
 import '../../widgets/Owner/Navigation.dart';
 import 'KelolaProduk.dart' as owner_products;
 import 'Transaksi/Kelola_Transaksi.dart';
-
 
 const Color ownerNavy = Color(0xFF103456);
 const Color ownerDarkNavy = Color(0xFF082640);
@@ -84,70 +85,90 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     setState(() => selectedMenu = index);
   }
 
+  // Laptop (>= 1000): sidebar di kiri.
+  // Tablet & HP (< 1000): navigasi pindah ke bawah.
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: ownerBackground,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _topBar(),
-            Expanded(
-              child: Row(
-                children: [
-                  OwnerNavigation(
-                    selectedIndex: selectedMenu,
-                    ownerName: widget.namaOwner,
-                    onDestinationSelected: selectMenu,
-                    onDashboard: () => selectMenu(0),
-                    onLaporan: () => selectMenu(1),
-                    onProduk: () => selectMenu(2),
-                    onTransaksi: () => selectMenu(3),
-                    onProfil: () => selectMenu(4),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= 1000;
+
+        return Scaffold(
+          backgroundColor: ownerBackground,
+          body: SafeArea(
+            // Di mode bawah, safe area bawah ditangani oleh bottom bar.
+            bottom: isDesktop,
+            child: Column(
+              children: [
+                _topBar(showOwner: !isDesktop),
+                Expanded(
+                  child: Row(
+                    children: [
+                      if (isDesktop)
+                        OwnerNavigation(
+                          selectedIndex: selectedMenu,
+                          ownerName: widget.namaOwner,
+                          onDestinationSelected: selectMenu,
+                          onDashboard: () => selectMenu(0),
+                          onLaporan: () => selectMenu(1),
+                          onProduk: () => selectMenu(2),
+                          onTransaksi: () => selectMenu(3),
+                          onProfil: () => selectMenu(4),
+                        ),
+                      Expanded(child: _content()),
+                    ],
                   ),
-                  Expanded(
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 260),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeIn,
-                      transitionBuilder: (child, animation) {
-                        return FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0.02, 0),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: KeyedSubtree(
-                        key: ValueKey(selectedMenu),
-                        child: switch (selectedMenu) {
-                          0 => _DashboardBody(
-                              namaOwner: widget.namaOwner,
-                              searchController: searchController,
-                              onMessage: _showMessage,
-                            ),
-                          1 => _ownerSectionContent(),
-                          2 => const owner_products.ProdukPage(),
-                          3 => const KelolaTransaksiPage(),
-                          4 => _ownerSectionContent(),
-                          _ => _DashboardBody(
-                              namaOwner: widget.namaOwner,
-                              searchController: searchController,
-                              onMessage: _showMessage,
-                            ),
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          bottomNavigationBar: isDesktop
+              ? null
+              : BottomNavigation(
+                  selectedIndex: selectedMenu,
+                  onDestinationSelected: selectMenu,
+                ),
+        );
+      },
+    );
+  }
+
+  // Isi halaman dengan animasi pindah menu.
+  Widget _content() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 260),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (child, animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0.02, 0),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        );
+      },
+      child: KeyedSubtree(
+        key: ValueKey(selectedMenu),
+        child: switch (selectedMenu) {
+          0 => _DashboardBody(
+              namaOwner: widget.namaOwner,
+              searchController: searchController,
+              onMessage: _showMessage,
+            ),
+          1 => _ownerSectionContent(),
+          2 => const owner_products.ProdukPage(),
+          3 => const KelolaTransaksiPage(),
+          4 => _ownerSectionContent(),
+          _ => _DashboardBody(
+              namaOwner: widget.namaOwner,
+              searchController: searchController,
+              onMessage: _showMessage,
+            ),
+        },
       ),
     );
   }
@@ -156,7 +177,7 @@ class _DashboardOwnerState extends State<DashboardOwner> {
   // TOP BAR
   // ============================================================
 
-  Widget _topBar() {
+  Widget _topBar({bool showOwner = false}) {
     return Container(
       height: 46,
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -194,6 +215,8 @@ class _DashboardOwnerState extends State<DashboardOwner> {
               children: [
                 Text(
                   'Celcious Coffee',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 12,
@@ -202,11 +225,35 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                 ),
                 Text(
                   'Dashboard Owner',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: Colors.white70, fontSize: 9),
                 ),
               ],
             ),
           ),
+          if (showOwner)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Row(
+                children: [
+                  const CircleAvatar(
+                    radius: 11,
+                    backgroundColor: Colors.white70,
+                    child: Icon(Icons.person, color: ownerDarkNavy, size: 14),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    widget.namaOwner,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           IconButton(
             tooltip: 'Notifikasi',
             visualDensity: VisualDensity.compact,
@@ -317,6 +364,8 @@ class _DashboardOwnerState extends State<DashboardOwner> {
       ),
     );
   }
+
+  BottomNavigation({required int selectedIndex, required void Function(int index) onDestinationSelected}) {}
 }
 
 // ============================================================
@@ -359,8 +408,8 @@ class _DashboardBodyState extends State<_DashboardBody>
     _started = true;
 
     // Hormati pengaturan "kurangi animasi" milik perangkat.
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ??
-        false;
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     if (reduceMotion) {
       _controller.value = 1;
     } else {
@@ -432,14 +481,14 @@ class _DashboardBodyState extends State<_DashboardBody>
                 const SizedBox(height: 26),
                 LayoutBuilder(
                   builder: (context, box) {
-                    final columns = box.maxWidth >= 900
+                    final columns = box.maxWidth >= 800
                         ? 3
                         : box.maxWidth >= 460
                             ? 2
                             : 1;
 
                     const gap = 14.0;
-                    final cardWidth =
+                    final colWidth =
                         (box.maxWidth - gap * (columns - 1)) / columns;
 
                     return Wrap(
@@ -448,9 +497,16 @@ class _DashboardBodyState extends State<_DashboardBody>
                       children: [
                         for (var i = 0; i < _summaries.length; i++)
                           SizedBox(
-                            width: cardWidth,
+                            // Di tablet (2 kolom), kartu ganjil terakhir
+                            // dibuat selebar penuh agar tidak timpang.
+                            width: (columns == 2 &&
+                                    i == _summaries.length - 1 &&
+                                    _summaries.length.isOdd)
+                                ? box.maxWidth
+                                : colWidth,
                             child: _Reveal(
-                              animation: _stage(0.08 + i * 0.1, 0.48 + i * 0.1),
+                              animation:
+                                  _stage(0.08 + i * 0.1, 0.48 + i * 0.1),
                               child: _SummaryCard(
                                 data: _summaries[i],
                                 animation: _stage(
@@ -798,7 +854,6 @@ class _SalesChartCardState extends State<_SalesChartCard> {
   static const double _peakAmount = 642500;
   static const int _peakIndex = 5;
 
-  static const double _chartHeight = 230;
   static const double _hourLabelHeight = 24;
   static const double _valueLabelHeight = 24;
 
@@ -813,9 +868,6 @@ class _SalesChartCardState extends State<_SalesChartCard> {
 
   @override
   Widget build(BuildContext context) {
-    final maxBarHeight =
-        _chartHeight - _hourLabelHeight - _valueLabelHeight;
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
@@ -827,28 +879,31 @@ class _SalesChartCardState extends State<_SalesChartCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // Wrap: di HP chip "Puncak" turun ke bawah, tidak overflow.
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            runSpacing: 8,
+            spacing: 8,
             children: [
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Grafik penjualan Celcious',
-                      style: TextStyle(
-                        color: ownerNavy,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                      ),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Grafik penjualan Celcious',
+                    style: TextStyle(
+                      color: ownerNavy,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
                     ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Penjualan per jam hari ini',
-                      style: TextStyle(color: _mutedText, fontSize: 10),
-                    ),
-                  ],
-                ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Penjualan per jam hari ini',
+                    style: TextStyle(color: _mutedText, fontSize: 10),
+                  ),
+                ],
               ),
               Container(
                 padding:
@@ -869,39 +924,63 @@ class _SalesChartCardState extends State<_SalesChartCard> {
             ],
           ),
           const SizedBox(height: 14),
-          SizedBox(
-            height: _chartHeight,
-            child: Stack(
-              children: [
-                // Garis bantu horizontal.
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: _valueLabelHeight,
-                  bottom: _hourLabelHeight,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: List.generate(
-                      5,
-                      (_) => Container(
-                        height: 1,
-                        color: const Color(0xFFE3EBF2),
+          LayoutBuilder(
+            builder: (context, box) {
+              final chartHeight = box.maxWidth < 500
+                  ? 200.0
+                  : box.maxWidth < 900
+                      ? 235.0
+                      : 290.0;
+              final maxBarHeight =
+                  chartHeight - _hourLabelHeight - _valueLabelHeight;
+
+              // Setiap batang minimal 46px; kalau layar kurang, bisa digeser.
+              const minSlot = 46.0;
+              final slot = math.max(box.maxWidth / values.length, minSlot);
+              final contentWidth = slot * values.length;
+
+              final chart = SizedBox(
+                width: contentWidth,
+                height: chartHeight,
+                child: Stack(
+                  children: [
+                    // Garis bantu horizontal.
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: _valueLabelHeight,
+                      bottom: _hourLabelHeight,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: List.generate(
+                          5,
+                          (_) => Container(
+                            height: 1,
+                            color: const Color(0xFFE3EBF2),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    Positioned.fill(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: List.generate(values.length, (index) {
+                          return Expanded(child: _bar(index, maxBarHeight));
+                        }),
+                      ),
+                    ),
+                  ],
                 ),
-                Positioned.fill(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: List.generate(values.length, (index) {
-                      return Expanded(
-                        child: _bar(index, maxBarHeight),
-                      );
-                    }),
-                  ),
-                ),
-              ],
-            ),
+              );
+
+              if (contentWidth > box.maxWidth) {
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: chart,
+                );
+              }
+              return chart;
+            },
           ),
         ],
       ),
@@ -943,13 +1022,16 @@ class _SalesChartCardState extends State<_SalesChartCard> {
                         color: ownerNavy,
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(
-                        'Rp ${_formatNumber(amount)}',
-                        maxLines: 1,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 8,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Rp ${_formatNumber(amount)}',
+                          maxLines: 1,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 8,
+                          ),
                         ),
                       ),
                     ),
