@@ -58,13 +58,9 @@ class AppNavigation extends StatelessWidget {
 
                 return Padding(
                   padding: const EdgeInsets.only(left: 0, top: 0, bottom: 1),
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? appPageBackground
-                          : Colors.transparent,
-                    ),
+
+                  child: Material(
+                    color: isSelected ? appPageBackground : Colors.transparent,
                     child: ListTile(
                       contentPadding: const EdgeInsets.only(
                         left: 15,

@@ -47,7 +47,12 @@ class _ProdukPageState extends State<ProdukPage> {
   Uint8List? _pickedImage;
   bool _saving = false;
 
-  final List<String> _categories = ['Coffee', 'Non-Coffee', 'Food', 'Snack'];
+  final List<String> _categories = [
+    'Coffee',
+    'Non-Coffee',
+    'Food',
+    'Snack',
+  ];
 
   @override
   void initState() {
@@ -66,28 +71,33 @@ class _ProdukPageState extends State<ProdukPage> {
   }
 
   // ============================================================
-  // KATEGORI — disimpan di perangkat agar tidak hilang saat ditutup
+  // KATEGORI
   // ============================================================
 
   Future<void> _loadCategories() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getStringList(_categoriesKey);
+
       if (saved == null || saved.isEmpty || !mounted) return;
+
       setState(() {
         _categories
           ..clear()
           ..addAll(saved);
       });
     } catch (_) {
-      // Jika gagal dibaca, pakai kategori bawaan.
+      // Gunakan kategori bawaan jika gagal dibaca.
     }
   }
 
   Future<void> _saveCategories() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(_categoriesKey, List<String>.from(_categories));
+      await prefs.setStringList(
+        _categoriesKey,
+        List<String>.from(_categories),
+      );
     } catch (_) {
       // Kategori tetap tersedia selama aplikasi terbuka.
     }
@@ -119,12 +129,15 @@ class _ProdukPageState extends State<ProdukPage> {
 
   void _snack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
   // ============================================================
-  // AKSI
+  // PILIH GAMBAR
   // ============================================================
 
   Future<void> _pickImage() async {
@@ -134,15 +147,23 @@ class _ProdukPageState extends State<ProdukPage> {
         maxWidth: 600,
         imageQuality: 80,
       );
+
       if (file == null) return;
+
       final bytes = await file.readAsBytes();
+
       if (!mounted || bytes.isEmpty) return;
+
       setState(() => _pickedImage = bytes);
     } catch (error) {
       if (!mounted) return;
       _snack('Gagal memilih gambar: $error');
     }
   }
+
+  // ============================================================
+  // TAMBAH PRODUK
+  // ============================================================
 
   Future<void> _saveNewProduct() async {
     if (_saving) return;
@@ -153,15 +174,20 @@ class _ProdukPageState extends State<ProdukPage> {
     );
     final category = _selectedCategory;
 
-    if (name.isEmpty || price == null || price < 0 || category == null) {
+    if (name.isEmpty ||
+        price == null ||
+        price < 0 ||
+        category == null) {
       _snack('Isi nama, harga, dan kategori dengan benar.');
       return;
     }
 
     setState(() => _saving = true);
+
     try {
-      final updated = List<Map<String, dynamic>>.from(ProdukData.produk.value)
-        ..add({
+      final updated = List<Map<String, dynamic>>.from(
+        ProdukData.produk.value,
+      )..add({
           'name': name,
           'price': price,
           'category': category,
@@ -169,24 +195,33 @@ class _ProdukPageState extends State<ProdukPage> {
           'stock': 0,
           'is_active': true,
         });
+
       await ProdukData.saveProducts(updated);
     } catch (error) {
       if (!mounted) return;
+
       setState(() => _saving = false);
       _snack('Gagal menyimpan produk: $error');
       return;
     }
 
     if (!mounted) return;
+
     _nameController.clear();
     _priceController.clear();
+
     setState(() {
       _saving = false;
       _pickedImage = null;
       _selectedCategory = null;
     });
+
     _snack('Produk berhasil ditambahkan.');
   }
+
+  // ============================================================
+  // EDIT PRODUK
+  // ============================================================
 
   Future<void> _editProduct(Map<String, dynamic> product) async {
     final result = await showDialog<_EditResult>(
@@ -198,10 +233,17 @@ class _ProdukPageState extends State<ProdukPage> {
         categories: List<String>.from(_categories),
       ),
     );
+
     if (result == null || !mounted) return;
 
-    final list = List<Map<String, dynamic>>.from(ProdukData.produk.value);
-    final index = list.indexWhere((item) => identical(item, product));
+    final list = List<Map<String, dynamic>>.from(
+      ProdukData.produk.value,
+    );
+
+    final index = list.indexWhere(
+      (item) => identical(item, product),
+    );
+
     if (index < 0) return;
 
     list[index] = {
@@ -218,11 +260,15 @@ class _ProdukPageState extends State<ProdukPage> {
       _snack('Gagal menyimpan produk: $error');
       return;
     }
+
     if (!mounted) return;
     _snack('Produk berhasil diperbarui.');
   }
 
-  // Tekan lama pada kartu produk untuk menghapus.
+  // ============================================================
+  // HAPUS PRODUK
+  // ============================================================
+
   Future<void> _deleteProduct(Map<String, dynamic> product) async {
     final name = product['name']?.toString() ?? 'Produk';
 
@@ -230,7 +276,9 @@ class _ProdukPageState extends State<ProdukPage> {
       context: context,
       builder: (dialogContext) => Dialog(
         backgroundColor: _navy,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
           child: Column(
@@ -248,17 +296,23 @@ class _ProdukPageState extends State<ProdukPage> {
               Text(
                 'Produk "$name" akan dihapus dari katalog dan kasir.',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 12),
+                style: GoogleFonts.poppins(
+                  color: Colors.white70,
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   TextButton(
-                    onPressed: () => Navigator.pop(dialogContext, false),
+                    onPressed: () =>
+                        Navigator.pop(dialogContext, false),
                     child: Text(
                       'Batal',
-                      style: GoogleFonts.poppins(color: Colors.white70),
+                      style: GoogleFonts.poppins(
+                        color: Colors.white70,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -268,10 +322,13 @@ class _ProdukPageState extends State<ProdukPage> {
                       foregroundColor: Colors.white,
                       shape: const StadiumBorder(),
                     ),
-                    onPressed: () => Navigator.pop(dialogContext, true),
+                    onPressed: () =>
+                        Navigator.pop(dialogContext, true),
                     child: Text(
                       'Hapus',
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ],
@@ -281,11 +338,19 @@ class _ProdukPageState extends State<ProdukPage> {
         ),
       ),
     );
+
     if (confirmed != true || !mounted) return;
 
-    final list = List<Map<String, dynamic>>.from(ProdukData.produk.value);
-    final index = list.indexWhere((item) => identical(item, product));
+    final list = List<Map<String, dynamic>>.from(
+      ProdukData.produk.value,
+    );
+
+    final index = list.indexWhere(
+      (item) => identical(item, product),
+    );
+
     if (index < 0) return;
+
     list.removeAt(index);
 
     try {
@@ -295,12 +360,15 @@ class _ProdukPageState extends State<ProdukPage> {
       _snack('Gagal menghapus produk: $error');
       return;
     }
+
     if (!mounted) return;
     _snack('Produk "$name" berhasil dihapus.');
   }
 
-  // Mengubah status aktif produk dan menyimpannya ke ProdukData.
-  // Halaman kasir yang membaca ProdukData.produk akan menerima status terbaru.
+  // ============================================================
+  // STATUS PRODUK AKTIF/NONAKTIF
+  // ============================================================
+
   Future<void> _setProductActive(
     Map<String, dynamic> product,
     bool isActive,
@@ -308,29 +376,45 @@ class _ProdukPageState extends State<ProdukPage> {
     final originalList = List<Map<String, dynamic>>.from(
       ProdukData.produk.value,
     );
-    final index = originalList.indexWhere((item) => identical(item, product));
+
+    final index = originalList.indexWhere(
+      (item) => identical(item, product),
+    );
+
     if (index < 0) return;
 
-    final updatedList = List<Map<String, dynamic>>.from(originalList);
-    updatedList[index] = {...updatedList[index], 'is_active': isActive};
+    final updatedList = List<Map<String, dynamic>>.from(
+      originalList,
+    );
+
+    updatedList[index] = {
+      ...updatedList[index],
+      'is_active': isActive,
+    };
 
     try {
       await ProdukData.saveProducts(updatedList);
+
       if (!mounted) return;
+
       _snack(
         isActive
             ? 'Produk diaktifkan dan dapat dipilih di kasir.'
             : 'Produk dinonaktifkan dan tidak dapat dipilih di kasir.',
       );
     } catch (error) {
-      // Kembalikan data lama jika penyimpanan gagal.
       try {
         await ProdukData.saveProducts(originalList);
       } catch (_) {}
+
       if (!mounted) return;
       _snack('Gagal mengubah status produk: $error');
     }
   }
+
+  // ============================================================
+  // DIALOG KATEGORI
+  // ============================================================
 
   Future<void> _openCategoryDialog() async {
     final added = await showDialog<String>(
@@ -341,7 +425,9 @@ class _ProdukPageState extends State<ProdukPage> {
         onChanged: _saveCategories,
       ),
     );
+
     if (!mounted) return;
+
     setState(() {
       if (added != null) {
         _selectedCategory = added;
@@ -353,7 +439,7 @@ class _ProdukPageState extends State<ProdukPage> {
   }
 
   // ============================================================
-  // HALAMAN
+  // HALAMAN UTAMA
   // ============================================================
 
   @override
@@ -364,18 +450,20 @@ class _ProdukPageState extends State<ProdukPage> {
         child: ValueListenableBuilder<List<Map<String, dynamic>>>(
           valueListenable: ProdukData.produk,
           builder: (context, products, child) {
-            // Kategori dari produk yang sudah ada ikut masuk daftar.
             for (final product in products) {
               final category = product['category']?.toString() ?? '';
+
               if (category.isNotEmpty &&
                   !_categories.any(
-                    (item) => item.toLowerCase() == category.toLowerCase(),
+                    (item) =>
+                        item.toLowerCase() == category.toLowerCase(),
                   )) {
                 _categories.add(category);
               }
             }
 
             final query = _search.toLowerCase();
+
             final visibleProducts = products.where((product) {
               final name = product['name']?.toString() ?? '';
               return name.toLowerCase().contains(query);
@@ -386,17 +474,23 @@ class _ProdukPageState extends State<ProdukPage> {
                 final width = constraints.maxWidth;
 
                 final bool isPhone = width < 600;
-                final bool isTablet = width >= 600 && width < 1000;
+                final bool isTablet =
+                    width >= 600 && width < 1000;
                 final bool isLaptop = width >= 1000;
 
                 final double pad = isPhone
                     ? 12
                     : isTablet
-                    ? 20
-                    : 28;
+                        ? 20
+                        : 28;
 
                 return SingleChildScrollView(
-                  padding: EdgeInsets.fromLTRB(pad, 14, pad, 20),
+                  padding: EdgeInsets.fromLTRB(
+                    pad,
+                    14,
+                    pad,
+                    20,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -420,7 +514,7 @@ class _ProdukPageState extends State<ProdukPage> {
   }
 
   // ============================================================
-  // KOTAK CARI
+  // PENCARIAN
   // ============================================================
 
   Widget _searchField() {
@@ -428,8 +522,13 @@ class _ProdukPageState extends State<ProdukPage> {
       height: 38,
       child: TextField(
         controller: _searchController,
-        onChanged: (value) => setState(() => _search = value.trim()),
-        style: GoogleFonts.poppins(color: _navy, fontSize: 12),
+        onChanged: (value) {
+          setState(() => _search = value.trim());
+        },
+        style: GoogleFonts.poppins(
+          color: _navy,
+          fontSize: 12,
+        ),
         decoration: InputDecoration(
           hintText: 'Cari menu',
           hintStyle: GoogleFonts.poppins(
@@ -441,7 +540,9 @@ class _ProdukPageState extends State<ProdukPage> {
             color: Color(0xff7896ae),
             size: 18,
           ),
-          prefixIconConstraints: const BoxConstraints(minWidth: 40),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 40,
+          ),
           suffixIcon: _search.isEmpty
               ? null
               : IconButton(
@@ -451,7 +552,10 @@ class _ProdukPageState extends State<ProdukPage> {
                     _searchController.clear();
                     setState(() => _search = '');
                   },
-                  icon: const Icon(Icons.close_rounded, size: 16),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 16,
+                  ),
                 ),
           contentPadding: EdgeInsets.zero,
           filled: true,
@@ -466,7 +570,10 @@ class _ProdukPageState extends State<ProdukPage> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(24),
-            borderSide: const BorderSide(color: _lightBlue, width: 1.3),
+            borderSide: const BorderSide(
+              color: _lightBlue,
+              width: 1.3,
+            ),
           ),
         ),
       ),
@@ -474,7 +581,7 @@ class _ProdukPageState extends State<ProdukPage> {
   }
 
   // ============================================================
-  // FORMULIR TAMBAH PRODUK + KARTU "TAMBAH KATEGORI"
+  // FORM TAMBAH PRODUK
   // ============================================================
 
   Widget _formSection(bool narrow) {
@@ -531,7 +638,10 @@ class _ProdukPageState extends State<ProdukPage> {
                         children: [
                           Expanded(child: _nameField()),
                           const SizedBox(width: 10),
-                          SizedBox(width: 150, child: _categoryPill()),
+                          SizedBox(
+                            width: 150,
+                            child: _categoryPill(),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -565,8 +675,15 @@ class _ProdukPageState extends State<ProdukPage> {
             borderRadius: BorderRadius.circular(14),
           ),
           child: _pickedImage == null
-              ? const Icon(Icons.add_rounded, color: Colors.white, size: 38)
-              : Image.memory(_pickedImage!, fit: BoxFit.cover),
+              ? const Icon(
+                  Icons.add_rounded,
+                  color: Colors.white,
+                  size: 38,
+                )
+              : Image.memory(
+                  _pickedImage!,
+                  fit: BoxFit.cover,
+                ),
         ),
       ),
     );
@@ -624,11 +741,19 @@ class _ProdukPageState extends State<ProdukPage> {
               controller: _priceController,
               focusNode: _priceFocus,
               keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: GoogleFonts.poppins(color: _navy, fontSize: 12),
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+              style: GoogleFonts.poppins(
+                color: _navy,
+                fontSize: 12,
+              ),
               decoration: InputDecoration(
                 hintText: 'Harga',
-                hintStyle: GoogleFonts.poppins(color: _muted, fontSize: 12),
+                hintStyle: GoogleFonts.poppins(
+                  color: _muted,
+                  fontSize: 12,
+                ),
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
                 border: InputBorder.none,
@@ -646,7 +771,11 @@ class _ProdukPageState extends State<ProdukPage> {
       onTap: focus.requestFocus,
       child: const Padding(
         padding: EdgeInsets.only(left: 6),
-        child: Icon(Icons.edit_square, size: 16, color: _navy),
+        child: Icon(
+          Icons.edit_square,
+          size: 16,
+          color: _navy,
+        ),
       ),
     );
   }
@@ -669,23 +798,37 @@ class _ProdukPageState extends State<ProdukPage> {
           isExpanded: true,
           hint: Text(
             'Kategori',
-            style: GoogleFonts.poppins(color: _navy, fontSize: 12),
+            style: GoogleFonts.poppins(
+              color: _navy,
+              fontSize: 12,
+            ),
           ),
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _navy),
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: _navy,
+          ),
           iconSize: 20,
           dropdownColor: Colors.white,
           borderRadius: BorderRadius.circular(14),
-          style: GoogleFonts.poppins(color: _navy, fontSize: 12),
+          style: GoogleFonts.poppins(
+            color: _navy,
+            fontSize: 12,
+          ),
           items: _categories
               .map(
                 (category) => DropdownMenuItem<String>(
                   value: category,
-                  child: Text(category, overflow: TextOverflow.ellipsis),
+                  child: Text(
+                    category,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               )
               .toList(),
           onChanged: (selected) {
-            if (selected != null) setState(() => _selectedCategory = selected);
+            if (selected != null) {
+              setState(() => _selectedCategory = selected);
+            }
           },
         ),
       ),
@@ -709,12 +852,16 @@ class _ProdukPageState extends State<ProdukPage> {
         ),
         child: Text(
           'Simpan',
-          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700),
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
     );
   }
 
+//Tambah kategori desain
   Widget _addCategoryCard(bool narrow) {
     return Container(
       width: narrow ? 92 : 124,
@@ -742,7 +889,11 @@ class _ProdukPageState extends State<ProdukPage> {
                 ),
               ),
               const SizedBox(height: 4),
-              Icon(Icons.add_rounded, color: _navy, size: narrow ? 30 : 38),
+              Icon(
+                Icons.add_rounded,
+                color: _navy,
+                size: narrow ? 30 : 32,
+              ),
             ],
           ),
         ),
@@ -762,8 +913,9 @@ class _ProdukPageState extends State<ProdukPage> {
         final columns = width < 600
             ? 1
             : width < 1000
-            ? 2
-            : 3;
+                ? 2
+                : 3;
+
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -774,112 +926,88 @@ class _ProdukPageState extends State<ProdukPage> {
             mainAxisSpacing: 12,
             mainAxisExtent: 126,
           ),
-          itemBuilder: (context, index) => _productCard(products[index]),
+          itemBuilder: (context, index) {
+            return _productCard(products[index]);
+          },
         );
       },
     );
   }
 
-  // Kartu putih dengan strip biru di kanan berisi tombol edit.
+//card menu
   Widget _productCard(Map<String, dynamic> product) {
     final name = product['name']?.toString() ?? 'Produk';
 
-    return GestureDetector(
-      onLongPress: () => _deleteProduct(product),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: _shadow(),
-        ),
-        child: Material(
-          color: _lightBlue,
-          borderRadius: BorderRadius.circular(20),
-          clipBehavior: Clip.antiAlias,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: _shadow(),
+      ),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
           child: Row(
             children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: SizedBox(
-                          width: 84,
-                          height: 84,
-                          child: ColoredBox(
-                            color: _imageColor,
-                            child: ProductImage(image: product['image']),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              name,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.poppins(
-                                color: _navy,
-                                fontSize: 14,
-                                height: 1.2,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              _rupiah(product['price']),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.poppins(
-                                color: _navy,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Row(
-                              children: [
-                                Text(
-                                  'Tampil di kasir',
-                                  style: GoogleFonts.poppins(
-                                    color: _muted,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const Spacer(),
-                                _ProductActiveToggle(
-                                  value: product['is_active'] != false,
-                                  onChanged: (value) =>
-                                      _setProductActive(product, value),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  width: 84,
+                  height: 84,
+                  child: ColoredBox(
+                    color: _imageColor,
+                    child: ProductImage(image: product['image']),
                   ),
                 ),
               ),
-              Tooltip(
-                message: 'Edit $name',
-                child: InkWell(
-                  onTap: () => _editProduct(product),
-                  child: const SizedBox(
-                    width: 40,
-                    height: double.infinity,
-                    child: Icon(Icons.edit_square, size: 18, color: _navy),
-                  ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        color: _navy,
+                        fontSize: 14,
+                        height: 1.2,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _rupiah(product['price']),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        color: _navy,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Row(
+                      children: [
+                        _ProductActiveToggle(
+                          value: product['is_active'] != false,
+                          onChanged: (value) {
+                            _setProductActive(product, value);
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: _AnimatedDeleteButton(
+                            onPressed: () => _deleteProduct(product),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -889,10 +1017,17 @@ class _ProdukPageState extends State<ProdukPage> {
     );
   }
 
+  // ============================================================
+  // KEADAAN KOSONG
+  // ============================================================
+
   Widget _emptyState() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 36),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 20,
+        vertical: 36,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -900,7 +1035,11 @@ class _ProdukPageState extends State<ProdukPage> {
       ),
       child: Column(
         children: [
-          const Icon(Icons.inventory_2_outlined, size: 34, color: _muted),
+          const Icon(
+            Icons.inventory_2_outlined,
+            size: 34,
+            color: _muted,
+          ),
           const SizedBox(height: 9),
           Text(
             'Produk belum tersedia',
@@ -914,16 +1053,120 @@ class _ProdukPageState extends State<ProdukPage> {
           Text(
             'Tambahkan produk melalui formulir di atas.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(color: _muted, fontSize: 11),
+            style: GoogleFonts.poppins(
+              color: _muted,
+              fontSize: 11,
+            ),
           ),
         ],
+      ),
+    );
+  }
+} // AKHIR _ProdukPageState
+
+// ============================================================
+// TOMBOL DELETE ANIMASI
+// Posisi class ini HARUS di luar _ProdukPageState.
+// ============================================================
+
+class _AnimatedDeleteButton extends StatefulWidget {
+  const _AnimatedDeleteButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  State<_AnimatedDeleteButton> createState() =>
+      _AnimatedDeleteButtonState();
+}
+
+class _AnimatedDeleteButtonState extends State<_AnimatedDeleteButton> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+          _pressed = false;
+        });
+      },
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTap: widget.onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          height: 36,
+          width: _hovered ? 92 : 38,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color.fromARGB(255, 194, 22, 22), Color.fromARGB(255, 255, 111, 111)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(
+              _hovered ? 12 : 50,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: _navy.withValues(
+                  alpha: _hovered ? 0.25 : 0.15,
+                ),
+                blurRadius: _hovered ? 10 : 5,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Transform.scale(
+            scale: _pressed ? 0.92 : 1,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.white,
+                  size: 19,
+                ),
+                ClipRect(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: _hovered ? 45 : 0,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 150),
+                      opacity: _hovered ? 1 : 0,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 5),
+                        child: Text(
+                          'Delete',
+                          maxLines: 1,
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
 // ============================================================
-// DIALOG "EDIT" — latar navy, field putih, tombol Simpan putih
+// DIALOG EDIT PRODUK
 // ============================================================
 
 class _EditResult {
@@ -948,24 +1191,28 @@ class _EditProductDialog extends StatefulWidget {
   final List<String> categories;
 
   @override
-  State<_EditProductDialog> createState() => _EditProductDialogState();
+  State<_EditProductDialog> createState() =>
+      _EditProductDialogState();
 }
 
 class _EditProductDialogState extends State<_EditProductDialog> {
   late final TextEditingController _name;
   late final TextEditingController _price;
   late final List<String> _items;
+
   String? _category;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+
     _name = TextEditingController(text: widget.initialName);
     _price = TextEditingController(text: widget.initialPrice);
     _items = List<String>.from(widget.categories);
 
     final initial = widget.initialCategory;
+
     if (initial != null && initial.isNotEmpty) {
       if (!_items.contains(initial)) _items.add(initial);
       _category = initial;
@@ -981,21 +1228,37 @@ class _EditProductDialogState extends State<_EditProductDialog> {
 
   void _submit() {
     final name = _name.text.trim();
-    final price = int.tryParse(_price.text.replaceAll('.', '').trim());
+    final price = int.tryParse(
+      _price.text.replaceAll('.', '').trim(),
+    );
 
-    if (name.isEmpty || price == null || price < 0 || _category == null) {
-      setState(() => _error = 'Isi nama, harga, dan kategori dengan benar.');
+    if (name.isEmpty ||
+        price == null ||
+        price < 0 ||
+        _category == null) {
+      setState(() {
+        _error = 'Isi nama, harga, dan kategori dengan benar.';
+      });
       return;
     }
-    Navigator.pop(context, _EditResult(name, price, _category!));
+
+    Navigator.pop(
+      context,
+      _EditResult(name, price, _category!),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: _navy,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: 24,
+        vertical: 24,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+      ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 320),
         child: SingleChildScrollView(
@@ -1015,17 +1278,19 @@ class _EditProductDialogState extends State<_EditProductDialog> {
                 ),
               ),
               const SizedBox(height: 16),
-              _DialogLabel('Nama Menu'),
+              const _DialogLabel('Nama Menu'),
               _DialogTextField(controller: _name),
               const SizedBox(height: 12),
-              _DialogLabel('Harga'),
+              const _DialogLabel('Harga'),
               _DialogTextField(
                 controller: _price,
                 keyboardType: TextInputType.number,
-                formatters: [FilteringTextInputFormatter.digitsOnly],
+                formatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                ],
               ),
               const SizedBox(height: 12),
-              _DialogLabel('Kategori'),
+              const _DialogLabel('Kategori'),
               Container(
                 height: 38,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1039,7 +1304,10 @@ class _EditProductDialogState extends State<_EditProductDialog> {
                     isExpanded: true,
                     hint: Text(
                       'Pilih kategori',
-                      style: GoogleFonts.poppins(color: _muted, fontSize: 12),
+                      style: GoogleFonts.poppins(
+                        color: _muted,
+                        fontSize: 12,
+                      ),
                     ),
                     icon: const Icon(
                       Icons.keyboard_arrow_down_rounded,
@@ -1047,19 +1315,27 @@ class _EditProductDialogState extends State<_EditProductDialog> {
                     ),
                     dropdownColor: Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    style: GoogleFonts.poppins(color: _navy, fontSize: 12),
+                    style: GoogleFonts.poppins(
+                      color: _navy,
+                      fontSize: 12,
+                    ),
                     items: _items
                         .map(
                           (item) => DropdownMenuItem<String>(
                             value: item,
-                            child: Text(item, overflow: TextOverflow.ellipsis),
+                            child: Text(
+                              item,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         )
                         .toList(),
-                    onChanged: (value) => setState(() {
-                      _category = value;
-                      _error = null;
-                    }),
+                    onChanged: (value) {
+                      setState(() {
+                        _category = value;
+                        _error = null;
+                      });
+                    },
                   ),
                 ),
               ),
@@ -1074,7 +1350,9 @@ class _EditProductDialogState extends State<_EditProductDialog> {
                 ),
               ],
               const SizedBox(height: 18),
-              Center(child: _DialogSaveButton(onPressed: _submit)),
+              Center(
+                child: _DialogSaveButton(onPressed: _submit),
+              ),
             ],
           ),
         ),
@@ -1084,7 +1362,7 @@ class _EditProductDialogState extends State<_EditProductDialog> {
 }
 
 // ============================================================
-// DIALOG "TAMBAH KATEGORI" — daftar kategori + hapus + tambah baru
+// DIALOG TAMBAH KATEGORI
 // ============================================================
 
 class _CategoryDialog extends StatefulWidget {
@@ -1104,13 +1382,17 @@ class _CategoryDialog extends StatefulWidget {
 
 class _CategoryDialogState extends State<_CategoryDialog> {
   final TextEditingController _newCategory = TextEditingController();
+
   String? _current;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    if (widget.categories.isNotEmpty) _current = widget.categories.first;
+
+    if (widget.categories.isNotEmpty) {
+      _current = widget.categories.first;
+    }
   }
 
   @override
@@ -1124,17 +1406,21 @@ class _CategoryDialogState extends State<_CategoryDialog> {
     if (current == null) return;
 
     final used = widget.usageCount(current);
+
     if (used > 0) {
-      setState(
-        () => _error = 'Kategori "$current" masih dipakai $used produk.',
-      );
+      setState(() {
+        _error = 'Kategori "$current" masih dipakai $used produk.';
+      });
       return;
     }
 
     widget.categories.remove(current);
     widget.onChanged();
+
     setState(() {
-      _current = widget.categories.isEmpty ? null : widget.categories.first;
+      _current = widget.categories.isEmpty
+          ? null
+          : widget.categories.first;
       _error = null;
     });
   }
@@ -1142,7 +1428,6 @@ class _CategoryDialogState extends State<_CategoryDialog> {
   void _submit() {
     final value = _newCategory.text.trim();
 
-    // Kolom kosong: cukup tutup dialog.
     if (value.isEmpty) {
       Navigator.pop(context);
       return;
@@ -1151,13 +1436,17 @@ class _CategoryDialogState extends State<_CategoryDialog> {
     final exists = widget.categories.any(
       (item) => item.toLowerCase() == value.toLowerCase(),
     );
+
     if (exists) {
-      setState(() => _error = 'Kategori tersebut sudah tersedia.');
+      setState(() {
+        _error = 'Kategori tersebut sudah tersedia.';
+      });
       return;
     }
 
     widget.categories.add(value);
     widget.onChanged();
+
     Navigator.pop(context, value);
   }
 
@@ -1165,8 +1454,13 @@ class _CategoryDialogState extends State<_CategoryDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: _navy,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: 24,
+        vertical: 24,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+      ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 320),
         child: SingleChildScrollView(
@@ -1186,14 +1480,16 @@ class _CategoryDialogState extends State<_CategoryDialog> {
                 ),
               ),
               const SizedBox(height: 16),
-              _DialogLabel('kategori saat ini'),
+              const _DialogLabel('kategori saat ini'),
               _currentDropdown(),
               const SizedBox(height: 12),
-              _DialogLabel('Tambah Kategori'),
+              const _DialogLabel('Tambah Kategori'),
               _DialogTextField(
                 controller: _newCategory,
                 onChanged: (_) {
-                  if (_error != null) setState(() => _error = null);
+                  if (_error != null) {
+                    setState(() => _error = null);
+                  }
                 },
               ),
               if (_error != null) ...[
@@ -1207,7 +1503,9 @@ class _CategoryDialogState extends State<_CategoryDialog> {
                 ),
               ],
               const SizedBox(height: 18),
-              Center(child: _DialogSaveButton(onPressed: _submit)),
+              Center(
+                child: _DialogSaveButton(onPressed: _submit),
+              ),
             ],
           ),
         ),
@@ -1215,8 +1513,6 @@ class _CategoryDialogState extends State<_CategoryDialog> {
     );
   }
 
-  // Dropdown putih; ikon tong sampah merah di kiri panah menghapus
-  // kategori yang sedang dipilih.
   Widget _currentDropdown() {
     return Container(
       height: 38,
@@ -1235,7 +1531,10 @@ class _CategoryDialogState extends State<_CategoryDialog> {
                 isExpanded: true,
                 hint: Text(
                   'Belum ada kategori',
-                  style: GoogleFonts.poppins(color: _muted, fontSize: 12),
+                  style: GoogleFonts.poppins(
+                    color: _muted,
+                    fontSize: 12,
+                  ),
                 ),
                 icon: const Icon(
                   Icons.keyboard_arrow_down_rounded,
@@ -1243,19 +1542,27 @@ class _CategoryDialogState extends State<_CategoryDialog> {
                 ),
                 dropdownColor: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                style: GoogleFonts.poppins(color: _navy, fontSize: 12),
+                style: GoogleFonts.poppins(
+                  color: _navy,
+                  fontSize: 12,
+                ),
                 items: widget.categories
                     .map(
                       (item) => DropdownMenuItem<String>(
                         value: item,
-                        child: Text(item, overflow: TextOverflow.ellipsis),
+                        child: Text(
+                          item,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     )
                     .toList(),
-                onChanged: (value) => setState(() {
-                  _current = value;
-                  _error = null;
-                }),
+                onChanged: (value) {
+                  setState(() {
+                    _current = value;
+                    _error = null;
+                  });
+                },
               ),
             ),
           ),
@@ -1285,7 +1592,7 @@ class _CategoryDialogState extends State<_CategoryDialog> {
 }
 
 // ============================================================
-// KOMPONEN DIALOG BERSAMA
+// KOMPONEN DIALOG
 // ============================================================
 
 class _DialogLabel extends StatelessWidget {
@@ -1331,11 +1638,16 @@ class _DialogTextField extends StatelessWidget {
         keyboardType: keyboardType,
         inputFormatters: formatters,
         onChanged: onChanged,
-        style: GoogleFonts.poppins(color: _navy, fontSize: 12),
+        style: GoogleFonts.poppins(
+          color: _navy,
+          fontSize: 12,
+        ),
         decoration: InputDecoration(
           filled: true,
           fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,
@@ -1346,7 +1658,10 @@ class _DialogTextField extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: _lightBlue, width: 1.5),
+            borderSide: const BorderSide(
+              color: _lightBlue,
+              width: 1.5,
+            ),
           ),
         ),
       ),
@@ -1368,22 +1683,31 @@ class _DialogSaveButton extends StatelessWidget {
         foregroundColor: _navy,
         elevation: 0,
         shape: const StadiumBorder(),
-        padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 10),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 34,
+          vertical: 10,
+        ),
       ),
       child: Text(
         'Simpan',
-        style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w800),
+        style: GoogleFonts.poppins(
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
 }
 
 // ============================================================
-// TOGGLE STATUS PRODUK — animasi geser merah/hijau
+// TOGGLE STATUS PRODUK
 // ============================================================
 
 class _ProductActiveToggle extends StatelessWidget {
-  const _ProductActiveToggle({required this.value, required this.onChanged});
+  const _ProductActiveToggle({
+    required this.value,
+    required this.onChanged,
+  });
 
   final bool value;
   final ValueChanged<bool> onChanged;
@@ -1391,7 +1715,9 @@ class _ProductActiveToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: value ? 'Produk aktif di kasir' : 'Produk nonaktif di kasir',
+      label: value
+          ? 'Produk aktif di kasir'
+          : 'Produk nonaktif di kasir',
       toggled: value,
       button: true,
       child: GestureDetector(
@@ -1411,7 +1737,7 @@ class _ProductActiveToggle extends StatelessWidget {
                 height: 16,
                 decoration: BoxDecoration(
                   color: value
-                      ? const Color(0xFF13D162)
+                      ? const Color.fromARGB(255, 10, 4, 100)
                       : const Color(0xFFD13613),
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
@@ -1442,7 +1768,9 @@ class _ProductActiveToggle extends StatelessWidget {
                         Colors.white,
                       ],
                     ),
-                    border: Border.all(color: const Color(0xFFE5E5E5)),
+                    border: Border.all(
+                      color: const Color(0xFFE5E5E5),
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.28),
@@ -1475,7 +1803,11 @@ class _ProductTogglePatternPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.45;
 
-    final center = Offset(size.width / 2, size.height / 2);
+    final center = Offset(
+      size.width / 2,
+      size.height / 2,
+    );
+
     for (double radius = 2; radius < size.width / 2; radius += 2) {
       canvas.drawCircle(center, radius, paint);
     }

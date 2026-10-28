@@ -62,6 +62,7 @@ class KtDataService {
 
     final kasir = shift?['cashier']?.toString().trim().isNotEmpty == true
         ? shift!['cashier'].toString()
+      
         : namaKasirDefault;
 
     final dibuka = DateTime.tryParse(shift?['openedAt']?.toString() ?? '');

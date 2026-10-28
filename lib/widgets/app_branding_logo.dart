@@ -11,39 +11,46 @@ class AppBrandingLogo extends StatelessWidget {
     this.fit = BoxFit.cover,
     this.fallbackIcon = Icons.coffee_rounded,
     this.fallbackIconSize = 24,
+    this.height = 40,
+    this.showText = false,
   });
 
   final BoxFit fit;
   final IconData fallbackIcon;
   final double fallbackIconSize;
+  final double height;
+  final bool showText;
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<Uint8List?>(
-      valueListenable: AppBrandingStore.logoBytes,
-      builder: (context, logoBytes, child) {
-        if (logoBytes != null) {
-          return Image.memory(
-            logoBytes,
-            fit: fit,
-            errorBuilder: (context, error, stackTrace) => _fallback(),
-          );
-        }
-
-        return ValueListenableBuilder<String?>(
-          valueListenable: AppBrandingStore.logoPath,
-          builder: (context, logoPath, child) {
-            if (logoPath == null || kIsWeb) return _fallback();
-
-            return Image.file(
-              File(logoPath),
-              key: ValueKey(logoPath),
+    return SizedBox(
+      height: height,
+      child: ValueListenableBuilder<Uint8List?>(
+        valueListenable: AppBrandingStore.logoBytes,
+        builder: (context, logoBytes, child) {
+          if (logoBytes != null) {
+            return Image.memory(
+              logoBytes,
               fit: fit,
               errorBuilder: (context, error, stackTrace) => _fallback(),
             );
-          },
-        );
-      },
+          }
+
+          return ValueListenableBuilder<String?>(
+            valueListenable: AppBrandingStore.logoPath,
+            builder: (context, logoPath, child) {
+              if (logoPath == null || kIsWeb) return _fallback();
+
+              return Image.file(
+                File(logoPath),
+                key: ValueKey(logoPath),
+                fit: fit,
+                errorBuilder: (context, error, stackTrace) => _fallback(),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 

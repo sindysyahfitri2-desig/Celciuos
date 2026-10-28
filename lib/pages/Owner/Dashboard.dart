@@ -6,6 +6,7 @@ import '../../widgets/app_branding_logo.dart';
 import '../../widgets/Owner/Navigation.dart';
 import 'KelolaProduk.dart' as owner_products;
 import 'Transaksi/Kelola_Transaksi.dart';
+import 'KelolaStaf.dart';
 
 const Color ownerNavy = Color(0xFF103456);
 const Color ownerDarkNavy = Color(0xFF082640);
@@ -67,11 +68,14 @@ class _DashboardOwnerState extends State<DashboardOwner> {
   final TextEditingController searchController = TextEditingController();
 
   static const menuTitles = [
+
     'Dashboard',
-    'Kelola Laporan Keuangan',
-    'Kelola Produk',
     'Transaksi',
-    'Profil',
+    'Kelola Produk',
+    'Kelola Staf',
+    'Laporan',
+    "Profil"
+
   ];
 
   @override
@@ -113,7 +117,8 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                           onLaporan: () => selectMenu(1),
                           onProduk: () => selectMenu(2),
                           onTransaksi: () => selectMenu(3),
-                          onProfil: () => selectMenu(4),
+                          onKelolaStaf: () => selectMenu(4),
+                          onProfil: () => selectMenu(5),
                         ),
                       Expanded(child: _content()),
                     ],
@@ -136,44 +141,45 @@ class _DashboardOwnerState extends State<DashboardOwner> {
   }
 
   // Isi halaman dengan animasi pindah menu.
-  Widget _content() {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 260),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeIn,
-      transitionBuilder: (child, animation) {
-        return FadeTransition(
-          opacity: animation,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0.02, 0),
-              end: Offset.zero,
-            ).animate(animation),
-            child: child,
+  
+Widget _content() {
+  return AnimatedSwitcher(
+    duration: const Duration(milliseconds: 260),
+    switchInCurve: Curves.easeOutCubic,
+    switchOutCurve: Curves.easeIn,
+    transitionBuilder: (child, animation) {
+      return FadeTransition(
+        opacity: animation,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.02, 0),
+            end: Offset.zero,
+          ).animate(animation),
+          child: child,
+        ),
+      );
+    },
+    child: KeyedSubtree(
+      key: ValueKey(selectedMenu),
+      child: switch (selectedMenu) {
+        0 => _DashboardBody(
+            namaOwner: widget.namaOwner,
+            searchController: searchController,
+            onMessage: _showMessage,
           ),
-        );
+        1 => _ownerSectionContent(),
+        2 => const owner_products.ProdukPage(),
+        3 => const KelolaTransaksiPage(),
+        4 => const KontrolStafPage(),
+        _ => _DashboardBody(
+            namaOwner: widget.namaOwner,
+            searchController: searchController,
+            onMessage: _showMessage,
+          ),
       },
-      child: KeyedSubtree(
-        key: ValueKey(selectedMenu),
-        child: switch (selectedMenu) {
-          0 => _DashboardBody(
-              namaOwner: widget.namaOwner,
-              searchController: searchController,
-              onMessage: _showMessage,
-            ),
-          1 => _ownerSectionContent(),
-          2 => const owner_products.ProdukPage(),
-          3 => const KelolaTransaksiPage(),
-          4 => _ownerSectionContent(),
-          _ => _DashboardBody(
-              namaOwner: widget.namaOwner,
-              searchController: searchController,
-              onMessage: _showMessage,
-            ),
-        },
-      ),
-    );
-  }
+    ),
+  );
+}
 
   // ============================================================
   // TOP BAR
