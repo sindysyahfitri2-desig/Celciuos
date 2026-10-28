@@ -1,3 +1,4 @@
+import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -27,6 +28,7 @@ class _LoginPageState extends State<LoginPage>
   bool _isLogin = true;
   bool _hidePassword = true;
   bool _isVerifying = false;
+  String? _authToken;
 
   static const Color navy = Color(0xff082640);
   static const Color lightBlue = Color(0xffdce9f4);
@@ -165,6 +167,60 @@ class _LoginPageState extends State<LoginPage>
   // LOGIN DAN PENDAFTARAN
   // ==========================================
 
+  Future<Map<String, dynamic>?> _loginToBackend(
+    String username,
+    String password,
+  ) async {
+    final response = await http.post(
+      Uri.parse('http://127.0.0.1:8000/api/login'),
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'username': username, 'password': password}),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data is Map<String, dynamic>) {
+      return data;
+    }
+
+    if (data is Map<String, dynamic>) {
+      throw Exception(data['message']?.toString() ?? 'Login gagal.');
+    }
+
+    throw Exception('Respons dari server tidak valid.');
+  }
+
+  Future<Map<String, dynamic>> _getFromBackend(String endpoint) async {
+    if (_authToken == null || _authToken!.isEmpty) {
+      throw Exception('Token login tidak tersedia.');
+    }
+
+    final response = await http.get(
+      Uri.parse('http://127.0.0.1:8000/api/$endpoint'),
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $_authToken',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300 &&
+        data is Map<String, dynamic>) {
+      return data;
+    }
+
+    if (data is Map<String, dynamic>) {
+      throw Exception(data['message']?.toString() ?? 'Gagal mengambil data.');
+    }
+
+    throw Exception('Respons dari server tidak valid.');
+  }
+
   Future<void> _submit() async {
     if (_isVerifying) return;
 
@@ -177,6 +233,22 @@ class _LoginPageState extends State<LoginPage>
     }
 
     final validUsername = RegExp(r'^[a-z0-9_]{4,20}$');
+
+    if (!validUsername.hasMatch(username)) {
+      _showMessage(
+        'Username harus 4–20 karakter, hanya huruf, angka, '
+        'atau underscore.',
+        isError: true,
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      _showMessage('Password minimal 6 karakter.', isError: true);
+      return;
+    }
+
+    setState(() => _isVerifying = true);
 
     try {
       final accounts = await _loadAccounts();
@@ -220,23 +292,49 @@ class _LoginPageState extends State<LoginPage>
         return;
       }
 
-      // VERIFIKASI LOGIN
-      Map<String, String>? account;
+      // VERIFIKASI LOGIN MELALUI BACKEND LARAVEL
+      late final String role;
+      late final String displayName;
 
-      for (final item in accounts) {
-        if (item['username'] == username && item['password'] == password) {
-          account = item;
-          break;
+      try {
+        final result = await _loginToBackend(username, password);
+
+        if (!mounted) return;
+
+        if (result == null ||
+            result['pengguna'] is! Map<String, dynamic> ||
+            result['token'] == null) {
+          _showMessage(
+            'Respons login dari server tidak lengkap.',
+            isError: true,
+          );
+          return;
         }
-      }
 
-      if (account == null) {
-        _showMessage('Username atau password salah.', isError: true);
+        final user = result['pengguna'] as Map<String, dynamic>;
+        _authToken = result['token'].toString();
+        final profile = await _getFromBackend('user');
+
+        debugPrint('HASIL TES TOKEN: $profile');
+
+        final roleFromApi = user['role']?.toString().toLowerCase();
+
+        if (roleFromApi != 'owner' && roleFromApi != 'kasir') {
+          _showMessage('Role akun tidak dikenali.', isError: true);
+          return;
+        }
+
+        role = roleFromApi == 'owner' ? 'Owner' : 'Kasir';
+        displayName = user['nama']?.toString() ?? username;
+      } catch (e) {
+        if (!mounted) return;
+
+        _showMessage(
+          'Login gagal. Periksa username, password, dan koneksi backend.',
+          isError: true,
+        );
         return;
       }
-
-      final role = account['role']!;
-      final displayName = account['displayName']!;
 
       // KONFIRMASI IDENTITAS
       final confirmed = await showDialog<bool>(
@@ -748,6 +846,7 @@ class _LoginPageState extends State<LoginPage>
                                         child: Row(
                                           children: [
                                             _modeButton('Login', true),
+                                            _modeButton('Daftar', false),
                                           ],
                                         ),
                                       ),
@@ -1018,6 +1117,7 @@ class _LoginPageState extends State<LoginPage>
             vertical: 14,
           ),
         ),
+
         onSubmitted: (_) {
           if (controller == _passwordController) {
             _submit();
