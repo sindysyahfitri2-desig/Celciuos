@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// Data produk dan penyimpanannya dibagi oleh layar Kasir, Owner, dan katalog.
 class ProdukData {
   static const _productsKey = 'celcious_products';
   static const _imageBytesKey = '__productImageBytesBase64';

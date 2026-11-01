@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:kasir_celcious_coffe/main.dart';
-import 'package:kasir_celcious_coffe/pages/Login.dart';
-import 'package:kasir_celcious_coffe/pages/checkout_page.dart';
-import 'package:kasir_celcious_coffe/pages/home_page.dart';
-import 'package:kasir_celcious_coffe/pages/kasir_page.dart';
-import 'package:kasir_celcious_coffe/pages/LaporanPage.dart';
-import 'package:kasir_celcious_coffe/pages/PengaturanPage.dart';
-import 'package:kasir_celcious_coffe/pages/ProdukPage.dart';
-import 'package:kasir_celcious_coffe/pages/Transaksi.dart';
+import 'package:kasir_celcious_coffe/features/auth/application/login_controller.dart';
+import 'package:kasir_celcious_coffe/features/auth/presentation/login_page.dart';
+import 'package:kasir_celcious_coffe/features/kasir/presentation/checkout_page.dart';
+import 'package:kasir_celcious_coffe/ui/pages/home_page.dart';
+import 'package:kasir_celcious_coffe/features/kasir/presentation/kasir_page.dart';
+import 'package:kasir_celcious_coffe/ui/pages/LaporanPage.dart';
+import 'package:kasir_celcious_coffe/ui/pages/PengaturanPage.dart';
+import 'package:kasir_celcious_coffe/ui/pages/ProdukPage.dart';
+import 'package:kasir_celcious_coffe/features/kasir/presentation/Transaksi.dart';
 
 void main() {
   testWidgets('app builds and shows a scaffold', (WidgetTester tester) async {
@@ -28,13 +31,30 @@ void main() {
           '[{"username":"danielowner","password":"daniel1109",'
           '"role":"Owner","Username":"Daniel"}]',
     });
+    final controller = LoginController(
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/api/login') {
+          return http.Response(
+            '{"token":"test-token","pengguna":{"role":"owner","nama":"Daniel"}}',
+            200,
+          );
+        }
+        if (request.url.path == '/api/user') {
+          return http.Response('{"user":{"nama":"Daniel"}}', 200);
+        }
+        return http.Response('{"message":"Endpoint tidak ditemukan"}', 404);
+      }),
+    );
+    addTearDown(controller.dispose);
 
     tester.view.physicalSize = const Size(900, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MaterialApp(home: LoginPage()));
+    await tester.pumpWidget(
+      MaterialApp(home: LoginPage(controller: controller)),
+    );
     await tester.pump(const Duration(milliseconds: 500));
 
     await tester.enterText(find.byType(TextField).at(0), 'danielowner');
@@ -52,14 +72,11 @@ void main() {
 
     expect(find.text('Halo Bos Daniel'), findsOneWidget);
 
-    await tester.tap(find.text('Kelola Produk').first);
+    await tester.tap(find.text('Produk').first);
     await tester.pump(const Duration(milliseconds: 400));
-    expect(
-      find.text('Halaman ini siap disambungkan ke fitur dan data backend.'),
-      findsOneWidget,
-    );
+    expect(find.text('Cari menu'), findsOneWidget);
 
-    await tester.tap(find.text('Dashboard').first);
+    await tester.tap(find.text('Beranda').first);
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Halo Bos Daniel'), findsOneWidget);
   });
@@ -149,8 +166,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Pilih mode pembayaran'), findsOneWidget);
-    await tester.tap(find.text('Pilih mode pembayaran'));
+    expect(find.text('Pilih Mode'), findsOneWidget);
+    await tester.tap(find.text('Pilih Mode'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Langsung Bayar').last);
     await tester.pumpAndSettle();

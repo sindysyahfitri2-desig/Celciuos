@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// Satu sumber data transaksi dan shift untuk semua layar aplikasi.
 class TransactionStore {
   static const _ppnKey = 'ppn_rate';
   static const _shiftCashierKey = 'shift_cashier';

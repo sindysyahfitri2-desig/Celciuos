@@ -4,9 +4,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:kasir_celcious_coffe/data/produk_data.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
-import 'package:kasir_celcious_coffe/pages/ProdukPage.dart' as catalog;
-import 'package:kasir_celcious_coffe/pages/Owner/KelolaProduk.dart' as owner;
-import 'package:kasir_celcious_coffe/pages/kasir_page.dart' as cashier;
+import 'package:kasir_celcious_coffe/ui/pages/ProdukPage.dart' as catalog;
+import 'package:kasir_celcious_coffe/features/owner/presentation/pages/KelolaProduk.dart'
+    as owner;
+import 'package:kasir_celcious_coffe/features/kasir/presentation/kasir_page.dart'
+    as cashier;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -123,11 +125,14 @@ void main() {
     await tester.enterText(
       find.byWidgetPredicate(
         (widget) =>
-            widget is TextField &&
-            widget.decoration?.hintText == 'Harga produk',
+            widget is TextField && widget.decoration?.hintText == 'Harga',
       ),
       '15000',
     );
+    await tester.tap(find.byType(DropdownButton<String>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Coffee').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Simpan'));
     await tester.pumpAndSettle();
 
@@ -145,13 +150,15 @@ void main() {
     await tester.tap(find.byTooltip('Edit Produk Sinkron'));
     await tester.pumpAndSettle();
     await tester.enterText(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is TextField && widget.decoration?.hintText == 'Nama Produk',
-      ),
+      find
+          .descendant(
+            of: find.byType(Dialog).last,
+            matching: find.byType(TextField),
+          )
+          .first,
       'Produk Diedit',
     );
-    await tester.tap(find.text('Simpan Perubahan'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Simpan').last);
     await tester.pumpAndSettle();
     expect(find.text('Produk Diedit'), findsNWidgets(2));
 
@@ -160,7 +167,7 @@ void main() {
     expect(find.text('Produk Diedit'), findsNWidgets(4));
     await tester.tap(find.byTooltip('Hapus Produk Diedit'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Hapus'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Hapus'));
     await tester.pumpAndSettle();
 
     await tester.enterText(ownerSearch, '');

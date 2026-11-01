@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
-import 'package:kasir_celcious_coffe/pages/kasir_page.dart';
+import 'package:kasir_celcious_coffe/features/kasir/presentation/kasir_page.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
