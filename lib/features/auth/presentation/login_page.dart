@@ -1,12 +1,11 @@
+
 import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-
 import 'package:kasir_celcious_coffe/features/auth/application/login_controller.dart';
 import 'package:kasir_celcious_coffe/features/kasir/presentation/kasir_page.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/Dashboard.dart';
-
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 
 class LoginPage extends StatefulWidget {
@@ -21,9 +20,9 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage>
     with SingleTickerProviderStateMixin {
   late final AnimationController _borderController;
-
   late final LoginController _loginController;
   late final bool _ownsLoginController;
+
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -32,10 +31,12 @@ class _LoginPageState extends State<LoginPage>
   bool get _isVerifying => _loginController.isVerifying;
 
   static const Color navy = Color(0xff082640);
+  static const Color inputBlue = Color(0xff2196f3);
 
   @override
   void initState() {
     super.initState();
+
     _ownsLoginController = widget.controller == null;
     _loginController = widget.controller ?? LoginController();
     _loginController.addListener(_onLoginStateChanged);
@@ -49,10 +50,15 @@ class _LoginPageState extends State<LoginPage>
   @override
   void dispose() {
     _loginController.removeListener(_onLoginStateChanged);
-    if (_ownsLoginController) _loginController.dispose();
+
+    if (_ownsLoginController) {
+      _loginController.dispose();
+    }
+
     _borderController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
+
     super.dispose();
   }
 
@@ -72,193 +78,35 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  // ==========================================
-  // ORKESTRASI LOGIN (UI) DAN KONFIRMASI ROLE
-  // ==========================================
-
+  // LOGIN TANPA DIALOG KONFIRMASI IDENTITAS
   Future<void> _submit() async {
     final result = await _loginController.submit(
-      _usernameController.text,
+      _usernameController.text.trim(),
       _passwordController.text,
     );
-    if (!mounted || result.status == LoginSubmissionStatus.ignored) return;
 
-    if (result.isError) {
-      _showMessage(result.message ?? 'Login gagal.', isError: true);
+    if (!mounted ||
+        result.status == LoginSubmissionStatus.ignored) {
       return;
     }
 
-    if (result.status != LoginSubmissionStatus.authenticated) return;
+    if (result.isError) {
+      _showMessage(
+        result.message ?? 'Login gagal.',
+        isError: true,
+      );
+      return;
+    }
 
-    final role = result.role!;
-    final displayName = result.displayName!;
-    final username = result.username!;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
-          ),
-          contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 55,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: const Color.fromARGB(255, 255, 255, 255),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: navy.withValues(alpha: 0.15)),
-                ),
-              ),
-              const SizedBox(height: 18),
-              const Text(
-                'Konfirmasi Identitas',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w800,
-                  color: navy,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Pastikan akun dan role berikut sudah benar '
-                'sebelum melanjutkan.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.black54,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                  color: const Color.fromARGB(
-                    255,
-                    249,
-                    250,
-                    252,
-                  ).withValues(alpha: 0.65),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Column(
-                  children: [
-                    const Icon(
-                      Icons.account_circle_rounded,
-                      size: 34,
-                      color: navy,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      displayName,
-                      style: const TextStyle(
-                        fontSize: 30,
-                        fontWeight: FontWeight.bold,
-                        color: navy,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      '@$username',
-                      style: const TextStyle(
-                        color: Colors.black54,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: navy,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            role == 'Owner'
-                                ? Icons.verified_user_rounded
-                                : Icons.badge_outlined,
-                            size: 15,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Role $role',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-          actions: [
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.pop(dialogContext, false);
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: navy,
-                      side: const BorderSide(color: navy),
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text('Batal'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(dialogContext, true);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: navy,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'Konfirmasi',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
+    if (result.status != LoginSubmissionStatus.authenticated) {
+      return;
+    }
 
-    if (!mounted || confirmed != true) return;
-    // NAVIGASI BERDASARKAN ROLE
+    final role = result.role;
+    final displayName = result.displayName ??
+        _usernameController.text.trim();
+
+    // ROLE OWNER: LANGSUNG KE DASHBOARD
     if (role == 'Owner') {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
@@ -266,49 +114,56 @@ class _LoginPageState extends State<LoginPage>
             namaOwner: displayName,
             onLogout: () {
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginPage()),
+                MaterialPageRoute(
+                  builder: (_) => const LoginPage(),
+                ),
                 (route) => false,
               );
             },
           ),
         ),
       );
-    } else if (role == 'Kasir') {
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const kasirPage()));
+    }
+
+    // ROLE KASIR: LANGSUNG KE HALAMAN KASIR
+    else if (role == 'Kasir') {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => const kasirPage(),
+        ),
+      );
     } else {
-      _showMessage('Role akun tidak dikenali.', isError: true);
+      _showMessage(
+        'Role akun tidak dikenali.',
+        isError: true,
+      );
     }
   }
-
-  // ==========================================
-  // HALAMAN LOGIN + ANIMASI
-  // ==========================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: navy,
+      backgroundColor: const Color.fromARGB(255, 67, 112, 151),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             final screenWidth = constraints.maxWidth;
             final isMobile = screenWidth < 600;
-            final isTablet = screenWidth >= 600 && screenWidth < 1000;
+            final isTablet =
+                screenWidth >= 600 && screenWidth < 1000;
 
             final cardWidth = isMobile
                 ? math.max(0.0, screenWidth - 32)
                 : isTablet
-                ? 440.0
-                : 460.0;
+                    ? 440.0
+                    : 460.0;
 
             return Stack(
               children: [
-                // LATAR GRADASI
-                Positioned.fill(
+                // BACKGROUND GRADASI
+                const Positioned.fill(
                   child: DecoratedBox(
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       gradient: RadialGradient(
                         center: Alignment(-0.7, -0.8),
                         radius: 1.5,
@@ -326,7 +181,8 @@ class _LoginPageState extends State<LoginPage>
                 AnimatedBuilder(
                   animation: _borderController,
                   builder: (context, child) {
-                    final t = _borderController.value * 2 * math.pi;
+                    final t =
+                        _borderController.value * 2 * math.pi;
 
                     return Stack(
                       children: [
@@ -351,16 +207,18 @@ class _LoginPageState extends State<LoginPage>
                   },
                 ),
 
-                // IKON KOPI BERGOYANG
+                // DEKORASI KOPI
                 AnimatedBuilder(
                   animation: _borderController,
                   builder: (context, child) {
-                    final t = _borderController.value * 2 * math.pi;
+                    final t =
+                        _borderController.value * 2 * math.pi;
 
                     return Stack(
                       children: [
                         Positioned(
-                          top: constraints.maxHeight * 0.13 + math.sin(t) * 12,
+                          top: constraints.maxHeight * 0.13 +
+                              math.sin(t) * 12,
                           right: screenWidth * 0.10,
                           child: Transform.rotate(
                             angle: math.sin(t) * 0.18,
@@ -372,8 +230,8 @@ class _LoginPageState extends State<LoginPage>
                           ),
                         ),
                         Positioned(
-                          bottom:
-                              constraints.maxHeight * 0.15 + math.cos(t) * 14,
+                          bottom: constraints.maxHeight * 0.15 +
+                              math.cos(t) * 14,
                           left: screenWidth * 0.08,
                           child: Transform.rotate(
                             angle: math.cos(t) * 0.15,
@@ -385,8 +243,7 @@ class _LoginPageState extends State<LoginPage>
                           ),
                         ),
                         Positioned(
-                          top:
-                              constraints.maxHeight * 0.23 +
+                          top: constraints.maxHeight * 0.23 +
                               math.cos(t + 1) * 10,
                           left: screenWidth * 0.17,
                           child: Transform.rotate(
@@ -394,13 +251,12 @@ class _LoginPageState extends State<LoginPage>
                             child: _floatingDecoration(
                               Icons.auto_awesome_rounded,
                               isMobile ? 15 : 24,
-                              0.38,
+                              0.25,
                             ),
                           ),
                         ),
                         Positioned(
-                          bottom:
-                              constraints.maxHeight * 0.25 +
+                          bottom: constraints.maxHeight * 0.25 +
                               math.sin(t + 1) * 12,
                           right: screenWidth * 0.15,
                           child: Transform.rotate(
@@ -408,7 +264,7 @@ class _LoginPageState extends State<LoginPage>
                             child: _floatingDecoration(
                               Icons.auto_awesome_rounded,
                               isMobile ? 20 : 30,
-                              0.30,
+                              0.20,
                             ),
                           ),
                         ),
@@ -421,15 +277,18 @@ class _LoginPageState extends State<LoginPage>
                 Center(
                   child: SingleChildScrollView(
                     padding: EdgeInsets.symmetric(
-                      horizontal: isMobile ? 16 : 12,
-                      vertical: 14,
+                      horizontal: isMobile ? 16 : 16,
+                      vertical: 35,
                     ),
                     child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0.88, end: 1.0),
-                      duration: const Duration(milliseconds: 700),
-                      curve: Curves.easeOutBack,
+                      tween: Tween(begin: 0.96, end: 1.0),
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeOut,
                       builder: (context, scale, child) {
-                        return Transform.scale(scale: scale, child: child);
+                        return Transform.scale(
+                          scale: scale,
+                          child: child,
+                        );
                       },
                       child: AnimatedBuilder(
                         animation: _borderController,
@@ -443,26 +302,25 @@ class _LoginPageState extends State<LoginPage>
                         },
                         child: Container(
                           width: cardWidth,
-                          constraints: const BoxConstraints(maxWidth: 335),
+                          constraints:
+                              const BoxConstraints(maxWidth: 299),
                           padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
+                            color: Colors.white.withValues(
+                              alpha: 0.08,
+                            ),
                             borderRadius: BorderRadius.circular(28),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(
-                                  0xff58b9f5,
-                                ).withValues(alpha: 0.15),
+                                color: const Color(0xff58b9f5)
+                                    .withValues(alpha: 0.15),
                                 blurRadius: 25,
                                 spreadRadius: 2,
                               ),
                               BoxShadow(
-                                color: const Color.fromARGB(
-                                  255,
-                                  102,
-                                  100,
-                                  100,
-                                ).withValues(alpha: 0.30),
+                                color: Colors.black.withValues(
+                                  alpha: 0.30,
+                                ),
                                 blurRadius: 25,
                                 offset: const Offset(0, 12),
                               ),
@@ -472,11 +330,16 @@ class _LoginPageState extends State<LoginPage>
                             borderRadius: BorderRadius.circular(26),
                             child: Stack(
                               children: [
+                                // GAMBAR BACKGROUND
                                 Positioned.fill(
                                   child: Image.asset(
                                     'assets/images/Login_bg.jpg',
                                     fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
+                                    errorBuilder: (
+                                      context,
+                                      error,
+                                      stackTrace,
+                                    ) {
                                       return const ColoredBox(
                                         color: Color(0xff273b4b),
                                       );
@@ -484,6 +347,7 @@ class _LoginPageState extends State<LoginPage>
                                   ),
                                 ),
 
+                                // LAPISAN GELAP
                                 Positioned.fill(
                                   child: DecoratedBox(
                                     decoration: BoxDecoration(
@@ -493,14 +357,16 @@ class _LoginPageState extends State<LoginPage>
                                         colors: [
                                           navy.withValues(alpha: 0.78),
                                           navy.withValues(alpha: 0.73),
-                                          Colors.black.withValues(alpha: 0.86),
+                                          Colors.black.withValues(
+                                            alpha: 0.900,
+                                          ),
                                         ],
                                       ),
                                     ),
                                   ),
                                 ),
 
-                                // EFEK KACA TRANSPARAN
+                                // EFEK KACA
                                 Positioned.fill(
                                   child: BackdropFilter(
                                     filter: ImageFilter.blur(
@@ -521,18 +387,18 @@ class _LoginPageState extends State<LoginPage>
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      // LOGO BERDENYUT
+                                      // LOGO
                                       AnimatedBuilder(
                                         animation: _borderController,
                                         builder: (context, child) {
-                                          final pulse =
-                                              1 +
+                                          final pulse = 1 +
                                               math.sin(
-                                                    _borderController.value *
+                                                    _borderController
+                                                            .value *
                                                         2 *
                                                         math.pi,
                                                   ) *
-                                                  0.035;
+                                                  0.025;
 
                                           return Transform.scale(
                                             scale: pulse,
@@ -540,16 +406,18 @@ class _LoginPageState extends State<LoginPage>
                                           );
                                         },
                                         child: Container(
-                                          width: isMobile ? 76 : 86,
-                                          height: isMobile ? 76 : 86,
-                                          padding: const EdgeInsets.all(5),
+                                          width: isMobile ? 66 : 76,
+                                          height: isMobile ? 66 : 76,
+                                          padding:
+                                              const EdgeInsets.all(5),
                                           decoration: BoxDecoration(
                                             shape: BoxShape.circle,
                                             color: const Color(
                                               0xff3979ad,
                                             ).withValues(alpha: 0.65),
                                             border: Border.all(
-                                              color: Colors.white.withValues(
+                                              color: Colors.white
+                                                  .withValues(
                                                 alpha: 0.70,
                                               ),
                                               width: 1.5,
@@ -558,7 +426,9 @@ class _LoginPageState extends State<LoginPage>
                                               BoxShadow(
                                                 color: const Color(
                                                   0xff58b9f5,
-                                                ).withValues(alpha: 0.28),
+                                                ).withValues(
+                                                  alpha: 0.28,
+                                                ),
                                                 blurRadius: 22,
                                               ),
                                             ],
@@ -572,20 +442,23 @@ class _LoginPageState extends State<LoginPage>
                                         ),
                                       ),
 
-                                      const SizedBox(height: 25),
+                                      const SizedBox(height: 24),
 
-                                      const SizedBox(height: 50),
-
+                                      // USERNAME
                                       _inputField(
-                                        controller: _usernameController,
+                                        controller:
+                                            _usernameController,
                                         hint: 'Username',
-                                        icon: Icons.person_outline_rounded,
+                                        icon: Icons
+                                            .person_outline_rounded,
                                       ),
 
-                                      const SizedBox(height: 13),
+                                      const SizedBox(height: 18),
 
+                                      // PASSWORD
                                       _inputField(
-                                        controller: _passwordController,
+                                        controller:
+                                            _passwordController,
                                         hint: 'Password',
                                         icon: Icons.lock_outline_rounded,
                                         obscure: _hidePassword,
@@ -595,13 +468,16 @@ class _LoginPageState extends State<LoginPage>
                                               : 'Sembunyikan password',
                                           onPressed: () {
                                             setState(() {
-                                              _hidePassword = !_hidePassword;
+                                              _hidePassword =
+                                                  !_hidePassword;
                                             });
                                           },
                                           icon: Icon(
                                             _hidePassword
-                                                ? Icons.visibility_off_outlined
-                                                : Icons.visibility_outlined,
+                                                ? Icons
+                                                    .visibility_off_outlined
+                                                : Icons
+                                                    .visibility_outlined,
                                             size: 19,
                                             color: navy,
                                           ),
@@ -610,57 +486,21 @@ class _LoginPageState extends State<LoginPage>
 
                                       const SizedBox(height: 20),
 
-                                      // TOMBOL MASUK
+                                      // TOMBOL LOGIN
                                       Center(
                                         child: SizedBox(
-                                          width:
-                                              220, // Atur lebar tombol di sini
-                                          height: 45,
-                                          child: ElevatedButton(
-                                            onPressed: _isVerifying
-                                                ? null
-                                                : _submit,
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(
-                                                0xff082640,
-                                              ),
-                                              disabledBackgroundColor:
-                                                  const Color(0xff082640),
-                                              foregroundColor: Colors.white,
-                                              elevation: 0,
-                                              shadowColor: Colors.transparent,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(25),
-                                                // Tidak ada stroke atau garis tepi
-                                                side: BorderSide.none,
-                                              ),
-                                              padding: EdgeInsets.zero,
-                                            ),
-                                            child: _isVerifying
-                                                ? const SizedBox(
-                                                    height: 19,
-                                                    width: 17,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                          color: Colors.white,
-                                                        ),
-                                                  )
-                                                : const Text(
-                                                    'Login',
-                                                    style: TextStyle(
-                                                      fontSize: 18,
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
+                                          width: 140,
+                                          height: 40,
+                                          child: _LoginButton(
+                                            isLoading: _isVerifying,
+                                            onPressed: _submit,
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(height: 10),
 
+                                      const SizedBox(height: 8),
+
+                                      // LUPA PASSWORD
                                       TextButton(
                                         onPressed: () {
                                           _showMessage(
@@ -677,7 +517,7 @@ class _LoginPageState extends State<LoginPage>
                                         ),
                                       ),
 
-                                      const SizedBox(height: 7),
+                                      const SizedBox(height: 4),
                                     ],
                                   ),
                                 ),
@@ -697,11 +537,11 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  // ==========================================
-  // DEKORASI ANIMASI
-  // ==========================================
-
-  Widget _ambientGlow({required double size, required Color color}) {
+  // CAHAYA BACKGROUND
+  Widget _ambientGlow({
+    required double size,
+    required Color color,
+  }) {
     return IgnorePointer(
       child: Container(
         width: size,
@@ -720,7 +560,12 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  Widget _floatingDecoration(IconData icon, double size, double opacity) {
+  // IKON DEKORASI
+  Widget _floatingDecoration(
+    IconData icon,
+    double size,
+    double opacity,
+  ) {
     return IgnorePointer(
       child: Icon(
         icon,
@@ -730,10 +575,7 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  // ==========================================
-  // INPUT FIELD
-  // ==========================================
-
+  // INPUT USERNAME DAN PASSWORD
   Widget _inputField({
     required TextEditingController controller,
     required String hint,
@@ -741,54 +583,167 @@ class _LoginPageState extends State<LoginPage>
     bool obscure = false,
     Widget? suffix,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(35),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+    return TextField(
+      controller: controller,
+      obscureText: obscure,
+      autocorrect: false,
+      enableSuggestions: !obscure,
+      style: const TextStyle(
+        color: navy,
+        fontSize: 14,
       ),
-      child: TextField(
-        controller: controller,
-        obscureText: obscure,
-        autocorrect: false,
-        enableSuggestions: !obscure,
-        style: const TextStyle(color: navy, fontSize: 16),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(
-            color: Color.fromARGB(255, 183, 185, 185),
-            fontSize: 17,
-          ),
+      cursorColor: const Color.fromRGBO(33, 150, 243, 1),
+      decoration: InputDecoration(
+        labelText: hint,
+        floatingLabelBehavior: FloatingLabelBehavior.auto,
 
-          suffixIcon: suffix,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 15,
-            vertical: 14,
+        // LABEL SAAT DI DALAM INPUT
+        labelStyle: const TextStyle(
+          color: Color(0xff8d8d8d),
+          fontSize: 17,
+          height: 1.1,
+        ),
+
+        // LABEL SAAT NAIK: TETAP TERBACA
+        floatingLabelStyle: const TextStyle(
+          color:   Color.fromARGB(255, 5, 117, 192),
+          fontSize: 21,
+          fontWeight: FontWeight.w600,
+          height: 1.9,
+        ),
+
+        suffixIcon: suffix,
+
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: 0.96),
+        isDense: true,
+
+        // UKURAN INPUT SEDANG
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 19,
+        ),
+
+        // BORDER NORMAL
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(78),
+          borderSide: const BorderSide(
+            color: Color.fromARGB(192, 199, 199, 199),
+            width: 1.1,
           ),
         ),
 
-        onSubmitted: (_) {
-          if (controller == _passwordController) {
-            _submit();
-          }
-        },
+        // BORDER BIRU SAAT DIKLIK ATAU DIKETIK
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(78),
+          borderSide: const BorderSide(
+            color:   Color.fromARGB(255, 5, 117, 192),
+            width: 1.9 ,
+          ),
+        ),
+
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(
+            color: Color(0xffb0b7bd),
+            width: 9,
+          ),
+        ),
+      ),
+      onSubmitted: (_) {
+        if (controller == _passwordController) {
+          _submit();
+        }
+      },
+    );
+  }
+}
+
+// TOMBOL LOGIN DENGAN EFEK HOVER
+class _LoginButton extends StatefulWidget {
+  const _LoginButton({
+    required this.isLoading,
+    required this.onPressed,
+  });
+
+  final bool isLoading;
+  final VoidCallback onPressed;
+
+  @override
+  State<_LoginButton> createState() => _LoginButtonState();
+}
+
+class _LoginButtonState extends State<_LoginButton> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = _hovered || _pressed;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() {
+        _hovered = false;
+        _pressed = false;
+      }),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTap: widget.isLoading ? null : widget.onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          transform: Matrix4.translationValues(
+            0,
+            _pressed ? -1 : active ? -4 : 0,
+            0,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(45),
+            color: active
+                ? const Color.fromARGB(255, 1, 61, 77)
+                : const Color(0xff082640),
+            boxShadow: [
+              BoxShadow(
+                color: (active
+                        ? const Color.fromARGB(255, 142, 208, 248)
+                        : Colors.black)
+                    .withValues(alpha: active ? 0.30 : 0.18),
+                blurRadius: active ? 14 : 6,
+                offset: Offset(0, active ? 8 : 3),
+              ),
+            ],
+          ),
+          child: Center(
+            child: widget.isLoading
+                ? const SizedBox(
+                    width: 19,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    'LOGIN',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.5,
+                      color: Colors.white,
+                    ),
+                  ),
+          ),
+        ),
       ),
     );
   }
 }
 
-// ==========================================
 // ANIMASI BORDER CAHAYA
-// ==========================================
-
 class _GlowBorderPainter extends CustomPainter {
   _GlowBorderPainter({required this.progress});
 
@@ -819,7 +774,9 @@ class _GlowBorderPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _GlowBorderPainter oldDelegate) {
+  bool shouldRepaint(
+    covariant _GlowBorderPainter oldDelegate,
+  ) {
     return oldDelegate.progress != progress;
   }
 }
