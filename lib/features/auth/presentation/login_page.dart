@@ -29,7 +29,6 @@ class _LoginPageState extends State<LoginPage>
 
   bool _hidePassword = true;
 
-  bool get _isLogin => _loginController.isLogin;
   bool get _isVerifying => _loginController.isVerifying;
 
   static const Color navy = Color(0xff082640);
@@ -86,12 +85,6 @@ class _LoginPageState extends State<LoginPage>
 
     if (result.isError) {
       _showMessage(result.message ?? 'Login gagal.', isError: true);
-      return;
-    }
-
-    if (result.status == LoginSubmissionStatus.registered) {
-      _passwordController.clear();
-      _showMessage(result.message ?? 'Pendaftaran berhasil.');
       return;
     }
 
@@ -581,31 +574,6 @@ class _LoginPageState extends State<LoginPage>
 
                                       const SizedBox(height: 25),
 
-                                      // TOMBOL LOGIN / DAFTAR
-                                      Container(
-                                        height: 45,
-                                        padding: const EdgeInsets.all(4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.12,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            25,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.white.withValues(
-                                              alpha: 0.28,
-                                            ),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            _modeButton('Login', true),
-                                            _modeButton('Daftar', false),
-                                          ],
-                                        ),
-                                      ),
-
                                       const SizedBox(height: 50),
 
                                       _inputField(
@@ -679,11 +647,9 @@ class _LoginPageState extends State<LoginPage>
                                                           color: Colors.white,
                                                         ),
                                                   )
-                                                : Text(
-                                                    _isLogin
-                                                        ? 'Login'
-                                                        : 'Daftar',
-                                                    style: const TextStyle(
+                                                : const Text(
+                                                    'Login',
+                                                    style: TextStyle(
                                                       fontSize: 18,
                                                       fontWeight:
                                                           FontWeight.w800,
@@ -695,39 +661,21 @@ class _LoginPageState extends State<LoginPage>
                                       ),
                                       const SizedBox(height: 10),
 
-                                      if (_isLogin)
-                                        TextButton(
-                                          onPressed: () {
-                                            _showMessage(
-                                              'Fitur lupa password '
-                                              'belum tersedia.',
-                                            );
-                                          },
-                                          child: const Text(
-                                            'Lupa Password?',
-                                            style: TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                        )
-                                      else
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 12,
-                                          ),
-                                          child: Text(
-                                            'Username 4–20 karakter dan '
-                                            'password minimal 6 karakter.',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              color: Colors.white.withValues(
-                                                alpha: 0.78,
-                                              ),
-                                              fontSize: 10,
-                                            ),
+                                      TextButton(
+                                        onPressed: () {
+                                          _showMessage(
+                                            'Fitur lupa password '
+                                            'belum tersedia.',
+                                          );
+                                        },
+                                        child: const Text(
+                                          'Lupa Password?',
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 11,
                                           ),
                                         ),
+                                      ),
 
                                       const SizedBox(height: 7),
                                     ],
@@ -778,48 +726,6 @@ class _LoginPageState extends State<LoginPage>
         icon,
         size: size,
         color: Colors.white.withValues(alpha: opacity),
-      ),
-    );
-  }
-
-  // ==========================================
-  // TOMBOL MODE LOGIN / DAFTAR
-  // ==========================================
-
-  Widget _modeButton(String label, bool loginMode) {
-    final selected = _isLogin == loginMode;
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          _loginController.setLoginMode(loginMode);
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeOutCubic,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? navy.withValues(alpha: 0.95) : Colors.transparent,
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: const Color(0xff58b9f5).withValues(alpha: 0.20),
-                      blurRadius: 12,
-                    ),
-                  ]
-                : [],
-          ),
-          child: AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 250),
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: selected ? 1 : 0.72),
-              fontSize: 19,
-              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-            ),
-            child: Text(label),
-          ),
-        ),
       ),
     );
   }

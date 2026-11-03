@@ -1,15 +1,14 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../data/qris_store.dart';
-import '../../data/app_branding_store.dart';
+import 'package:kasir_celcious_coffe/data/app_branding_store.dart';
+import 'package:kasir_celcious_coffe/data/qris_store.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 import 'package:kasir_celcious_coffe/features/settings/application/settings_service.dart';
-import '../widgets/app_branding_logo.dart';
+import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 
-String _formatPercent(double rate) => (rate * 100)
-    .toStringAsFixed(2)
-    .replaceFirst(RegExp(r'\.?0+$'), '');
+String _formatPercent(double rate) =>
+    (rate * 100).toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
 
 class PengaturanPage extends StatefulWidget {
   const PengaturanPage({super.key});
@@ -165,14 +164,14 @@ class _PengaturanPageState extends State<PengaturanPage> {
       );
     } on FormatException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menyimpan PPN: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal menyimpan PPN: $error')));
     }
   }
 

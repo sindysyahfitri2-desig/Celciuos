@@ -11,7 +11,7 @@ import 'package:kasir_celcious_coffe/features/kasir/presentation/checkout_page.d
 import 'package:kasir_celcious_coffe/ui/pages/home_page.dart';
 import 'package:kasir_celcious_coffe/features/kasir/presentation/kasir_page.dart';
 import 'package:kasir_celcious_coffe/ui/pages/LaporanPage.dart';
-import 'package:kasir_celcious_coffe/ui/pages/PengaturanPage.dart';
+import 'package:kasir_celcious_coffe/features/owner/presentation/pages/PengaturanPage.dart';
 import 'package:kasir_celcious_coffe/ui/pages/ProdukPage.dart';
 import 'package:kasir_celcious_coffe/features/kasir/presentation/Transaksi.dart';
 
@@ -40,6 +40,7 @@ void main() {
           );
         }
         if (request.url.path == '/api/user') {
+          expect(request.headers['authorization'], 'Bearer test-token');
           return http.Response('{"user":{"nama":"Daniel"}}', 200);
         }
         return http.Response('{"message":"Endpoint tidak ditemukan"}', 404);

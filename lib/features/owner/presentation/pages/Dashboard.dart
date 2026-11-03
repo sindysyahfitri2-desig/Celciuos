@@ -8,6 +8,7 @@ import 'package:kasir_celcious_coffe/features/owner/presentation/pages/KelolaSta
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/Transaksi/Kelola_Transaksi.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/widgets/Navigation.dart';
 import 'package:kasir_celcious_coffe/ui/pages/LaporanPage.dart';
+import 'package:kasir_celcious_coffe/features/owner/presentation/pages/PengaturanPage.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 
 // Area Owner; komponen bersama berada di lib/widgets dan data di lib/data.
@@ -81,6 +82,7 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     'Kelola Staf',
     'Laporan',
     "Profil",
+    'Pengaturan',
   ];
 
   @override
@@ -124,6 +126,7 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                           onTransaksi: () => selectMenu(3),
                           onKelolaStaf: () => selectMenu(4),
                           onProfil: () => selectMenu(5),
+                          onPengaturan: () => selectMenu(6),
                         ),
                       Expanded(child: _content()),
                     ],
@@ -176,6 +179,7 @@ class _DashboardOwnerState extends State<DashboardOwner> {
           2 => const owner_products.ProdukPage(),
           3 => const KelolaTransaksiPage(pakaiDataContoh: false),
           4 => const KontrolStafPage(),
+          6 => const PengaturanPage(),
           _ => _DashboardBody(
             namaOwner: widget.namaOwner,
             searchController: searchController,

@@ -22,6 +22,7 @@ const _destinations = <_OwnerDestination>[
   _OwnerDestination('Transaksi', 'Transaksi', Icons.receipt_long_outlined),
   _OwnerDestination('Kelola Staf', 'Kelola Staf', Icons.person_outline_rounded),
   _OwnerDestination('Profil', 'Profil', Icons.person_outline_rounded),
+  _OwnerDestination('Pengaturan', 'Atur', Icons.settings_outlined),
 ];
 
 // ============================================================
@@ -224,6 +225,7 @@ class OwnerNavigation extends StatelessWidget {
     required this.onKelolaStaf,
     required this.onLaporan,
     required this.onProfil,
+    required this.onPengaturan,
   });
 
   final int selectedIndex;
@@ -239,6 +241,7 @@ class OwnerNavigation extends StatelessWidget {
   final VoidCallback onTransaksi;
   final VoidCallback onKelolaStaf;
   final VoidCallback onProfil;
+  final VoidCallback onPengaturan;
 
   // Menentukan halaman tujuan dari menu yang ditekan.
   void _navigateTo(int index) {
@@ -262,6 +265,9 @@ class OwnerNavigation extends StatelessWidget {
         break;
       case 5:
         onProfil();
+        break;
+      case 6:
+        onPengaturan();
         break;
     }
   }

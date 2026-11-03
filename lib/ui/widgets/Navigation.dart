@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../pages/LaporanPage.dart';
-import '../pages/PengaturanPage.dart';
 import '../pages/ProdukPage.dart';
 import 'package:kasir_celcious_coffe/features/kasir/presentation/Transaksi.dart';
 
@@ -22,7 +21,6 @@ const _navigationItems = <_NavigationItem>[
   _NavigationItem('Laporan keuangan', Icons.bar_chart_rounded),
   _NavigationItem('Produk', Icons.local_drink_outlined),
   _NavigationItem('Transaksi', Icons.account_balance_wallet_rounded),
-  _NavigationItem('Pengaturan', Icons.settings_outlined),
 ];
 
 // ============================================================
@@ -248,9 +246,6 @@ class _AppNavigationShellState extends State<AppNavigationShell> {
           },
         );
 
-      case 4:
-        return const PengaturanPage();
-
       default:
         return widget.cashierBuilder(context);
     }
@@ -271,7 +266,7 @@ class AppBottomNavigation extends StatelessWidget {
   final int selectedMenu;
   final ValueChanged<int> onMenuSelected;
 
-  static const labels = ['Kasir', 'Laporan', 'Produk', 'Transaksi', 'Atur'];
+  static const labels = ['Kasir', 'Laporan', 'Produk', 'Transaksi'];
 
   @override
   Widget build(BuildContext context) {
