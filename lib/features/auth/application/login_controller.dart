@@ -3,12 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-enum LoginSubmissionStatus {
-  invalid,
-  authenticated,
-  failed,
-  ignored,
-}
+enum LoginSubmissionStatus { invalid, authenticated, failed, ignored }
 
 class LoginSubmission {
   const LoginSubmission({
@@ -35,11 +30,7 @@ class LoginController extends ChangeNotifier {
   LoginController({http.Client? httpClient, String? baseUrl})
     : _httpClient = httpClient ?? http.Client(),
       _ownsHttpClient = httpClient == null,
-      _baseUrl =
-          baseUrl ??
-          (defaultTargetPlatform == TargetPlatform.android
-              ? 'http://10.0.2.2:8000'
-              : 'http://127.0.0.1:8000');
+      _baseUrl = baseUrl ?? 'https://clatter-distant-sterling.ngrok-free.dev';
 
   final http.Client _httpClient;
   final bool _ownsHttpClient;
@@ -103,7 +94,8 @@ class LoginController extends ChangeNotifier {
       debugPrint('Login gagal: $error');
       return LoginSubmission(
         status: LoginSubmissionStatus.failed,
-        message: 'Login gagal. Periksa username, password, dan koneksi backend.',
+        message:
+            'Login gagal. Periksa username, password, dan koneksi backend.',
       );
     } finally {
       isVerifying = false;
@@ -146,5 +138,4 @@ class LoginController extends ChangeNotifier {
     }
     throw Exception('Respons dari server tidak valid.');
   }
-
 }
