@@ -32,14 +32,11 @@ class LoginSubmission {
 
 /// Owns login state and the backend authentication flow.
 class LoginController extends ChangeNotifier {
-  LoginController({http.Client? httpClient, String? baseUrl})
+  
+LoginController({http.Client? httpClient, String? baseUrl})
     : _httpClient = httpClient ?? http.Client(),
       _ownsHttpClient = httpClient == null,
-      _baseUrl =
-          baseUrl ??
-          (defaultTargetPlatform == TargetPlatform.android
-              ? 'http://10.0.2.2:8000'
-              : 'http://127.0.0.1:8000');
+      _baseUrl = baseUrl ?? 'http://192.168.110.252:8000';
 
   final http.Client _httpClient;
   final bool _ownsHttpClient;
