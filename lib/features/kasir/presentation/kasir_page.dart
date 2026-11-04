@@ -9,6 +9,7 @@ import 'package:kasir_celcious_coffe/ui/widgets/product_cart.dart';
 
 import 'checkout_page.dart';
 import 'package:kasir_celcious_coffe/ui/pages/home_page.dart';
+import 'widgets/cash_drawer_dialog.dart';
 
 // Layar dan alur Kasir; penyimpanan bersama tetap berada di lib/data.
 class kasirPage extends StatefulWidget {
@@ -348,7 +349,8 @@ class _kasirPageState extends State<kasirPage> {
                               (item) => item['name'] == product['name'],
                             );
 
-                            if (index >= 0) _cartController.setNote(index, catatan);
+                            if (index >= 0)
+                              _cartController.setNote(index, catatan);
                           }
 
                           Navigator.pop(context);
@@ -473,19 +475,11 @@ class _kasirPageState extends State<kasirPage> {
     }
   }
 
-  void _resetAfterShiftClosed() {
-    setState(() {
-      namaKasir = '';
-      kasAwal = 0;
-      namaController.clear();
-      kasController.clear();
-      _cartController.clear();
-      showWelcome = true;
-      showCheckout = false;
-      showPembayaran = false;
-      showJenisPesanan = false;
-      jenisPesanan = null;
-    });
+  void _openCashDrawerDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (_) => const CashDrawerDialog(),
+    );
   }
 
   // ==========================================================
@@ -525,7 +519,6 @@ class _kasirPageState extends State<kasirPage> {
           namaKasir: namaKasir,
           headerBuilder: (_) => _header(),
           cashierBuilder: (_) => _cashierContent(),
-          onShiftClosed: _resetAfterShiftClosed,
         ),
       ),
     );
@@ -599,42 +592,46 @@ class _kasirPageState extends State<kasirPage> {
               const Spacer(),
 
               if (namaKasir.isNotEmpty) ...[
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 8 : 13,
-                    vertical: isMobile ? 6 : 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
+                Material(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  child: InkWell(
+                    onTap: _openCashDrawerDialog,
                     borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.account_balance_wallet_outlined,
-                        size: isMobile ? 14 : 17,
-                        color: textColor,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 8 : 13,
+                        vertical: isMobile ? 6 : 7,
                       ),
-                      SizedBox(width: isMobile ? 4 : 7),
-                      Text(
-                        rupiah(kasAwal),
-                        style: TextStyle(
-                          color: textColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: isMobile ? 10 : 13,
-                        ),
-                      ),
-                      if (!isMobile) ...[
-                        const SizedBox(width: 10),
-                        const Text(
-                          'Kas Laci',
-                          style: TextStyle(
-                            color: Color(0xff607181),
-                            fontSize: 12,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.account_balance_wallet_outlined,
+                            size: isMobile ? 14 : 17,
+                            color: textColor,
                           ),
-                        ),
-                      ],
-                    ],
+                          SizedBox(width: isMobile ? 4 : 7),
+                          Text(
+                            rupiah(kasAwal),
+                            style: TextStyle(
+                              color: textColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: isMobile ? 10 : 13,
+                            ),
+                          ),
+                          if (!isMobile) ...[
+                            const SizedBox(width: 10),
+                            const Text(
+                              'Kas Laci',
+                              style: TextStyle(
+                                color: Color(0xff607181),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],

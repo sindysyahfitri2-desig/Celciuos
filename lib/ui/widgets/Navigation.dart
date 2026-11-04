@@ -145,13 +145,11 @@ class AppNavigationShell extends StatefulWidget {
     required this.namaKasir,
     required this.headerBuilder,
     required this.cashierBuilder,
-    this.onShiftClosed,
   });
 
   final String namaKasir;
   final WidgetBuilder headerBuilder;
   final WidgetBuilder cashierBuilder;
-  final VoidCallback? onShiftClosed;
 
   @override
   State<AppNavigationShell> createState() => _AppNavigationShellState();
@@ -228,13 +226,7 @@ class _AppNavigationShellState extends State<AppNavigationShell> {
         return widget.cashierBuilder(context);
 
       case 1:
-        return LaporanPage(
-          namaKasir: widget.namaKasir,
-          onShiftClosed: () {
-            widget.onShiftClosed?.call();
-            _selectMenu(0);
-          },
-        );
+        return LaporanPage(namaKasir: widget.namaKasir);
 
       case 2:
         return const ProdukPage();

@@ -4,12 +4,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 import 'package:kasir_celcious_coffe/features/kasir/presentation/kasir_page.dart';
+import 'package:kasir_celcious_coffe/ui/pages/LaporanPage.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    'closing shift from cash drawer report returns to cashier name and cash form',
+    'reports no longer expose shift filter, shift closing, or cash input actions',
     (tester) async {
       SharedPreferences.setMockInitialValues({});
       await TransactionStore.initialize();
@@ -34,17 +35,37 @@ void main() {
       await tester.tap(find.text('Laporan Kas Laci'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Input Kas'), findsOneWidget);
-      expect(find.text('Tutup Shift'), findsOneWidget);
-      await tester.tap(find.text('Tutup Shift'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Tutup & Simpan'));
-      await tester.pumpAndSettle();
-
-      expect(TransactionStore.activeShift.value, isNull);
-      expect(find.text('Selamat Datang !'), findsOneWidget);
-      expect(find.text('Masukkan Nama Kasir :'), findsOneWidget);
-      expect(find.text('Masukkan Kas Kasir :'), findsOneWidget);
+      expect(find.text('Filter Shift'), findsNothing);
+      expect(find.text('Input Kas'), findsNothing);
+      expect(find.text('Tutup Shift'), findsNothing);
+      expect(TransactionStore.activeShift.value?['status'], 'open');
     },
   );
+
+  testWidgets('report tables fit phone, tablet, and desktop widths', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    await TransactionStore.initialize();
+
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    for (final size in [
+      const Size(360, 800),
+      const Size(768, 1024),
+      const Size(1366, 900),
+    ]) {
+      tester.view.physicalSize = size;
+      await tester.pumpWidget(const MaterialApp(home: LaporanPage()));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'Laporan page overflows at ${size.width}px',
+      );
+    }
+  });
 }

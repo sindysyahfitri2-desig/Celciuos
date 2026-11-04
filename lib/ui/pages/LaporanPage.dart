@@ -9,10 +9,9 @@ import 'package:excel/excel.dart' hide Border;
 import 'package:file_saver/file_saver.dart';
 
 class LaporanPage extends StatefulWidget {
-  const LaporanPage({super.key, this.namaKasir = 'Kasir', this.onShiftClosed});
+  const LaporanPage({super.key, this.namaKasir = 'Kasir'});
 
   final String namaKasir;
-  final VoidCallback? onShiftClosed;
 
   @override
   State<LaporanPage> createState() => _LaporanPageState();
@@ -46,7 +45,6 @@ class _LaporanPageState extends State<LaporanPage> {
   String bulan = "September";
   String tahun = "2026";
   bool filterDiterapkan = false;
-  String shiftDipilih = 'Semua Shift';
 
   final Map<String, int> nomorBulan = const {
     'Januari': 1,
@@ -151,9 +149,6 @@ class _LaporanPageState extends State<LaporanPage> {
   List<Map<String, String>> get dataLaporanTerfilter {
     return dataLaporan.where((item) {
       if (filterDiterapkan && !_cocokTanggal(item['tanggal'])) return false;
-      if (shiftDipilih != 'Semua Shift' && item['shiftId'] != shiftDipilih) {
-        return false;
-      }
       if (pembayaranDipilih != null &&
           item['pembayaran']?.toLowerCase() !=
               pembayaranDipilih!.toLowerCase()) {
@@ -166,9 +161,6 @@ class _LaporanPageState extends State<LaporanPage> {
   List<Map<String, String>> get dataKasLaciTerfilter {
     return dataKasLaci.where((item) {
       if (filterDiterapkan && !_cocokTanggal(item['tanggal'])) return false;
-      if (shiftDipilih != 'Semua Shift' && item['shiftId'] != shiftDipilih) {
-        return false;
-      }
       return true;
     }).toList();
   }
@@ -187,49 +179,6 @@ class _LaporanPageState extends State<LaporanPage> {
               total +
               (double.tryParse(item['total']?.replaceAll('.', '') ?? '') ?? 0),
         );
-  }
-
-  Widget _filterShift() {
-    final shifts = TransactionStore.shiftHistory.value;
-    final availableIds = shifts
-        .map((item) => item['id']?.toString() ?? '')
-        .where((id) => id.isNotEmpty)
-        .toSet();
-    if (shiftDipilih != 'Semua Shift' && !availableIds.contains(shiftDipilih)) {
-      shiftDipilih = 'Semua Shift';
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-      child: DropdownButtonFormField<String>(
-        initialValue: shiftDipilih,
-        decoration: const InputDecoration(
-          labelText: 'Filter Shift',
-          border: OutlineInputBorder(),
-          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        ),
-        items: [
-          const DropdownMenuItem(
-            value: 'Semua Shift',
-            child: Text('Semua Shift'),
-          ),
-          for (final shift in shifts)
-            if ((shift['id']?.toString() ?? '').isNotEmpty)
-              DropdownMenuItem(
-                value: shift['id'].toString(),
-                child: Text(
-                  shift['cashier']?.toString().trim().isNotEmpty == true
-                      ? shift['cashier'].toString()
-                      : 'Kasir',
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-        ],
-        onChanged: (value) {
-          setState(() => shiftDipilih = value ?? 'Semua Shift');
-        },
-      ),
-    );
   }
 
   void _terapkanFilter() {
@@ -496,7 +445,6 @@ class _LaporanPageState extends State<LaporanPage> {
       ),
       child: Column(
         children: [
-          _filterShift(),
           // ======================================================
           // FILTER + CHART
           // ======================================================
@@ -591,36 +539,8 @@ class _LaporanPageState extends State<LaporanPage> {
       ),
       child: Column(
         children: [
-          _filterShift(),
-          // ======================================================
-          // FILTER
-          // ======================================================
           _filterDesktopKasLaci(lebar),
-
-          const SizedBox(height: 12),
-
-          if (hp)
-            Align(
-              alignment: Alignment.centerRight,
-              child: Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 8,
-                runSpacing: 8,
-                children: [_tombolInputKas(), _tombolTutupShift()],
-              ),
-            )
-          else
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                _tombolInputKas(),
-                const SizedBox(width: 8),
-                _tombolTutupShift(),
-              ],
-            ),
-
           const SizedBox(height: 18),
-
           // ======================================================
           // KAS AWAL + KAS SAAT INI
           // ======================================================
@@ -822,10 +742,6 @@ class _LaporanPageState extends State<LaporanPage> {
       ],
     );
   }
-
-  // ============================================================
-  // BUTTON FILTER
-  // ============================================================
 
   Widget _buttonFilter() {
     return SizedBox(
@@ -1147,9 +1063,9 @@ class _LaporanPageState extends State<LaporanPage> {
         border: Border.all(color: const Color(0xffeeeeee)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: Colors.black.withOpacity(0.10),
+            blurRadius: 16,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -1190,6 +1106,13 @@ class _LaporanPageState extends State<LaporanPage> {
                       : const Color(0xffe5e9ed),
                   width: pembayaranDipilih == data["pembayaran"] ? 1.5 : 1,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
               child: Column(
                 children: [
@@ -1391,6 +1314,13 @@ class _LaporanPageState extends State<LaporanPage> {
                       ? const Color(0xff00875a).withOpacity(0.25)
                       : const Color(0xffd85c5c).withOpacity(0.25),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
               child: Column(
                 children: [
@@ -1521,42 +1451,6 @@ class _LaporanPageState extends State<LaporanPage> {
     );
   }
 
-  Widget _tombolInputKas() {
-    return ElevatedButton.icon(
-      onPressed: _modalInputKas,
-      icon: const Icon(Icons.add, color: Colors.white, size: 18),
-      label: const Text(
-        "Input Kas",
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: navy,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-      ),
-    );
-  }
-
-  Widget _tombolTutupShift() {
-    return ElevatedButton.icon(
-      onPressed: _modalTutupShift,
-      icon: const Icon(
-        Icons.lock_clock_outlined,
-        color: Colors.white,
-        size: 18,
-      ),
-      label: const Text(
-        'Tutup Shift',
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xffa84848),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-      ),
-    );
-  }
-
   Widget _tombolKosongkanLaporan() {
     return OutlinedButton.icon(
       onPressed: _konfirmasiKosongkanLaporan,
@@ -1608,337 +1502,6 @@ class _LaporanPageState extends State<LaporanPage> {
         SnackBar(content: Text('Gagal mengosongkan laporan: $error')),
       );
     }
-  }
-
-  void _modalTutupShift() {
-    final activeShift = TransactionStore.activeShift.value;
-    if (activeShift == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tidak ada shift aktif untuk ditutup.')),
-      );
-      return;
-    }
-    final summary = TransactionStore.activeShiftSummary();
-    final kasir = activeShift['cashier']?.toString() ?? widget.namaKasir;
-    final now = DateTime.now();
-
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 390),
-            child: Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: navy.withOpacity(.18),
-                    blurRadius: 24,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 58,
-                    height: 58,
-                    decoration: BoxDecoration(
-                      color: const Color(0xffffeeee),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: const Icon(
-                      Icons.lock_clock_rounded,
-                      color: Color(0xffa84848),
-                      size: 30,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    'Ringkasan Tutup Shift',
-                    style: TextStyle(
-                      color: navy,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}  •  ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
-                    style: const TextStyle(color: Color(0xff73818d)),
-                  ),
-                  const SizedBox(height: 18),
-                  Container(
-                    padding: const EdgeInsets.all(15),
-                    decoration: BoxDecoration(
-                      color: const Color(0xfff1f6fa),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Column(
-                      children: [
-                        _barisRingkasanShift('Nama kasir', kasir),
-                        _barisRingkasanShift(
-                          'Jumlah transaksi',
-                          '${summary['transactionCount']}',
-                        ),
-                        _barisRingkasanShift(
-                          'Pembayaran Cash',
-                          _formatRupiah(
-                            (summary['cashSales'] as num).toDouble(),
-                          ),
-                        ),
-                        _barisRingkasanShift(
-                          'Pembayaran QRIS',
-                          _formatRupiah(
-                            (summary['qrisSales'] as num).toDouble(),
-                          ),
-                        ),
-                        const Divider(height: 20),
-                        _barisRingkasanShift(
-                          'Kas awal',
-                          _formatRupiah(
-                            (summary['openingCash'] as num).toDouble(),
-                          ),
-                        ),
-                        _barisRingkasanShift(
-                          'Kas akhir yang diharapkan',
-                          _formatRupiah(
-                            (summary['expectedCash'] as num).toDouble(),
-                          ),
-                          bold: true,
-                        ),
-                        const Divider(height: 20),
-                        _barisRingkasanShift(
-                          'Total penjualan',
-                          _formatRupiah(
-                            (summary['totalSales'] as num).toDouble(),
-                          ),
-                          bold: true,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(dialogContext),
-                          child: const Text('Batal'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            try {
-                              await TransactionStore.closeActiveShift();
-                              if (!mounted) return;
-                              Navigator.pop(dialogContext);
-                              ScaffoldMessenger.of(this.context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Shift berhasil ditutup dan disimpan ke riwayat.',
-                                  ),
-                                  behavior: SnackBarBehavior.floating,
-                                  backgroundColor: Color(0xff16865c),
-                                ),
-                              );
-                              widget.onShiftClosed?.call();
-                            } catch (error) {
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(this.context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Gagal menyimpan shift: $error',
-                                  ),
-                                  backgroundColor: Colors.redAccent,
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.save_rounded, size: 17),
-                          label: const Text('Tutup & Simpan'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: navy,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _barisRingkasanShift(String label, String value, {bool bold = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Color(0xff596a78)),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                color: navy,
-                fontWeight: bold ? FontWeight.bold : FontWeight.w600,
-                fontSize: bold ? 16 : 13,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _modalInputKas() {
-    String jenis = "masuk";
-    final nominalController = TextEditingController();
-    final keteranganController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(
-                "Input Kas Laci",
-                style: TextStyle(color: navy, fontWeight: FontWeight.bold),
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      value: jenis,
-                      decoration: const InputDecoration(
-                        labelText: "Jenis",
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: "masuk",
-                          child: Text("Pemasukan"),
-                        ),
-                        DropdownMenuItem(
-                          value: "keluar",
-                          child: Text("Pengeluaran"),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setDialogState(() {
-                            jenis = value;
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: nominalController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: "Nominal",
-                        hintText: "Contoh: 25000",
-                        prefixText: "Rp ",
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: keteranganController,
-                      maxLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: "Keterangan",
-                        hintText: "Contoh: Penjualan / beli sedotan",
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: Text("Batal", style: TextStyle(color: navy)),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    final nominalText = nominalController.text.trim();
-                    final nominal = double.tryParse(nominalText);
-
-                    if (nominal == null || !nominal.isFinite || nominal <= 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            "Nominal harus diisi dengan angka yang benar",
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-
-                    try {
-                      await TransactionStore.addCashDrawerEntry(
-                        type: jenis,
-                        amount: nominal,
-                        description: keteranganController.text,
-                      );
-                      if (!mounted || !dialogContext.mounted) return;
-                      Navigator.pop(dialogContext);
-                      ScaffoldMessenger.of(this.context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            jenis == "masuk"
-                                ? "Pemasukan berhasil ditambahkan"
-                                : "Pengeluaran berhasil ditambahkan",
-                          ),
-                        ),
-                      );
-                    } catch (error) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(this.context).showSnackBar(
-                        SnackBar(
-                          content: Text('Gagal menyimpan kas laci: $error'),
-                        ),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: navy,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text("Simpan"),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
   }
 
   // ============================================================
@@ -2065,50 +1628,186 @@ class _LaporanPageState extends State<LaporanPage> {
 
   void _modalExport() {
     final kasLaci = tabDipilih == 1;
-    final namaFile = kasLaci
-        ? 'Laporan_Kas_Laci_${tanggal}_${bulan}_$tahun'
-        : 'Laporan_Keuangan_${tanggal}_${bulan}_$tahun';
-    var sedangDownload = false;
+
+    final namaLaporan = kasLaci ? 'Laporan Kas Laci' : 'Laporan Keuangan';
+
+    final tanggalLaporan = tanggal == 'Semua' ? '1' : tanggal;
+
+    final namaFile =
+        '${namaLaporan.replaceAll(' ', '_')}_${tanggalLaporan}_${bulan}_$tahun';
+
+    final namaTampilan = '$namaLaporan $tanggalLaporan $bulan $tahun.xlsx';
+
+    final now = DateTime.now();
+    final tanggalHariIni =
+        '${now.day.toString().padLeft(2, '0')} '
+        '${['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'][now.month]} ${now.year}';
+
+    bool sedangDownload = false;
+
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(kasLaci ? 'Ekspor Kas Laci' : 'Ekspor Keuangan'),
-          content: Text(
-            'Simpan ${kasLaci ? dataKasLaciTerfilter.length : dataLaporanTerfilter.length} baris laporan sebagai $namaFile.xlsx?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: sedangDownload
-                  ? null
-                  : () => Navigator.pop(dialogContext),
-              child: const Text('Batal'),
-            ),
-            FilledButton.icon(
-              onPressed: sedangDownload
-                  ? null
-                  : () async {
-                      setDialogState(() => sedangDownload = true);
-                      final berhasil = await _downloadExcel(kasLaci, namaFile);
-                      if (!dialogContext.mounted) return;
-                      if (berhasil) {
-                        Navigator.pop(dialogContext);
-                      } else {
-                        setDialogState(() => sedangDownload = false);
-                      }
-                    },
-              icon: sedangDownload
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.download),
-              label: Text(sedangDownload ? 'Menyimpan...' : 'Simpan Excel'),
-            ),
-          ],
-        ),
-      ),
+      barrierDismissible: !sedangDownload,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Container(
+                width: 300,
+                padding: const EdgeInsets.fromLTRB(17, 15, 17, 16),
+                decoration: BoxDecoration(
+                  color: navy,
+                  borderRadius: BorderRadius.circular(17),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // JUDUL DAN IKON
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.description,
+                          color: Colors.white,
+                          size: 29,
+                        ),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                kasLaci
+                                    ? 'Ekspor Laporan Kas Laci'
+                                    : 'Ekspor Laporan Pendapatan',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                tanggalHariIni,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // NAMA FILE
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 11,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              namaTampilan,
+                              style: TextStyle(
+                                color: navy,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // TOMBOL BATAL DAN DOWNLOAD
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: sedangDownload
+                              ? null
+                              : () => Navigator.pop(dialogContext),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white54,
+                          ),
+                          child: const Text(
+                            'Batal',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        ElevatedButton(
+                          onPressed: sedangDownload
+                              ? null
+                              : () async {
+                                  setDialogState(() => sedangDownload = true);
+
+                                  final berhasil = await _downloadExcel(
+                                    kasLaci,
+                                    namaFile,
+                                  );
+
+                                  if (!dialogContext.mounted) return;
+
+                                  if (berhasil) {
+                                    Navigator.pop(dialogContext);
+                                  } else {
+                                    setDialogState(
+                                      () => sedangDownload = false,
+                                    );
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: navy,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 10,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: sedangDownload
+                              ? const SizedBox(
+                                  width: 15,
+                                  height: 15,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text(
+                                  'Download',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
