@@ -696,11 +696,28 @@ class _LaporanPageState extends State<LaporanPage> {
               ),
 
               const SizedBox(width: 8),
-
-              _buttonFilter(),
             ],
           ),
         ],
+      );
+    }
+
+    Widget _buttonFilter() {
+      return SizedBox(
+        height: 47,
+        child: ElevatedButton.icon(
+          onPressed: _terapkanFilter,
+          icon: const Icon(Icons.filter_list, color: Colors.white, size: 18),
+          label: const Text(
+            "Filter",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: navy,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
       );
     }
 
@@ -743,24 +760,6 @@ class _LaporanPageState extends State<LaporanPage> {
     );
   }
 
-  Widget _buttonFilter() {
-    return SizedBox(
-      height: 47,
-      child: ElevatedButton.icon(
-        onPressed: _terapkanFilter,
-        icon: const Icon(Icons.filter_list, color: Colors.white, size: 18),
-        label: const Text(
-          "Filter",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: navy,
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      ),
-    );
-  }
 
   // ============================================================
   // FILTER HP
@@ -808,8 +807,6 @@ class _LaporanPageState extends State<LaporanPage> {
             ),
 
             const SizedBox(width: 8),
-
-            _buttonFilter(),
           ],
         ),
       ],
@@ -1626,190 +1623,211 @@ class _LaporanPageState extends State<LaporanPage> {
     );
   }
 
-  void _modalExport() {
-    final kasLaci = tabDipilih == 1;
+ 
+void _modalExport() {
+  final kasLaci = tabDipilih == 1;
 
-    final namaLaporan = kasLaci ? 'Laporan Kas Laci' : 'Laporan Keuangan';
+  final namaLaporan = kasLaci
+      ? 'Laporan Kas Laci'
+      : 'Laporan Keuangan';
 
-    final tanggalLaporan = tanggal == 'Semua' ? '1' : tanggal;
+  final tanggalLaporan = tanggal == 'Semua' ? '1' : tanggal;
 
-    final namaFile =
-        '${namaLaporan.replaceAll(' ', '_')}_${tanggalLaporan}_${bulan}_$tahun';
+  final namaFile =
+      '${namaLaporan.replaceAll(' ', '_')}_${tanggalLaporan}_${bulan}_$tahun';
 
-    final namaTampilan = '$namaLaporan $tanggalLaporan $bulan $tahun.xlsx';
+  final namaTampilan =
+      '$namaLaporan $tanggalLaporan $bulan $tahun.xlsx';
 
-    final now = DateTime.now();
-    final tanggalHariIni =
-        '${now.day.toString().padLeft(2, '0')} '
-        '${['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'][now.month]} ${now.year}';
+  final now = DateTime.now();
+  final tanggalHariIni =
+      '${now.day.toString().padLeft(2, '0')} '
+      '${[
+        '',
+        'Januari',
+        'Februari',
+        'Maret',
+        'April',
+        'Mei',
+        'Juni',
+        'Juli',
+        'Agustus',
+        'September',
+        'Oktober',
+        'November',
+        'Desember',
+      ][now.month]} ${now.year}';
 
-    bool sedangDownload = false;
+  bool sedangDownload = false;
 
-    showDialog<void>(
-      context: context,
-      barrierDismissible: !sedangDownload,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Container(
-                width: 300,
-                padding: const EdgeInsets.fromLTRB(17, 15, 17, 16),
-                decoration: BoxDecoration(
-                  color: navy,
-                  borderRadius: BorderRadius.circular(17),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // JUDUL DAN IKON
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.description,
-                          color: Colors.white,
-                          size: 29,
+  showDialog<void>(
+    context: context,
+    barrierDismissible: !sedangDownload,
+    builder: (dialogContext) {
+      return StatefulBuilder(
+        builder: (context, setDialogState) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Container(
+              width: 300,
+              padding: const EdgeInsets.fromLTRB(17, 15, 17, 16),
+              decoration: BoxDecoration(
+                color: navy,
+                borderRadius: BorderRadius.circular(17),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // JUDUL DAN IKON
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.description,
+                        color: Colors.white,
+                        size: 29,
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              kasLaci
+                                  ? 'Ekspor Laporan Kas Laci'
+                                  : 'Ekspor Laporan Pendapatan',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              tanggalHariIni,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 9),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // NAMA FILE
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                kasLaci
-                                    ? 'Ekspor Laporan Kas Laci'
-                                    : 'Ekspor Laporan Pendapatan',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
+                          child: Text(
+                            namaTampilan,
+                            style: TextStyle(
+                              color: navy,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // TOMBOL BATAL DAN DOWNLOAD
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: sedangDownload
+                            ? null
+                            : () => Navigator.pop(dialogContext),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white54,
+                        ),
+                        child: const Text(
+                          'Batal',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      ElevatedButton(
+                        onPressed: sedangDownload
+                            ? null
+                            : () async {
+                                setDialogState(
+                                  () => sedangDownload = true,
+                                );
+
+                                final berhasil = await _downloadExcel(
+                                  kasLaci,
+                                  namaFile,
+                                );
+
+                                if (!dialogContext.mounted) return;
+
+                                if (berhasil) {
+                                  Navigator.pop(dialogContext);
+                                } else {
+                                  setDialogState(
+                                    () => sedangDownload = false,
+                                  );
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: navy,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: sedangDownload
+                            ? const SizedBox(
+                                width: 15,
+                                height: 15,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'Download',
+                                style: TextStyle(
+                                  fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                tanggalHariIni,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    // NAMA FILE
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 11,
-                        vertical: 10,
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              namaTampilan,
-                              style: TextStyle(
-                                color: navy,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // TOMBOL BATAL DAN DOWNLOAD
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: sedangDownload
-                              ? null
-                              : () => Navigator.pop(dialogContext),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.white54,
-                          ),
-                          child: const Text(
-                            'Batal',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        ElevatedButton(
-                          onPressed: sedangDownload
-                              ? null
-                              : () async {
-                                  setDialogState(() => sedangDownload = true);
-
-                                  final berhasil = await _downloadExcel(
-                                    kasLaci,
-                                    namaFile,
-                                  );
-
-                                  if (!dialogContext.mounted) return;
-
-                                  if (berhasil) {
-                                    Navigator.pop(dialogContext);
-                                  } else {
-                                    setDialogState(
-                                      () => sedangDownload = false,
-                                    );
-                                  }
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: navy,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 10,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: sedangDownload
-                              ? const SizedBox(
-                                  width: 15,
-                                  height: 15,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text(
-                                  'Download',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
-            );
-          },
-        );
-      },
-    );
-  }
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
 
   Future<bool> _downloadExcel(bool kasLaci, String namaFile) async {
     try {
