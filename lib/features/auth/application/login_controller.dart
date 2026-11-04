@@ -5,6 +5,9 @@ import 'package:http/http.dart' as http;
 
 enum LoginSubmissionStatus { invalid, authenticated, failed, ignored }
 
+/// Field mana yang harus diberi tanda merah.
+enum LoginErrorField { none, username, password, both }
+
 class LoginSubmission {
   const LoginSubmission({
     required this.status,
@@ -12,6 +15,7 @@ class LoginSubmission {
     this.role,
     this.displayName,
     this.username,
+    this.errorField = LoginErrorField.none,
   });
 
   final LoginSubmissionStatus status;
@@ -19,11 +23,19 @@ class LoginSubmission {
   final String? role;
   final String? displayName;
   final String? username;
+  final LoginErrorField errorField;
 
   bool get isError =>
       status == LoginSubmissionStatus.invalid ||
       status == LoginSubmissionStatus.failed;
 }
+
+class _LoginException implements Exception {
+  _LoginException(this.message);
+  final String message;
+}
+
+typedef _Validation = ({String message, LoginErrorField field});
 
 /// Owns login state and the backend authentication flow.
 class LoginController extends ChangeNotifier {
@@ -55,7 +67,8 @@ class LoginController extends ChangeNotifier {
     if (validation != null) {
       return LoginSubmission(
         status: LoginSubmissionStatus.invalid,
-        message: validation,
+        message: validation.message,
+        errorField: validation.field,
       );
     }
 
@@ -90,12 +103,19 @@ class LoginController extends ChangeNotifier {
         displayName: user['nama']?.toString() ?? username,
         username: username,
       );
-    } catch (error) {
-      debugPrint('Login gagal: $error');
+    } on _LoginException catch (error) {
+      // Salah username / password dari backend
       return LoginSubmission(
         status: LoginSubmissionStatus.failed,
-        message:
-            'Login gagal. Periksa username, password, dan koneksi backend.',
+        message: error.message,
+        errorField: _detectField(error.message),
+      );
+    } catch (error) {
+      // Masalah koneksi / lainnya: tidak menandai field
+      debugPrint('Login gagal: $error');
+      return const LoginSubmission(
+        status: LoginSubmissionStatus.failed,
+        message: 'Tidak dapat terhubung ke server. Periksa koneksi backend.',
       );
     } finally {
       isVerifying = false;
@@ -103,15 +123,51 @@ class LoginController extends ChangeNotifier {
     }
   }
 
-  String? _validate(String username, String password) {
-    if (username.isEmpty || password.isEmpty) {
-      return 'Username dan password wajib diisi.';
+  /// Tebak field yang salah dari pesan backend.
+  /// "Username tidak ditemukan" -> username
+  /// "Password salah"           -> password
+  /// "Username atau password salah" / lainnya -> keduanya
+  LoginErrorField _detectField(String message) {
+    final m = message.toLowerCase();
+    final hasUser =
+        m.contains('username') || m.contains('pengguna') || m.contains('user');
+    final hasPass = m.contains('password') || m.contains('sandi');
+
+    if (hasUser && !hasPass) return LoginErrorField.username;
+    if (hasPass && !hasUser) return LoginErrorField.password;
+    return LoginErrorField.both;
+  }
+
+  _Validation? _validate(String username, String password) {
+    if (username.isEmpty && password.isEmpty) {
+      return (
+        message: 'Username dan password wajib diisi.',
+        field: LoginErrorField.both,
+      );
+    }
+    if (username.isEmpty) {
+      return (
+        message: 'Username wajib diisi.',
+        field: LoginErrorField.username,
+      );
+    }
+    if (password.isEmpty) {
+      return (
+        message: 'Password wajib diisi.',
+        field: LoginErrorField.password,
+      );
     }
     if (!RegExp(r'^[a-z0-9_]{4,20}$').hasMatch(username)) {
-      return 'Username harus 4–20 karakter, hanya huruf, angka, atau underscore.';
+      return (
+        message: 'Username 4–20 karakter: huruf, angka, atau underscore.',
+        field: LoginErrorField.username,
+      );
     }
     if (password.length < 6) {
-      return 'Password minimal 6 karakter.';
+      return (
+        message: 'Password minimal 6 karakter.',
+        field: LoginErrorField.password,
+      );
     }
     return null;
   }
@@ -134,7 +190,7 @@ class LoginController extends ChangeNotifier {
       return data;
     }
     if (data is Map<String, dynamic>) {
-      throw Exception(data['message']?.toString() ?? 'Login gagal.');
+      throw _LoginException(data['message']?.toString() ?? 'Login gagal.');
     }
     throw Exception('Respons dari server tidak valid.');
   }

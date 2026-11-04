@@ -303,7 +303,7 @@ class _LoginPageState extends State<LoginPage>
                         child: Container(
                           width: cardWidth,
                           constraints:
-                              const BoxConstraints(maxWidth: 299),
+                              const BoxConstraints(maxWidth: 289),
                           padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(
@@ -621,7 +621,7 @@ class _LoginPageState extends State<LoginPage>
         // UKURAN INPUT SEDANG
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
-          vertical: 19,
+          vertical: 10,
         ),
 
         // BORDER NORMAL
