@@ -621,7 +621,7 @@ class _LoginPageState extends State<LoginPage>
         // UKURAN INPUT SEDANG
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
-          vertical: 10,
+          vertical: 19,
         ),
 
         // BORDER NORMAL
