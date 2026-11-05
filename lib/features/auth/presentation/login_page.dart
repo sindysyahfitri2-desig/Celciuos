@@ -1,4 +1,3 @@
-
 import 'dart:math' as math;
 import 'dart:ui';
 
@@ -7,6 +6,8 @@ import 'package:kasir_celcious_coffe/features/auth/application/login_controller.
 import 'package:kasir_celcious_coffe/features/kasir/presentation/kasir_page.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/Dashboard.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
+import 'package:kasir_celcious_coffe/data/api_service.dart';
+import 'package:kasir_celcious_coffe/features/auth/presentation/pilih_profil_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, this.controller});
@@ -31,7 +32,6 @@ class _LoginPageState extends State<LoginPage>
   bool get _isVerifying => _loginController.isVerifying;
 
   static const Color navy = Color(0xff082640);
-  static const Color inputBlue = Color(0xff2196f3);
 
   @override
   void initState() {
@@ -79,22 +79,19 @@ class _LoginPageState extends State<LoginPage>
   }
 
   // LOGIN TANPA DIALOG KONFIRMASI IDENTITAS
+
   Future<void> _submit() async {
     final result = await _loginController.submit(
       _usernameController.text.trim(),
       _passwordController.text,
     );
 
-    if (!mounted ||
-        result.status == LoginSubmissionStatus.ignored) {
+    if (!mounted || result.status == LoginSubmissionStatus.ignored) {
       return;
     }
 
     if (result.isError) {
-      _showMessage(
-        result.message ?? 'Login gagal.',
-        isError: true,
-      );
+      _showMessage(result.message ?? 'Login gagal.', isError: true);
       return;
     }
 
@@ -103,20 +100,24 @@ class _LoginPageState extends State<LoginPage>
     }
 
     final role = result.role;
-    final displayName = result.displayName ??
-        _usernameController.text.trim();
+    final displayName = result.displayName ?? _usernameController.text.trim();
 
-    // ROLE OWNER: LANGSUNG KE DASHBOARD
+    // Simpan Navigator sebelum meninggalkan halaman Login.
+    final navigator = Navigator.of(context);
+
+    // ROLE OWNER
     if (role == 'Owner') {
-      Navigator.of(context).pushReplacement(
+      navigator.pushReplacement(
         MaterialPageRoute(
           builder: (_) => DashboardOwner(
             namaOwner: displayName,
-            onLogout: () {
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(
-                  builder: (_) => const LoginPage(),
-                ),
+            onLogout: () async {
+              await ApiService.clearAuth();
+
+              if (!navigator.mounted) return;
+
+              navigator.pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginPage()),
                 (route) => false,
               );
             },
@@ -124,14 +125,17 @@ class _LoginPageState extends State<LoginPage>
         ),
       );
     }
-
-    // ROLE KASIR: LANGSUNG KE HALAMAN KASIR
+    // ROLE KASIR
     else if (role == 'Kasir') {
-      Navigator.of(context).pushReplacement(
+      navigator.pushReplacement(
         MaterialPageRoute(
           builder: (_) => kasirPage(
-            onLogout: () {
-              Navigator.of(context).pushAndRemoveUntil(
+            onLogout: () async {
+              await ApiService.clearAuth();
+
+              if (!navigator.mounted) return;
+
+              navigator.pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const LoginPage()),
                 (route) => false,
               );
@@ -140,10 +144,7 @@ class _LoginPageState extends State<LoginPage>
         ),
       );
     } else {
-      _showMessage(
-        'Role akun tidak dikenali.',
-        isError: true,
-      );
+      _showMessage('Role akun tidak dikenali.', isError: true);
     }
   }
 
@@ -156,14 +157,13 @@ class _LoginPageState extends State<LoginPage>
           builder: (context, constraints) {
             final screenWidth = constraints.maxWidth;
             final isMobile = screenWidth < 600;
-            final isTablet =
-                screenWidth >= 600 && screenWidth < 1000;
+            final isTablet = screenWidth >= 600 && screenWidth < 1000;
 
             final cardWidth = isMobile
                 ? math.max(0.0, screenWidth - 32)
                 : isTablet
-                    ? 440.0
-                    : 460.0;
+                ? 440.0
+                : 460.0;
 
             return Stack(
               children: [
@@ -188,8 +188,7 @@ class _LoginPageState extends State<LoginPage>
                 AnimatedBuilder(
                   animation: _borderController,
                   builder: (context, child) {
-                    final t =
-                        _borderController.value * 2 * math.pi;
+                    final t = _borderController.value * 2 * math.pi;
 
                     return Stack(
                       children: [
@@ -218,14 +217,12 @@ class _LoginPageState extends State<LoginPage>
                 AnimatedBuilder(
                   animation: _borderController,
                   builder: (context, child) {
-                    final t =
-                        _borderController.value * 2 * math.pi;
+                    final t = _borderController.value * 2 * math.pi;
 
                     return Stack(
                       children: [
                         Positioned(
-                          top: constraints.maxHeight * 0.13 +
-                              math.sin(t) * 12,
+                          top: constraints.maxHeight * 0.13 + math.sin(t) * 12,
                           right: screenWidth * 0.10,
                           child: Transform.rotate(
                             angle: math.sin(t) * 0.18,
@@ -237,8 +234,8 @@ class _LoginPageState extends State<LoginPage>
                           ),
                         ),
                         Positioned(
-                          bottom: constraints.maxHeight * 0.15 +
-                              math.cos(t) * 14,
+                          bottom:
+                              constraints.maxHeight * 0.15 + math.cos(t) * 14,
                           left: screenWidth * 0.08,
                           child: Transform.rotate(
                             angle: math.cos(t) * 0.15,
@@ -250,7 +247,8 @@ class _LoginPageState extends State<LoginPage>
                           ),
                         ),
                         Positioned(
-                          top: constraints.maxHeight * 0.23 +
+                          top:
+                              constraints.maxHeight * 0.23 +
                               math.cos(t + 1) * 10,
                           left: screenWidth * 0.17,
                           child: Transform.rotate(
@@ -263,7 +261,8 @@ class _LoginPageState extends State<LoginPage>
                           ),
                         ),
                         Positioned(
-                          bottom: constraints.maxHeight * 0.25 +
+                          bottom:
+                              constraints.maxHeight * 0.25 +
                               math.sin(t + 1) * 12,
                           right: screenWidth * 0.15,
                           child: Transform.rotate(
@@ -292,10 +291,7 @@ class _LoginPageState extends State<LoginPage>
                       duration: const Duration(milliseconds: 500),
                       curve: Curves.easeOut,
                       builder: (context, scale, child) {
-                        return Transform.scale(
-                          scale: scale,
-                          child: child,
-                        );
+                        return Transform.scale(scale: scale, child: child);
                       },
                       child: AnimatedBuilder(
                         animation: _borderController,
@@ -309,25 +305,21 @@ class _LoginPageState extends State<LoginPage>
                         },
                         child: Container(
                           width: cardWidth,
-                          constraints:
-                              const BoxConstraints(maxWidth: 289),
+                          constraints: const BoxConstraints(maxWidth: 289),
                           padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(
-                              alpha: 0.08,
-                            ),
+                            color: Colors.white.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(28),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xff58b9f5)
-                                    .withValues(alpha: 0.15),
+                                color: const Color(
+                                  0xff58b9f5,
+                                ).withValues(alpha: 0.15),
                                 blurRadius: 25,
                                 spreadRadius: 2,
                               ),
                               BoxShadow(
-                                color: Colors.black.withValues(
-                                  alpha: 0.30,
-                                ),
+                                color: Colors.black.withValues(alpha: 0.30),
                                 blurRadius: 25,
                                 offset: const Offset(0, 12),
                               ),
@@ -342,11 +334,7 @@ class _LoginPageState extends State<LoginPage>
                                   child: Image.asset(
                                     'assets/images/Login_bg.jpg',
                                     fit: BoxFit.cover,
-                                    errorBuilder: (
-                                      context,
-                                      error,
-                                      stackTrace,
-                                    ) {
+                                    errorBuilder: (context, error, stackTrace) {
                                       return const ColoredBox(
                                         color: Color(0xff273b4b),
                                       );
@@ -364,9 +352,7 @@ class _LoginPageState extends State<LoginPage>
                                         colors: [
                                           navy.withValues(alpha: 0.78),
                                           navy.withValues(alpha: 0.73),
-                                          Colors.black.withValues(
-                                            alpha: 0.900,
-                                          ),
+                                          Colors.black.withValues(alpha: 0.900),
                                         ],
                                       ),
                                     ),
@@ -398,10 +384,10 @@ class _LoginPageState extends State<LoginPage>
                                       AnimatedBuilder(
                                         animation: _borderController,
                                         builder: (context, child) {
-                                          final pulse = 1 +
+                                          final pulse =
+                                              1 +
                                               math.sin(
-                                                    _borderController
-                                                            .value *
+                                                    _borderController.value *
                                                         2 *
                                                         math.pi,
                                                   ) *
@@ -415,16 +401,14 @@ class _LoginPageState extends State<LoginPage>
                                         child: Container(
                                           width: isMobile ? 66 : 76,
                                           height: isMobile ? 66 : 76,
-                                          padding:
-                                              const EdgeInsets.all(5),
+                                          padding: const EdgeInsets.all(5),
                                           decoration: BoxDecoration(
                                             shape: BoxShape.circle,
                                             color: const Color(
                                               0xff3979ad,
                                             ).withValues(alpha: 0.65),
                                             border: Border.all(
-                                              color: Colors.white
-                                                  .withValues(
+                                              color: Colors.white.withValues(
                                                 alpha: 0.70,
                                               ),
                                               width: 1.5,
@@ -433,9 +417,7 @@ class _LoginPageState extends State<LoginPage>
                                               BoxShadow(
                                                 color: const Color(
                                                   0xff58b9f5,
-                                                ).withValues(
-                                                  alpha: 0.28,
-                                                ),
+                                                ).withValues(alpha: 0.28),
                                                 blurRadius: 22,
                                               ),
                                             ],
@@ -453,19 +435,16 @@ class _LoginPageState extends State<LoginPage>
 
                                       // USERNAME
                                       _inputField(
-                                        controller:
-                                            _usernameController,
+                                        controller: _usernameController,
                                         hint: 'Username',
-                                        icon: Icons
-                                            .person_outline_rounded,
+                                        icon: Icons.person_outline_rounded,
                                       ),
 
                                       const SizedBox(height: 18),
 
                                       // PASSWORD
                                       _inputField(
-                                        controller:
-                                            _passwordController,
+                                        controller: _passwordController,
                                         hint: 'Password',
                                         icon: Icons.lock_outline_rounded,
                                         obscure: _hidePassword,
@@ -475,16 +454,13 @@ class _LoginPageState extends State<LoginPage>
                                               : 'Sembunyikan password',
                                           onPressed: () {
                                             setState(() {
-                                              _hidePassword =
-                                                  !_hidePassword;
+                                              _hidePassword = !_hidePassword;
                                             });
                                           },
                                           icon: Icon(
                                             _hidePassword
-                                                ? Icons
-                                                    .visibility_off_outlined
-                                                : Icons
-                                                    .visibility_outlined,
+                                                ? Icons.visibility_off_outlined
+                                                : Icons.visibility_outlined,
                                             size: 19,
                                             color: navy,
                                           ),
@@ -510,20 +486,21 @@ class _LoginPageState extends State<LoginPage>
                                       // LUPA PASSWORD
                                       TextButton(
                                         onPressed: () {
-                                          _showMessage(
-                                            'Fitur lupa password '
-                                            'belum tersedia.',
+                                          Navigator.of(context).pushReplacement(
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const PilihProfilPage(),
+                                            ),
                                           );
                                         },
                                         child: const Text(
-                                          'Lupa Password?',
+                                          'Masuk sebagai Kasir',
                                           style: TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 11,
+                                            color: Colors.white,
+                                            fontSize: 12,
                                           ),
                                         ),
                                       ),
-
                                       const SizedBox(height: 4),
                                     ],
                                   ),
@@ -545,10 +522,7 @@ class _LoginPageState extends State<LoginPage>
   }
 
   // CAHAYA BACKGROUND
-  Widget _ambientGlow({
-    required double size,
-    required Color color,
-  }) {
+  Widget _ambientGlow({required double size, required Color color}) {
     return IgnorePointer(
       child: Container(
         width: size,
@@ -568,11 +542,7 @@ class _LoginPageState extends State<LoginPage>
   }
 
   // IKON DEKORASI
-  Widget _floatingDecoration(
-    IconData icon,
-    double size,
-    double opacity,
-  ) {
+  Widget _floatingDecoration(IconData icon, double size, double opacity) {
     return IgnorePointer(
       child: Icon(
         icon,
@@ -595,10 +565,7 @@ class _LoginPageState extends State<LoginPage>
       obscureText: obscure,
       autocorrect: false,
       enableSuggestions: !obscure,
-      style: const TextStyle(
-        color: navy,
-        fontSize: 14,
-      ),
+      style: const TextStyle(color: navy, fontSize: 14),
       cursorColor: const Color.fromRGBO(33, 150, 243, 1),
       decoration: InputDecoration(
         labelText: hint,
@@ -613,7 +580,7 @@ class _LoginPageState extends State<LoginPage>
 
         // LABEL SAAT NAIK: TETAP TERBACA
         floatingLabelStyle: const TextStyle(
-          color:   Color.fromARGB(255, 5, 117, 192),
+          color: Color.fromARGB(255, 5, 117, 192),
           fontSize: 21,
           fontWeight: FontWeight.w600,
           height: 1.9,
@@ -644,17 +611,14 @@ class _LoginPageState extends State<LoginPage>
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(78),
           borderSide: const BorderSide(
-            color:   Color.fromARGB(255, 5, 117, 192),
-            width: 1.9 ,
+            color: Color.fromARGB(255, 5, 117, 192),
+            width: 1.9,
           ),
         ),
 
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(
-            color: Color(0xffb0b7bd),
-            width: 9,
-          ),
+          borderSide: const BorderSide(color: Color(0xffb0b7bd), width: 9),
         ),
       ),
       onSubmitted: (_) {
@@ -668,10 +632,7 @@ class _LoginPageState extends State<LoginPage>
 
 // TOMBOL LOGIN DENGAN EFEK HOVER
 class _LoginButton extends StatefulWidget {
-  const _LoginButton({
-    required this.isLoading,
-    required this.onPressed,
-  });
+  const _LoginButton({required this.isLoading, required this.onPressed});
 
   final bool isLoading;
   final VoidCallback onPressed;
@@ -705,7 +666,11 @@ class _LoginButtonState extends State<_LoginButton> {
           curve: Curves.easeOut,
           transform: Matrix4.translationValues(
             0,
-            _pressed ? -1 : active ? -4 : 0,
+            _pressed
+                ? -1
+                : active
+                ? -4
+                : 0,
             0,
           ),
           decoration: BoxDecoration(
@@ -715,10 +680,11 @@ class _LoginButtonState extends State<_LoginButton> {
                 : const Color(0xff082640),
             boxShadow: [
               BoxShadow(
-                color: (active
-                        ? const Color.fromARGB(255, 142, 208, 248)
-                        : Colors.black)
-                    .withValues(alpha: active ? 0.30 : 0.18),
+                color:
+                    (active
+                            ? const Color.fromARGB(255, 142, 208, 248)
+                            : Colors.black)
+                        .withValues(alpha: active ? 0.30 : 0.18),
                 blurRadius: active ? 14 : 6,
                 offset: Offset(0, active ? 8 : 3),
               ),
@@ -781,9 +747,7 @@ class _GlowBorderPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(
-    covariant _GlowBorderPainter oldDelegate,
-  ) {
+  bool shouldRepaint(covariant _GlowBorderPainter oldDelegate) {
     return oldDelegate.progress != progress;
   }
 }

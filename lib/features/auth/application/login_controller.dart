@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:kasir_celcious_coffe/data/api_service.dart';
 
 enum LoginSubmissionStatus { invalid, authenticated, failed, ignored }
 
@@ -30,7 +31,7 @@ class LoginController extends ChangeNotifier {
   LoginController({http.Client? httpClient, String? baseUrl})
     : _httpClient = httpClient ?? http.Client(),
       _ownsHttpClient = httpClient == null,
-      _baseUrl = baseUrl ?? 'https://clatter-distant-sterling.ngrok-free.dev';
+      _baseUrl = baseUrl ?? 'http://127.0.0.1:8000';
 
   final http.Client _httpClient;
   final bool _ownsHttpClient;
@@ -75,6 +76,10 @@ class LoginController extends ChangeNotifier {
 
       final user = result['pengguna'] as Map<String, dynamic>;
       _authToken = result['token'].toString();
+      await ApiService.saveAuth(
+        token: _authToken!,
+        user: user,
+      );
 
       final roleFromApi = user['role']?.toString().toLowerCase();
       if (roleFromApi != 'owner' && roleFromApi != 'kasir') {
