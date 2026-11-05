@@ -58,7 +58,7 @@ void main() {
         home: TransaksiBerhasilPage(
           onSelesai: () {},
           receiptData: {
-            'orderId': 'CC-20261105-001',
+            'orderId': 'CC-1105-001',
             'customerName': 'Nadia',
             'cashierName': 'Kasir Uji',
             'orderType': 'Dine In',
@@ -77,7 +77,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 800));
 
-    expect(find.text('CC-20261105-001'), findsOneWidget);
+    expect(find.text('CC-1105-001'), findsOneWidget);
     expect(find.textContaining('Americano'), findsOneWidget);
     expect(find.text('Total Bayar'), findsOneWidget);
   });

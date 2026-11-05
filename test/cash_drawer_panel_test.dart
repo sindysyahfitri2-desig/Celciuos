@@ -8,37 +8,7 @@ import 'package:kasir_celcious_coffe/features/kasir/presentation/kasir_page.dart
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('cash drawer is available from the navigation drawer', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({});
-    TransactionStore.activeShift.value = null;
-    TransactionStore.shiftHistory.value = [];
-    TransactionStore.cashDrawerEntries.value = [];
-    await TransactionStore.initialize();
-    await TransactionStore.startShift(cashier: 'Kasir Uji', openingCash: 50000);
-
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: kasirPage())),
-    );
-    await tester.pump(const Duration(milliseconds: 100));
-
-    await tester.tap(find.byTooltip('Buka menu'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Kas Laci').last);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Saldo kas yang diharapkan'), findsOneWidget);
-    expect(find.text('Rp 50.000'), findsWidgets);
-    expect(find.text('Pilih :'), findsOneWidget);
-  });
-
-  testWidgets('order type is chosen directly from the menu screen', (
+  testWidgets('cash drawer opens inline from the cashier header', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -58,13 +28,43 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('Jenis Pesanan'), findsOneWidget);
+    await tester.tap(find.text('Kas Laci'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.text('Pilih :'), findsOneWidget);
+    expect(find.text('Selanjutnya'), findsOneWidget);
+  });
+
+  testWidgets('order type is chosen before opening the menu screen', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    TransactionStore.activeShift.value = null;
+    TransactionStore.shiftHistory.value = [];
+    TransactionStore.cashDrawerEntries.value = [];
+    await TransactionStore.initialize();
+    await TransactionStore.startShift(cashier: 'Kasir Uji', openingCash: 50000);
+
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: kasirPage())),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Lanjut'), findsOneWidget);
     expect(find.text('Dine In'), findsOneWidget);
-    expect(find.text('Take Away'), findsOneWidget);
-    await tester.tap(find.text('Take Away'));
+    expect(find.text('Take\nAway'), findsOneWidget);
+    await tester.tap(find.text('Take\nAway'));
     await tester.pump();
-    expect(find.text('Jenis Pesanan'), findsOneWidget);
+    await tester.tap(find.text('Lanjut'));
+    await tester.pump();
     expect(find.text('Cari menu'), findsOneWidget);
+    expect(find.text(': Take Away'), findsOneWidget);
   });
 
   testWidgets('cash drawer supports refund and records it as cash out', (

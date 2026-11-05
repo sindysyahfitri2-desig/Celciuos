@@ -91,11 +91,6 @@ class ProductManagementService {
     Map<String, dynamic> product, {
     required bool isActive,
   }) async {
-    final products = List<Map<String, dynamic>>.from(ProdukData.produk.value);
-    final index = products.indexWhere((item) => identical(item, product));
-    if (index < 0) throw StateError('Produk sudah tidak tersedia.');
-
-    products[index] = {...products[index], 'is_active': isActive};
-    await ProdukData.saveProducts(products);
+    await ProdukData.setProductActive(product, isActive: isActive);
   }
 }

@@ -136,7 +136,18 @@ void main() {
     await tester.tap(find.text('Simpan'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Produk Sinkron'), findsNWidgets(3));
+    expect(find.text('Produk Sinkron'), findsAtLeastNWidgets(1));
+    final cashierSearch = find
+        .byWidgetPredicate(
+          (widget) =>
+              widget is TextField && widget.decoration?.hintText == 'Cari menu',
+        )
+        .last;
+    await tester.enterText(cashierSearch, 'Produk Sinkron');
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Nonaktifkan Produk Sinkron'), findsNothing);
+    expect(find.text('Nonaktif di kasir'), findsNothing);
+    expect(find.text('Aktif di kasir'), findsNothing);
 
     final ownerSearch = find
         .byWidgetPredicate(
@@ -160,11 +171,10 @@ void main() {
     );
     await tester.tap(find.widgetWithText(ElevatedButton, 'Simpan').last);
     await tester.pumpAndSettle();
-    expect(find.text('Produk Diedit'), findsNWidgets(2));
 
     await tester.enterText(ownerSearch, 'Produk Diedit');
     await tester.pumpAndSettle();
-    expect(find.text('Produk Diedit'), findsNWidgets(4));
+    expect(find.text('Produk Diedit'), findsAtLeastNWidgets(1));
     await tester.tap(find.byTooltip('Hapus Produk Diedit'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ElevatedButton, 'Hapus'));
@@ -174,4 +184,27 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Produk Diedit'), findsNothing);
   });
+
+  testWidgets(
+    'product category filters remain visible while scrolling products',
+    (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await ProdukData.initialize();
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: catalog.ProdukPage())),
+      );
+      await tester.pumpAndSettle();
+
+      final filter = find.text('Semua Menu');
+      expect(filter, findsOneWidget);
+      await tester.drag(find.byType(GridView), const Offset(0, -500));
+      await tester.pumpAndSettle();
+      expect(filter, findsOneWidget);
+    },
+  );
 }

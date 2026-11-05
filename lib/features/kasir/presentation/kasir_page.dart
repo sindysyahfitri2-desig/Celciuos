@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:kasir_celcious_coffe/data/produk_data.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 import 'package:kasir_celcious_coffe/features/kasir/application/cashier_cart_controller.dart';
 import 'package:kasir_celcious_coffe/features/kasir/application/cashier_shift_service.dart';
+import 'package:kasir_celcious_coffe/ui/pages/home_page.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/Navigation.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/product_cart.dart';
@@ -37,8 +40,11 @@ class _kasirPageState extends State<kasirPage> {
   String namaKasir = '';
   double kasAwal = 0;
   bool _showCashDrawerPanel = false;
+  DateTime _today = DateTime.now();
+  Timer? _dateRefreshTimer;
 
   bool showWelcome = true;
+  bool showJenisPesanan = false;
 
   String? jenisPesanan;
 
@@ -415,6 +421,7 @@ class _kasirPageState extends State<kasirPage> {
   @override
   void initState() {
     super.initState();
+    _scheduleDateRefresh();
     _cartController.addListener(_onCartChanged);
     TransactionStore.cashDrawerEntries.addListener(_onCashDrawerChanged);
     TransactionStore.transactions.addListener(_onCashDrawerChanged);
@@ -426,6 +433,7 @@ class _kasirPageState extends State<kasirPage> {
       namaController.text = shift.cashier;
       kasController.text = shift.openingCash.toInt().toString();
       showWelcome = false;
+      showJenisPesanan = true;
     }
   }
 
@@ -435,6 +443,35 @@ class _kasirPageState extends State<kasirPage> {
 
   void _onCashDrawerChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _scheduleDateRefresh() {
+    final now = DateTime.now();
+    final nextDay = DateTime(now.year, now.month, now.day + 1);
+    _dateRefreshTimer = Timer(nextDay.difference(now), () {
+      if (!mounted) return;
+      setState(() => _today = DateTime.now());
+      _scheduleDateRefresh();
+    });
+  }
+
+  String _formatHeaderDate(DateTime date) {
+    const months = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    return '${date.day.toString().padLeft(2, '0')} '
+        '${months[date.month - 1]} ${date.year}';
   }
 
   double get _cashDrawerBalance {
@@ -450,6 +487,7 @@ class _kasirPageState extends State<kasirPage> {
 
   @override
   void dispose() {
+    _dateRefreshTimer?.cancel();
     _cartController
       ..removeListener(_onCartChanged)
       ..dispose();
@@ -476,6 +514,7 @@ class _kasirPageState extends State<kasirPage> {
         namaKasir = shift.cashier;
         kasAwal = shift.openingCash;
         showWelcome = false;
+        showJenisPesanan = true;
         jenisPesanan = null;
       });
     } catch (error) {
@@ -595,7 +634,7 @@ class _kasirPageState extends State<kasirPage> {
                     ),
                   ),
                   Text(
-                    '08 Oktober 2026',
+                    _formatHeaderDate(_today),
                     style: TextStyle(
                       color: Colors.white.withOpacity(.55),
                       fontSize: isMobile ? 9 : 10,
@@ -677,18 +716,40 @@ class _kasirPageState extends State<kasirPage> {
   }
 
   Widget _cashierContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Stack(
+      clipBehavior: Clip.hardEdge,
       children: [
-        if (_showCashDrawerPanel && !showWelcome)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: const CashDrawerPanel(),
+        // HALAMAN KASIR TETAP DI POSISI SEMULA
+        Positioned.fill(child: _cashierBody()),
+
+        // LAPISAN BELAKANG PANEL
+        if (_showCashDrawerPanel && !showWelcome) ...[
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _toggleCashDrawerPanel,
+              child: ColoredBox(color: Colors.black.withOpacity(0.08)),
             ),
           ),
-        Expanded(child: _cashierBody()),
+
+          // PANEL KAS LACI MENGAMBANG
+          Positioned(
+            top: 10,
+            right: 12,
+            child: SafeArea(
+              child: Material(
+                color: Colors.transparent,
+                elevation: 12,
+                borderRadius: BorderRadius.circular(16),
+                child: AnimatedOpacity(
+                  opacity: 1,
+                  duration: const Duration(milliseconds: 200),
+                  child: const CashDrawerPanel(),
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -709,8 +770,20 @@ class _kasirPageState extends State<kasirPage> {
             showCheckout = false;
           });
         },
-        onLanjutPembayaran: _kembaliKePilihanJenisPesanan,
-        onBayarNanti: _kembaliKePilihanJenisPesanan,
+        onLanjutPembayaran: _kembaliKeMenu,
+        onBayarNanti: _kembaliKeMenu,
+      );
+    }
+
+    if (showJenisPesanan) {
+      return HomePage(
+        selectedOrderType: jenisPesanan,
+        onOrderTypeSelected: (value) {
+          setState(() => jenisPesanan = value);
+        },
+        onContinue: () {
+          setState(() => showJenisPesanan = false);
+        },
       );
     }
 
@@ -721,7 +794,16 @@ class _kasirPageState extends State<kasirPage> {
     setState(() {
       _cartController.clear();
       showCheckout = false;
+      showJenisPesanan = true;
       jenisPesanan = null;
+    });
+  }
+
+  void _kembaliKeMenu() {
+    setState(() {
+      _cartController.clear();
+      showCheckout = false;
+      showJenisPesanan = false;
     });
   }
 
@@ -858,35 +940,50 @@ class _kasirPageState extends State<kasirPage> {
     return LayoutBuilder(
       builder: (context, box) {
         final width = box.maxWidth;
+        final horizontalPadding = width < 500 ? 9.0 : 12.0;
 
         return Column(
           children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                horizontalPadding,
+                horizontalPadding,
+                0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _search(),
+                  const SizedBox(height: 9),
+                  _categories(),
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () => setState(() => showJenisPesanan = true),
+                      icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                      label: Text(
+                        ': ${jenisPesanan ?? "-"}',
+                        style: TextStyle(
+                          color: navy,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(width < 500 ? 9 : 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _orderTypeSelector(),
-
-                    const SizedBox(height: 12),
-
-                    // Pencarian produk
-                    _search(),
-
-                    const SizedBox(height: 9),
-
-                    // Kategori menu — cukup satu kali
-                    _categories(),
-
-                    const SizedBox(height: 8),
-
-                    // Daftar produk
-                    _productGrid(),
-
-                    const SizedBox(height: 20),
-                  ],
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  0,
+                  horizontalPadding,
+                  horizontalPadding,
                 ),
+                child: _productGrid(),
               ),
             ),
 
@@ -895,64 +992,6 @@ class _kasirPageState extends State<kasirPage> {
           ],
         );
       },
-    );
-  }
-
-  Widget _orderTypeSelector() {
-    Widget option({required String label, required IconData icon}) {
-      final selected = jenisPesanan == label;
-      return Expanded(
-        child: Material(
-          color: selected ? navy : Colors.white,
-          elevation: selected ? 5 : 2,
-          shadowColor: navy.withValues(alpha: 0.16),
-          borderRadius: BorderRadius.circular(14),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () => setState(() => jenisPesanan = label),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, size: 19, color: selected ? Colors.white : navy),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: selected ? Colors.white : navy,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Jenis Pesanan',
-          style: TextStyle(
-            color: navy,
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 7),
-        Row(
-          children: [
-            option(label: 'Dine In', icon: Icons.restaurant_rounded),
-            const SizedBox(width: 10),
-            option(label: 'Take Away', icon: Icons.takeout_dining_rounded),
-          ],
-        ),
-      ],
     );
   }
 
@@ -1145,8 +1184,7 @@ class _kasirPageState extends State<kasirPage> {
             // ====================================================
 
             return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
+              physics: const AlwaysScrollableScrollPhysics(),
               itemCount: filteredProducts.length,
               padding: EdgeInsets.zero,
 

@@ -29,10 +29,7 @@ class ProductCard extends StatelessWidget {
 
   String _rupiah(double value) {
     final digits = value.toInt().toString();
-    return 'Rp ${digits.replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (_) => '.',
-    )}';
+    return 'Rp ${digits.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => '.')}';
   }
 
   Widget _quantityButton(IconData icon, VoidCallback onTap) {
@@ -128,10 +125,7 @@ class ProductCard extends StatelessWidget {
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                _quantityButton(
-                                  Icons.remove_rounded,
-                                  onMinus,
-                                ),
+                                _quantityButton(Icons.remove_rounded, onMinus),
                                 SizedBox(width: compact ? 6 : 9),
                                 Text(
                                   '$quantity',

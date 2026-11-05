@@ -165,9 +165,7 @@ class ProdukData {
     }).toList();
   }
 
-  static Future<void> saveProducts(
-    List<Map<String, dynamic>> products,
-  ) async {
+  static Future<void> saveProducts(List<Map<String, dynamic>> products) async {
     final encodedProducts = products.map((product) {
       final copy = Map<String, dynamic>.from(product);
       final image = copy['image'];
@@ -185,5 +183,17 @@ class ProdukData {
       throw StateError('Gagal menyimpan perubahan produk.');
     }
     produk.value = products;
+  }
+
+  static Future<void> setProductActive(
+    Map<String, dynamic> product, {
+    required bool isActive,
+  }) async {
+    final products = List<Map<String, dynamic>>.from(produk.value);
+    final index = products.indexWhere((item) => identical(item, product));
+    if (index < 0) throw StateError('Produk sudah tidak tersedia.');
+
+    products[index] = {...products[index], 'is_active': isActive};
+    await saveProducts(products);
   }
 }

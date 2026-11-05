@@ -299,33 +299,6 @@ class _ProdukPageState extends State<ProdukPage> {
   }
 
   // ============================================================
-  // STATUS PRODUK AKTIF/NONAKTIF
-  // ============================================================
-
-  Future<void> _setProductActive(
-    Map<String, dynamic> product,
-    bool isActive,
-  ) async {
-    try {
-      await ProductManagementService.setProductActive(
-        product,
-        isActive: isActive,
-      );
-
-      if (!mounted) return;
-
-      _snack(
-        isActive
-            ? 'Produk diaktifkan dan dapat dipilih di kasir.'
-            : 'Produk dinonaktifkan dan tidak dapat dipilih di kasir.',
-      );
-    } catch (error) {
-      if (!mounted) return;
-      _snack('Gagal mengubah status produk: $error');
-    }
-  }
-
-  // ============================================================
   // DIALOG KATEGORI
   // ============================================================
 
@@ -847,12 +820,6 @@ class _ProdukPageState extends State<ProdukPage> {
                     const SizedBox(height: 7),
                     Row(
                       children: [
-                        _ProductActiveToggle(
-                          value: product['is_active'] != false,
-                          onChanged: (value) {
-                            _setProductActive(product, value);
-                          },
-                        ),
                         IconButton(
                           tooltip: 'Edit $name',
                           visualDensity: VisualDensity.compact,
@@ -930,10 +897,7 @@ class _ProdukPageState extends State<ProdukPage> {
 // ============================================================
 
 class _AnimatedDeleteButton extends StatefulWidget {
-  const _AnimatedDeleteButton({
-    required this.tooltip,
-    required this.onPressed,
-  });
+  const _AnimatedDeleteButton({required this.tooltip, required this.onPressed});
 
   final String tooltip;
   final VoidCallback onPressed;
@@ -1503,112 +1467,4 @@ class _DialogSaveButton extends StatelessWidget {
       ),
     );
   }
-}
-
-// ============================================================
-// TOGGLE STATUS PRODUK
-// ============================================================
-
-class _ProductActiveToggle extends StatelessWidget {
-  const _ProductActiveToggle({required this.value, required this.onChanged});
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: value ? 'Produk aktif di kasir' : 'Produk nonaktif di kasir',
-      toggled: value,
-      button: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => onChanged(!value),
-        child: SizedBox(
-          width: 48,
-          height: 26,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-                width: 44,
-                height: 16,
-                decoration: BoxDecoration(
-                  color: value
-                      ? const Color.fromARGB(255, 10, 4, 100)
-                      : const Color(0xFFD13613),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.18),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-              ),
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 350),
-                curve: Curves.easeInOutBack,
-                left: value ? 24 : -1,
-                top: 1,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const SweepGradient(
-                      colors: [
-                        Colors.white,
-                        Color(0xFFC0C0C0),
-                        Colors.white,
-                        Color(0xFFC0C0C0),
-                        Colors.white,
-                      ],
-                    ),
-                    border: Border.all(color: const Color(0xFFE5E5E5)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.28),
-                        blurRadius: 4,
-                        offset: const Offset(1, 2),
-                      ),
-                    ],
-                  ),
-                  child: ClipOval(
-                    child: CustomPaint(
-                      painter: _ProductTogglePatternPainter(),
-                      child: const SizedBox.expand(),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProductTogglePatternPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.grey.withValues(alpha: 0.22)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.45;
-
-    final center = Offset(size.width / 2, size.height / 2);
-
-    for (double radius = 2; radius < size.width / 2; radius += 2) {
-      canvas.drawCircle(center, radius, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
