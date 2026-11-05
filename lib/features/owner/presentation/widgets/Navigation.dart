@@ -19,11 +19,10 @@ const _destinations = <_OwnerDestination>[
   _OwnerDestination('Dashboard', 'Beranda', Icons.home_outlined),
   _OwnerDestination('Kelola Laporan', 'Laporan', Icons.bar_chart_rounded),
   _OwnerDestination('Kelola Produk', 'Produk', Icons.inventory_2_outlined),
+
   _OwnerDestination('Transaksi', 'Transaksi', Icons.receipt_long_outlined),
   _OwnerDestination('Kelola Staf', 'Kelola Staf', Icons.person_outline_rounded),
-  _OwnerDestination('Profil', 'Profil', Icons.person_outline_rounded),
   _OwnerDestination('Pengaturan', 'Atur', Icons.settings_outlined),
-  _OwnerDestination('Kas Laci', 'Kas Laci', Icons.point_of_sale_rounded),
 ];
 
 // ============================================================
@@ -35,7 +34,6 @@ class OwnerTopBar extends StatelessWidget {
     super.key,
     required this.ownerName,
     this.showName = false,
-    this.onProfil,
     this.onLogout,
     this.onNotifikasi,
   });
@@ -45,7 +43,6 @@ class OwnerTopBar extends StatelessWidget {
   // true di laptop: nama owner ikut tampil di sebelah avatar.
   final bool showName;
 
-  final VoidCallback? onProfil;
   final VoidCallback? onLogout;
 
   // Kalau null, ikon lonceng tidak ditampilkan.
@@ -126,59 +123,6 @@ class OwnerTopBar extends StatelessWidget {
                 size: 24,
               ),
             ),
-          _profileMenu(),
-        ],
-      ),
-    );
-  }
-
-  // Avatar + panah kecil; ditekan akan membuka menu Profil / Logout.
-  Widget _profileMenu() {
-    return PopupMenuButton<int>(
-      tooltip: 'Akun',
-      offset: const Offset(0, 48),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      onSelected: (value) {
-        if (value == 0) onProfil?.call();
-        if (value == 1) onLogout?.call();
-      },
-      itemBuilder: (context) => [
-        const PopupMenuItem(
-          value: 0,
-          child: Row(
-            children: [
-              Icon(Icons.person_outline_rounded, size: 20, color: _ownerNavy),
-              SizedBox(width: 10),
-              Text('Profil'),
-            ],
-          ),
-        ),
-        if (onLogout != null)
-          const PopupMenuItem(
-            value: 1,
-            child: Row(
-              children: [
-                Icon(Icons.logout_rounded, size: 20, color: Colors.redAccent),
-                SizedBox(width: 10),
-                Text('Logout'),
-              ],
-            ),
-          ),
-      ],
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (showName) ...[
-            Text(
-              ownerName,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(width: 10),
-          ],
           Container(
             width: 42,
             height: 42,
@@ -195,12 +139,6 @@ class OwnerTopBar extends StatelessWidget {
               ],
             ),
             child: const Icon(Icons.person, color: _ownerNavy, size: 26),
-          ),
-          const SizedBox(width: 2),
-          const Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: Colors.white,
-            size: 24,
           ),
         ],
       ),
@@ -225,9 +163,7 @@ class OwnerNavigation extends StatelessWidget {
     required this.onProduk,
     required this.onKelolaStaf,
     required this.onLaporan,
-    required this.onProfil,
     required this.onPengaturan,
-    required this.onKasLaci,
     this.onLogout,
   });
 
@@ -243,9 +179,7 @@ class OwnerNavigation extends StatelessWidget {
   final VoidCallback onProduk;
   final VoidCallback onTransaksi;
   final VoidCallback onKelolaStaf;
-  final VoidCallback onProfil;
   final VoidCallback onPengaturan;
-  final VoidCallback onKasLaci;
   final VoidCallback? onLogout;
 
   // Menentukan halaman tujuan dari menu yang ditekan.
@@ -269,13 +203,7 @@ class OwnerNavigation extends StatelessWidget {
         onKelolaStaf();
         break;
       case 5:
-        onProfil();
-        break;
-      case 6:
         onPengaturan();
-        break;
-      case 7:
-        onKasLaci();
         break;
     }
   }
@@ -355,15 +283,6 @@ class OwnerNavigation extends StatelessWidget {
               ],
             ),
           ),
-          if (onLogout != null)
-            ListTile(
-              leading: const Icon(Icons.logout_rounded, color: Colors.white),
-              title: const Text(
-                'Keluar',
-                style: TextStyle(color: Colors.white),
-              ),
-              onTap: onLogout,
-            ),
         ],
       ),
     );

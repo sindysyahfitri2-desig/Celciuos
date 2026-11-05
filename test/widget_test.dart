@@ -14,8 +14,50 @@ import 'package:kasir_celcious_coffe/ui/pages/LaporanPage.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/PengaturanPage.dart';
 import 'package:kasir_celcious_coffe/ui/pages/ProdukPage.dart';
 import 'package:kasir_celcious_coffe/features/kasir/presentation/Transaksi.dart';
+import 'package:kasir_celcious_coffe/features/owner/presentation/pages/Dashboard.dart';
 
 void main() {
+  testWidgets(
+    'owner sidebar opens reports without profile or cash drawer pages',
+    (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1366, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(const MaterialApp(home: DashboardOwner()));
+      expect(find.text('Profil'), findsNothing);
+      expect(find.text('Kas Laci'), findsNothing);
+
+      await tester.tap(find.text('Kelola Laporan'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Kelola Laporan'), findsOneWidget);
+      expect(find.text('Unduh Laporan'), findsOneWidget);
+    },
+  );
+
+  testWidgets('owner mobile drawer opens the owner reports page', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const MaterialApp(home: DashboardOwner()));
+    expect(find.text('Laporan'), findsNothing);
+    await tester.tap(find.byTooltip('Buka menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kelola Laporan'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Kelola Laporan'), findsOneWidget);
+    expect(find.text('Unduh Laporan'), findsOneWidget);
+    expect(find.text('Laporan Kas Laci'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('app builds and shows a scaffold', (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp());
 
@@ -168,6 +210,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.byIcon(Icons.close), findsOneWidget);
     expect(find.text('Pilih Mode'), findsOneWidget);
     await tester.tap(find.text('Pilih Mode'));
     await tester.pumpAndSettle();

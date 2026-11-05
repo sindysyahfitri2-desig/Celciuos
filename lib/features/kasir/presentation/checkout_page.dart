@@ -47,11 +47,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // WARNA
   // ==========================================================
   static const Color _navy = Color(0xff082640);
+  static const Color _merah = Color(0xffdd5b5b);
   // Warna border biru saat tombol dipilih. Ganti jika ingin biru lebih terang,
   // misalnya Color(0xff1f6fb2).
   static const Color _biruBorder = Color(0xff082640);
   static const Color _biruMuda = Color(0xffa8cbe9);
-  static const Color _merah = Color(0xffdd5b5b);
 
   // Nilai yang diketik kasir, bisa berupa persen atau rupiah.
   double diskon = 0;
@@ -257,7 +257,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   // ==========================================================
-  // CARD ITEM (card putih + tab X merah di kanan)
+  // CARD ITEM (card putih + tab merah di ujung kanan)
   // ==========================================================
 
   Widget _itemCard(int index, bool isMobile) {
@@ -271,133 +271,130 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final thumb = isMobile ? 64.0 : 84.0;
 
     Widget iconCoffee() =>
-        const Icon(Icons.coffee_rounded, color: _navy, size: 28);
+            const Icon(Icons.coffee_rounded, color: _navy, size: 28);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: terkunci ? Colors.grey : _merah,
-        borderRadius: BorderRadius.circular(20),
+            color: terkunci ? Colors.grey : _merah,
+            borderRadius: BorderRadius.circular(20),
       ),
       child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Card putih
-            Expanded(
-              child: Container(
-                padding: EdgeInsets.all(isMobile ? 10 : 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: thumb,
-                      height: thumb,
-                      decoration: BoxDecoration(
-                        color: const Color(0xffd9d6e8),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: imagePath.isNotEmpty
-                          ? Image.asset(
-                              imagePath,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => iconCoffee(),
-                            )
-                          : iconCoffee(),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: EdgeInsets.all(isMobile ? 10 : 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item['name'].toString(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: const Color(0xff081d2e),
-                              fontSize: isMobile ? 15 : 18,
-                              fontWeight: FontWeight.w800,
-                            ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: thumb,
+                          height: thumb,
+                          decoration: BoxDecoration(
+                            color: const Color(0xffd9d6e8),
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '$jumlah X ${widget.rupiah(harga).replaceFirst('Rp ', '')}',
-                            style: TextStyle(
-                              color: const Color(0xff315b76),
-                              fontSize: isMobile ? 11 : 12,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Subtotal : ${widget.rupiah(subtotal).replaceFirst('Rp ', '')}',
-                            style: TextStyle(
-                              color: const Color(0xff16558a),
-                              fontSize: isMobile ? 11 : 12,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          if (catatan.isNotEmpty) ...[
-                            const SizedBox(height: 5),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(
-                                  Icons.sticky_note_2_rounded,
-                                  color: _navy,
-                                  size: 14,
+                          clipBehavior: Clip.antiAlias,
+                          child: imagePath.isNotEmpty
+                              ? Image.asset(
+                                  imagePath,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => iconCoffee(),
+                                )
+                              : iconCoffee(),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item['name'].toString(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: const Color(0xff081d2e),
+                                  fontSize: isMobile ? 15 : 18,
+                                  fontWeight: FontWeight.w800,
                                 ),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    'Catatan: $catatan',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$jumlah X ${widget.rupiah(harga).replaceFirst('Rp ', '')}',
+                                style: TextStyle(
+                                  color: const Color(0xff315b76),
+                                  fontSize: isMobile ? 11 : 12,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Subtotal : ${widget.rupiah(subtotal).replaceFirst('Rp ', '')}',
+                                style: TextStyle(
+                                  color: const Color(0xff16558a),
+                                  fontSize: isMobile ? 11 : 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              if (catatan.isNotEmpty) ...[
+                                const SizedBox(height: 5),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(
+                                      Icons.sticky_note_2_rounded,
                                       color: _navy,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
+                                      size: 14,
                                     ),
-                                  ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        'Catatan: $catatan',
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: _navy,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
-                            ),
-                          ],
-                        ],
-                      ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Tab X merah
-            InkWell(
-              onTap: terkunci
-                  ? null
-                  : () => setState(() => widget.cart.removeAt(index)),
-              borderRadius: const BorderRadius.only(
-                topRight: Radius.circular(20),
-                bottomRight: Radius.circular(20),
-              ),
-              child: SizedBox(
-                width: isMobile ? 46 : 58,
-                child: Center(
-                  child: Icon(
-                    terkunci ? Icons.lock_outline : Icons.close,
-                    color: Colors.white,
-                    size: 22,
                   ),
                 ),
-              ),
+                InkWell(
+                  onTap: terkunci
+                      ? null
+                      : () => setState(() => widget.cart.removeAt(index)),
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
+                  ),
+                  child: SizedBox(
+                    width: isMobile ? 46 : 58,
+                    child: Center(
+                      child: Icon(
+                        terkunci ? Icons.lock_outline : Icons.close,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
       ),
     );
   }

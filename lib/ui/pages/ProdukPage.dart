@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -11,8 +12,7 @@ const _priceBlue = Color(0xff24547b);
 const _chipBlue = Color(0xffa9cce6);
 const _imageBackground = Color(0xffd3cee5);
 
-// Ukuran kartu mengikuti desain: gambar persegi besar di kiri,
-// nama dan harga di kanan.
+// Ukuran kartu mengikuti desain awal.
 const double _cardHeight = 108;
 const double _cardPadding = 8;
 const double _imageSize = _cardHeight - (_cardPadding * 2);
@@ -25,9 +25,9 @@ class ProdukPage extends StatefulWidget {
 }
 
 class _ProdukPageState extends State<ProdukPage> {
-  final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController =
+      TextEditingController();
 
-  // null = tampilkan semua menu.
   String? _selectedCategory;
 
   static const List<_CategoryItem> _categories = [
@@ -62,21 +62,21 @@ class _ProdukPageState extends State<ProdukPage> {
         child: ValueListenableBuilder<List<Map<String, dynamic>>>(
           valueListenable: ProdukData.produk,
           builder: (context, products, child) {
-            final normalizedSearch = _searchController.text
-                .trim()
-                .toLowerCase();
+            final normalizedSearch =
+                _searchController.text.trim().toLowerCase();
 
             final visibleProducts = products.where((product) {
               final name = product['name']?.toString() ?? '';
-              final category = product['category']?.toString() ?? '';
+              final category =
+                  product['category']?.toString() ?? '';
 
-              final matchesSearch = name.toLowerCase().contains(
-                normalizedSearch,
-              );
+              final matchesSearch =
+                  name.toLowerCase().contains(normalizedSearch);
 
               final matchesCategory =
                   _selectedCategory == null ||
-                  category.toLowerCase() == _selectedCategory!.toLowerCase();
+                  category.toLowerCase() ==
+                      _selectedCategory!.toLowerCase();
 
               return matchesSearch && matchesCategory;
             }).toList();
@@ -86,7 +86,7 @@ class _ProdukPageState extends State<ProdukPage> {
                 final compact = constraints.maxWidth < 520;
                 final pad = compact ? 12.0 : 16.0;
 
-                return SingleChildScrollView(
+                return Padding(
                   padding: EdgeInsets.fromLTRB(pad, 14, pad, 18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -95,10 +95,13 @@ class _ProdukPageState extends State<ProdukPage> {
                       const SizedBox(height: 14),
                       _categoryFilters(),
                       const SizedBox(height: 14),
-                      if (visibleProducts.isEmpty)
-                        _emptyState()
-                      else
-                        _productGrid(visibleProducts),
+                      Expanded(
+                        child: visibleProducts.isEmpty
+                            ? SingleChildScrollView(
+                                child: _emptyState(),
+                              )
+                            : _productGrid(visibleProducts),
+                      ),
                     ],
                   ),
                 );
@@ -111,7 +114,7 @@ class _ProdukPageState extends State<ProdukPage> {
   }
 
   // ============================================================
-  // KOTAK CARI — BENTUK PIL
+  // SEARCH
   // ============================================================
 
   Widget _searchField() {
@@ -120,7 +123,10 @@ class _ProdukPageState extends State<ProdukPage> {
       child: TextField(
         controller: _searchController,
         onChanged: (_) => setState(() {}),
-        style: GoogleFonts.poppins(color: _navy, fontSize: 12),
+        style: GoogleFonts.poppins(
+          color: _navy,
+          fontSize: 12,
+        ),
         decoration: InputDecoration(
           hintText: 'Cari menu',
           hintStyle: GoogleFonts.poppins(
@@ -132,7 +138,8 @@ class _ProdukPageState extends State<ProdukPage> {
             color: Color(0xff7896ae),
             size: 18,
           ),
-          prefixIconConstraints: const BoxConstraints(minWidth: 40),
+          prefixIconConstraints:
+              const BoxConstraints(minWidth: 40),
           suffixIcon: _searchController.text.isEmpty
               ? null
               : IconButton(
@@ -142,7 +149,10 @@ class _ProdukPageState extends State<ProdukPage> {
                     _searchController.clear();
                     setState(() {});
                   },
-                  icon: const Icon(Icons.close_rounded, size: 16),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 16,
+                  ),
                 ),
           contentPadding: EdgeInsets.zero,
           filled: true,
@@ -157,7 +167,10 @@ class _ProdukPageState extends State<ProdukPage> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(24),
-            borderSide: const BorderSide(color: Color(0xff9bbdd6), width: 1),
+            borderSide: const BorderSide(
+              color: Color(0xff9bbdd6),
+              width: 1,
+            ),
           ),
         ),
       ),
@@ -165,7 +178,7 @@ class _ProdukPageState extends State<ProdukPage> {
   }
 
   // ============================================================
-  // BARIS KATEGORI: "Semua Menu" + chip Coffee, Non-Coffee, Food, Snack
+  // FILTER KATEGORI
   // ============================================================
 
   Widget _categoryFilters() {
@@ -178,13 +191,19 @@ class _ProdukPageState extends State<ProdukPage> {
         children: [
           InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: () => setState(() => _selectedCategory = null),
+            onTap: () {
+              setState(() => _selectedCategory = null);
+            },
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.storefront_rounded, color: _navy, size: 13),
+                  const Icon(
+                    Icons.storefront_rounded,
+                    color: _navy,
+                    size: 13,
+                  ),
                   const SizedBox(width: 5),
                   Text(
                     'Semua Menu',
@@ -216,8 +235,8 @@ class _ProdukPageState extends State<ProdukPage> {
     return GestureDetector(
       onTap: () {
         setState(() {
-          // Menekan chip yang sama sekali lagi kembali ke semua menu.
-          _selectedCategory = selected ? null : category.name;
+          _selectedCategory =
+              selected ? null : category.name;
         });
       },
       child: AnimatedContainer(
@@ -257,46 +276,54 @@ class _ProdukPageState extends State<ProdukPage> {
   }
 
   // ============================================================
-  // GRID PRODUK — 2 KOLOM (1 kolom di layar sempit, 3 di layar lebar)
+  // GRID PRODUK
   // ============================================================
 
   Widget _productGrid(List<Map<String, dynamic>> products) {
     return LayoutBuilder(
       builder: (context, box) {
         final width = box.maxWidth;
+
         final columns = width >= 1150
             ? 3
             : width >= 520
-            ? 2
-            : 1;
+                ? 2
+                : 1;
 
         return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
+          physics: const AlwaysScrollableScrollPhysics(),
           itemCount: products.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          gridDelegate:
+              SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
             mainAxisExtent: _cardHeight,
           ),
-          itemBuilder: (context, index) => _productCard(products[index]),
+          itemBuilder: (context, index) {
+            return _productCard(products[index]);
+          },
         );
       },
     );
   }
 
   // ============================================================
-  // KARTU PRODUK — gambar kiri, nama dan harga kanan, tanpa tombol
+  // KARTU PRODUK + TOGGLE AKTIF/NONAKTIF
   // ============================================================
 
   Widget _productCard(Map<String, dynamic> product) {
     final name = product['name']?.toString() ?? 'Produk';
+    final isActive = product['is_active'] != false;
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
       padding: const EdgeInsets.all(_cardPadding),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isActive
+            ? Colors.white
+            : const Color(0xffe0e0e0),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -306,13 +333,30 @@ class _ProdukPageState extends State<ProdukPage> {
             height: _imageSize,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: ColoredBox(
-                color: _imageBackground,
-                child: ProductImage(image: product['image']),
+              child: ColorFiltered(
+                colorFilter: isActive
+                    ? const ColorFilter.mode(
+                        Colors.transparent,
+                        BlendMode.multiply,
+                      )
+                    : const ColorFilter.matrix([
+                        0.2126, 0.7152, 0.0722, 0, 0,
+                        0.2126, 0.7152, 0.0722, 0, 0,
+                        0.2126, 0.7152, 0.0722, 0, 0,
+                        0, 0, 0, 1, 0,
+                      ]),
+                child: ColoredBox(
+                  color: _imageBackground,
+                  child: ProductImage(
+                    image: product['image'],
+                  ),
+                ),
               ),
             ),
           ),
+
           const SizedBox(width: 14),
+
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -323,7 +367,9 @@ class _ProdukPageState extends State<ProdukPage> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
-                    color: _navy,
+                    color: isActive
+                        ? _navy
+                        : const Color(0xff888888),
                     fontSize: 15,
                     height: 1.2,
                     fontWeight: FontWeight.w700,
@@ -335,13 +381,26 @@ class _ProdukPageState extends State<ProdukPage> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
-                    color: _priceBlue,
+                    color: isActive
+                        ? _priceBlue
+                        : const Color(0xff999999),
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
+          ),
+
+          const SizedBox(width: 8),
+
+          _ProductToggle(
+            value: isActive,
+            onChanged: (value) {
+              setState(() {
+                product['is_active'] = value;
+              });
+            },
           ),
         ],
       ),
@@ -355,14 +414,21 @@ class _ProdukPageState extends State<ProdukPage> {
   Widget _emptyState() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
+      padding: const EdgeInsets.symmetric(
+        vertical: 40,
+        horizontal: 16,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
-          const Icon(Icons.search_off_rounded, color: _mutedText, size: 32),
+          const Icon(
+            Icons.search_off_rounded,
+            color: _mutedText,
+            size: 32,
+          ),
           const SizedBox(height: 8),
           Text(
             'Produk tidak ditemukan',
@@ -376,13 +442,77 @@ class _ProdukPageState extends State<ProdukPage> {
           Text(
             'Coba kata kunci atau kategori lainnya.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(color: _mutedText, fontSize: 11),
+            style: GoogleFonts.poppins(
+              color: _mutedText,
+              fontSize: 11,
+            ),
           ),
         ],
       ),
     );
   }
 }
+
+// ============================================================
+// TOGGLE SWITCH UIVERSE STYLE
+// ============================================================
+
+class _ProductToggle extends StatelessWidget {
+  const _ProductToggle({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onChanged(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        width: 52,
+        height: 25,
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: value
+              ? const Color(0xff7cade0)
+              : const Color(0xffcecece),
+          borderRadius: BorderRadius.circular(40),
+        ),
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: value
+              ? Alignment.centerRight
+              : Alignment.centerLeft,
+          child: Container(
+            width: 21,
+            height: 21,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.20),
+                  blurRadius: 5,
+                  offset: const Offset(1, 2),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// MODEL KATEGORI
+// ============================================================
 
 class _CategoryItem {
   const _CategoryItem(this.name, this.icon);

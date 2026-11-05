@@ -14,7 +14,6 @@ class CashierTransactionService {
     required DateTime time,
   }) {
     final date =
-        '${time.year.toString().padLeft(4, '0')}'
         '${time.month.toString().padLeft(2, '0')}'
         '${time.day.toString().padLeft(2, '0')}';
     final prefix = 'CC-$date-';

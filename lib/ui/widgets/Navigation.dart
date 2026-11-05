@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../pages/LaporanPage.dart';
 import '../pages/ProdukPage.dart';
-import 'package:kasir_celcious_coffe/features/kasir/presentation/cash_drawer_page.dart';
 import 'package:kasir_celcious_coffe/features/kasir/presentation/Transaksi.dart';
 
 // Navigasi bersama untuk membuka layar tiap area aplikasi.
@@ -22,7 +21,6 @@ const _navigationItems = <_NavigationItem>[
   _NavigationItem('Laporan keuangan', Icons.bar_chart_rounded),
   _NavigationItem('Produk', Icons.local_drink_outlined),
   _NavigationItem('Transaksi', Icons.account_balance_wallet_rounded),
-  _NavigationItem('Kas Laci', Icons.point_of_sale_rounded),
 ];
 
 // ============================================================
@@ -133,15 +131,6 @@ class AppNavigation extends StatelessWidget {
               ],
             ),
           ),
-          if (onLogout != null)
-            ListTile(
-              leading: const Icon(Icons.logout_rounded, color: Colors.white),
-              title: const Text(
-                'Keluar',
-                style: TextStyle(color: Colors.white),
-              ),
-              onTap: onLogout,
-            ),
         ],
       ),
     );
@@ -263,9 +252,6 @@ class _AppNavigationShellState extends State<AppNavigationShell> {
             _selectMenu(1);
           },
         );
-
-      case 4:
-        return const CashDrawerPage();
 
       default:
         return widget.cashierBuilder(context);

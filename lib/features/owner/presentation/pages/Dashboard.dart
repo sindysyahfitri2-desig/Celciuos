@@ -7,10 +7,9 @@ import 'package:kasir_celcious_coffe/features/owner/presentation/pages/KelolaPro
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/KelolaStaf.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/Transaksi/Kelola_Transaksi.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/widgets/Navigation.dart';
-import 'package:kasir_celcious_coffe/features/kasir/presentation/cash_drawer_page.dart';
-import 'package:kasir_celcious_coffe/ui/pages/LaporanPage.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/PengaturanPage.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
+import 'KelolaLaporan.dart';
 
 // Area Owner; komponen bersama berada di lib/widgets dan data di lib/data.
 const Color ownerNavy = Color(0xFF103456);
@@ -78,13 +77,11 @@ class _DashboardOwnerState extends State<DashboardOwner> {
 
   static const menuTitles = [
     'Dashboard',
-    'Transaksi',
+    'Kelola Laporan',
     'Kelola Produk',
+    'Transaksi',
     'Kelola Staf',
-    'Laporan',
-    "Profil",
     'Pengaturan',
-    'Kas Laci',
   ];
 
   @override
@@ -123,9 +120,7 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                     onProduk: () {},
                     onTransaksi: () {},
                     onKelolaStaf: () {},
-                    onProfil: () {},
                     onPengaturan: () {},
-                    onKasLaci: () {},
                     onLogout: widget.onLogout,
                   ),
                 ),
@@ -146,9 +141,7 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                           onProduk: () => selectMenu(2),
                           onTransaksi: () => selectMenu(3),
                           onKelolaStaf: () => selectMenu(4),
-                          onProfil: () => selectMenu(5),
-                          onPengaturan: () => selectMenu(6),
-                          onKasLaci: () => selectMenu(7),
+                          onPengaturan: () => selectMenu(5),
                         ),
                       Expanded(child: _content()),
                     ],
@@ -189,12 +182,11 @@ class _DashboardOwnerState extends State<DashboardOwner> {
             searchController: searchController,
             onMessage: _showMessage,
           ),
-          1 => LaporanPage(namaKasir: widget.namaOwner),
+          1 => const KelolaLaporanContent(),
           2 => const owner_products.ProdukPage(),
           3 => const KelolaTransaksiPage(pakaiDataContoh: false),
           4 => const KontrolStafPage(),
-          6 => const PengaturanPage(),
-          7 => const CashDrawerPage(),
+          5 => const PengaturanPage(),
           _ => _DashboardBody(
             namaOwner: widget.namaOwner,
             searchController: searchController,

@@ -28,7 +28,7 @@ void main() {
       expect(pricing.itemCount, 2);
     });
 
-    test('order IDs use a readable store-date-sequence format', () {
+    test('order IDs use month-day-sequence format without the year', () {
       SharedPreferences.setMockInitialValues({});
       TransactionStore.unfinishedOrders.value = [];
       TransactionStore.transactions.value = [];
@@ -40,7 +40,7 @@ void main() {
         time: DateTime(2026, 11, 5),
       );
 
-      expect(order['id'], 'CC-20261105-001');
+      expect(order['id'], 'CC-1105-001');
       expect(order['display'], order['id']);
     });
 
