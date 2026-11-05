@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -18,17 +18,13 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
   List<Staff> get staffList => _directory.staff;
 
   Future<void> editStaff(int index) async {
-    final controller =
-        TextEditingController(text: staffList[index].name);
+    final controller = TextEditingController(text: staffList[index].name);
 
     final result = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Edit Staf"),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-        ),
+        content: TextField(controller: controller, autofocus: true),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -36,10 +32,7 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(
-                context,
-                controller.text.trim(),
-              );
+              Navigator.pop(context, controller.text.trim());
             },
             child: const Text("Simpan"),
           ),
@@ -48,7 +41,15 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
     );
 
     if (result != null && result.isNotEmpty) {
-      _directory.rename(index, result);
+      final success = await _directory.rename(index, result);
+      if (!success && mounted && _directory.errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_directory.errorMessage!),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -56,6 +57,7 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
   void initState() {
     super.initState();
     _directory.addListener(_onDirectoryChanged);
+    _directory.fetchStaff();
   }
 
   @override
@@ -64,6 +66,43 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
       ..removeListener(_onDirectoryChanged)
       ..dispose();
     super.dispose();
+  }
+
+  Future<void> _confirmDelete(int index) async {
+    final staff = staffList[index];
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Hapus Staf"),
+        content: Text("Yakin ingin menghapus akun ${staff.name}?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Batal"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Hapus"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final success = await _directory.delete(index);
+      if (!success && mounted && _directory.errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_directory.errorMessage!),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _onDirectoryChanged() {
@@ -92,8 +131,7 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
             return SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   constraints.maxWidth < 600
                       ? Column(
@@ -104,38 +142,24 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
                                 "Kontrol Staf",
                                 style: TextStyle(
                                   fontSize: 28,
-                                  fontWeight:
-                                      FontWeight.w900,
-                                  color:
-                                      Color(0xff0E2F56),
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xff0E2F56),
                                 ),
                               ),
                             ),
-                            const SizedBox(
-                                height: 12),
+                            const SizedBox(height: 12),
                             TextField(
                               onChanged: (v) {
                                 _directory.setSearchQuery(v);
                               },
-                              decoration:
-                                  InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: "Cari",
                                 filled: true,
-                                fillColor:
-                                    Colors.white,
-                                prefixIcon:
-                                    const Icon(
-                                  Icons.search,
-                                ),
-                                border:
-                                    OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius
-                                          .circular(
-                                              25),
-                                  borderSide:
-                                      BorderSide
-                                          .none,
+                                fillColor: Colors.white,
+                                prefixIcon: const Icon(Icons.search),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(25),
+                                  borderSide: BorderSide.none,
                                 ),
                               ),
                             ),
@@ -147,10 +171,8 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
                               "Kontrol Staf",
                               style: TextStyle(
                                 fontSize: 32,
-                                fontWeight:
-                                    FontWeight.w900,
-                                color:
-                                    Color(0xff0E2F56),
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xff0E2F56),
                               ),
                             ),
                             const Spacer(),
@@ -160,25 +182,14 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
                                 onChanged: (v) {
                                   _directory.setSearchQuery(v);
                                 },
-                                decoration:
-                                    InputDecoration(
+                                decoration: InputDecoration(
                                   hintText: "Cari",
                                   filled: true,
-                                  fillColor:
-                                      Colors.white,
-                                  prefixIcon:
-                                      const Icon(
-                                    Icons.search,
-                                  ),
-                                  border:
-                                      OutlineInputBorder(
-                                    borderRadius:
-                                        BorderRadius
-                                            .circular(
-                                                25),
-                                    borderSide:
-                                        BorderSide
-                                            .none,
+                                  fillColor: Colors.white,
+                                  prefixIcon: const Icon(Icons.search),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(25),
+                                    borderSide: BorderSide.none,
                                   ),
                                 ),
                               ),
@@ -189,115 +200,122 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
                   const SizedBox(height: 25),
 
                   AddStaffCard(
-                    onSave: _directory.add,
+                    onSave: (staff) async {
+                      final ok = await _directory.addStaff(staff);
+                      if (!ok && mounted && _directory.errorMessage != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(_directory.errorMessage!),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                      return ok;
+                    },
                   ),
-
                   const SizedBox(height: 25),
 
                   GridView.builder(
                     shrinkWrap: true,
-                    physics:
-                        const NeverScrollableScrollPhysics(),
+                    physics: const NeverScrollableScrollPhysics(),
                     itemCount: filtered.length,
-                    gridDelegate:
-                        SliverGridDelegateWithFixedCrossAxisCount(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: columns,
                       crossAxisSpacing: 16,
                       mainAxisSpacing: 16,
-                      childAspectRatio: 0.72,
+                      childAspectRatio: 0.65,
                     ),
                     itemBuilder: (context, index) {
                       final staff = filtered[index];
 
                       return Container(
-                        padding:
-                            const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius:
-                              BorderRadius.circular(
-                                  16),
+                          borderRadius: BorderRadius.circular(16),
                           boxShadow: const [
-                            BoxShadow(
-                              color:
-                                  Colors.black12,
-                              blurRadius: 6,
-                            )
+                            BoxShadow(color: Colors.black12, blurRadius: 6),
                           ],
                         ),
                         child: Column(
                           children: [
                             Expanded(
                               child: Container(
-                                width:
-                                    double.infinity,
-                                decoration:
-                                    BoxDecoration(
-                                  color: Colors
-                                      .grey.shade300,
-                                  borderRadius:
-                                      BorderRadius
-                                          .circular(
-                                              14),
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade300,
+                                  borderRadius: BorderRadius.circular(14),
                                 ),
-                                child: staff
-                                            .photoPath ==
-                                        null
-                                    ? const Icon(
-                                        Icons
-                                            .person,
-                                        size: 60,
-                                      )
-                                    : ClipRRect(
-                                        borderRadius:
-                                            BorderRadius.circular(
-                                                14),
-                                        child:
-                                            Image.file(
-                                          File(staff
-                                              .photoPath!),
-                                          fit: BoxFit
-                                              .cover,
+                                child: staff.photoUrl != null
+                                    ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(14),
+                                        child: Image.network(
+                                          staff.photoUrl!,
+                                          fit: BoxFit.cover,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                          errorBuilder: (_, __, ___) =>
+                                              const Icon(
+                                                Icons.person,
+                                                size: 60,
+                                              ),
                                         ),
-                                      ),
+                                      )
+                                    : const Icon(Icons.person, size: 60),
                               ),
                             ),
-                            const SizedBox(
-                                height: 10),
+                            const SizedBox(height: 10),
                             Text(
                               staff.name,
                               maxLines: 1,
-                              overflow:
-                                  TextOverflow
-                                      .ellipsis,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(
-                                height: 8),
-                            SizedBox(
-                              width: 80,
-                              height: 30,
-                              child:
-                                  ElevatedButton(
-                                onPressed: () =>
-                                    editStaff(
-                                        index),
-                                style:
-                                    ElevatedButton
-                                        .styleFrom(
-                                  backgroundColor:
-                                      const Color(
-                                          0xff0E2F56),
-                                  foregroundColor:
-                                      Colors.white,
-                                ),
-                                child: const Text(
-                                  "Edit",
-                                  style:
-                                      TextStyle(
-                                    fontSize: 11,
-                                  ),
+                            if (staff.username != null &&
+                                staff.username!.isNotEmpty)
+                              Text(
+                                "@${staff.username}",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey,
                                 ),
                               ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 60,
+                                  height: 28,
+                                  child: ElevatedButton(
+                                    onPressed: () => editStaff(index),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xff0E2F56),
+                                      foregroundColor: Colors.white,
+                                      padding: EdgeInsets.zero,
+                                    ),
+                                    child: const Text(
+                                      "Edit",
+                                      style: TextStyle(fontSize: 11),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                SizedBox(
+                                  width: 32,
+                                  height: 28,
+                                  child: IconButton(
+                                    padding: EdgeInsets.zero,
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      size: 20,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () => _confirmDelete(index),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -315,32 +333,27 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
 }
 
 class AddStaffCard extends StatefulWidget {
-  final ValueChanged<Staff> onSave;
+  final Future<bool> Function(Staff) onSave; // <-- bukan ValueChanged<Staff>
 
-  const AddStaffCard({
-    super.key,
-    required this.onSave,
-  });
-
+  const AddStaffCard({super.key, required this.onSave});
   @override
-  State<AddStaffCard> createState() =>
-      _AddStaffCardState();
+  State<AddStaffCard> createState() => _AddStaffCardState();
 }
 
-class _AddStaffCardState
-    extends State<AddStaffCard> {
+class _AddStaffCardState extends State<AddStaffCard> {
   final controller = TextEditingController();
 
   String? photoPath;
+  Uint8List? photoBytes;
 
   Future<void> pickImage() async {
-    final image = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-    );
+    final image = await ImagePicker().pickImage(source: ImageSource.gallery);
 
     if (image != null) {
+      final bytes = await image.readAsBytes(); // jalan di web & mobile
       setState(() {
         photoPath = image.path;
+        photoBytes = bytes;
       });
     }
   }
@@ -354,6 +367,7 @@ class _AddStaffCardState
       Staff(
         name: controller.text.trim(),
         photoPath: photoPath,
+        photoBytes: photoBytes,
       ),
     );
 
@@ -361,6 +375,7 @@ class _AddStaffCardState
 
     setState(() {
       photoPath = null;
+      photoBytes = null;
     });
   }
 
@@ -370,14 +385,8 @@ class _AddStaffCardState
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(18),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 6,
-          ),
-        ],
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
       ),
       child: Row(
         children: [
@@ -387,25 +396,14 @@ class _AddStaffCardState
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color:
-                    const Color(0xffD3CFE6),
-                borderRadius:
-                    BorderRadius.circular(12),
+                color: const Color(0xffD3CFE6),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: photoPath == null
-                  ? const Icon(
-                      Icons.add,
-                      color: Colors.white,
-                      size: 35,
-                    )
+              child: photoBytes == null
+                  ? const Icon(Icons.add, color: Colors.white, size: 35)
                   : ClipRRect(
-                      borderRadius:
-                          BorderRadius.circular(
-                              12),
-                      child: Image.file(
-                        File(photoPath!),
-                        fit: BoxFit.cover,
-                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.memory(photoBytes!, fit: BoxFit.cover),
                     ),
             ),
           ),
@@ -413,20 +411,15 @@ class _AddStaffCardState
           Expanded(
             child: TextField(
               controller: controller,
-              decoration:
-                  const InputDecoration(
-                hintText: "Nama Staf",
-              ),
+              decoration: const InputDecoration(hintText: "Nama Staf"),
             ),
           ),
           const SizedBox(width: 10),
           ElevatedButton(
             onPressed: save,
             style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  const Color(0xff0E2F56),
-              foregroundColor:
-                  Colors.white,
+              backgroundColor: const Color(0xff0E2F56),
+              foregroundColor: Colors.white,
             ),
             child: const Text("Simpan"),
           ),

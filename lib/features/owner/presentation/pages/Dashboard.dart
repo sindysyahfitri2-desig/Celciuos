@@ -149,6 +149,8 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                           onProfil: () => selectMenu(5),
                           onPengaturan: () => selectMenu(6),
                           onKasLaci: () => selectMenu(7),
+                          onLogout: widget.onLogout,
+                      
                         ),
                       Expanded(child: _content()),
                     ],
