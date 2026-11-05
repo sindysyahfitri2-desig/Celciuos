@@ -129,7 +129,14 @@ class _LoginPageState extends State<LoginPage>
     else if (role == 'Kasir') {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => const kasirPage(),
+          builder: (_) => kasirPage(
+            onLogout: () {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+                (route) => false,
+              );
+            },
+          ),
         ),
       );
     } else {

@@ -85,6 +85,7 @@ void main() {
   testWidgets('main screens fit phone, tablet, and laptop widths', (
     WidgetTester tester,
   ) async {
+    SharedPreferences.setMockInitialValues({});
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);

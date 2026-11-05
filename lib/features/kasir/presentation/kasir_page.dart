@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:kasir_celcious_coffe/data/produk_data.dart';
+import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 import 'package:kasir_celcious_coffe/features/kasir/application/cashier_cart_controller.dart';
 import 'package:kasir_celcious_coffe/features/kasir/application/cashier_shift_service.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/Navigation.dart';
@@ -8,12 +9,13 @@ import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/product_cart.dart';
 
 import 'checkout_page.dart';
-import 'package:kasir_celcious_coffe/ui/pages/home_page.dart';
-import 'widgets/cash_drawer_dialog.dart';
+import 'widgets/cash_drawer_panel.dart';
 
 // Layar dan alur Kasir; penyimpanan bersama tetap berada di lib/data.
 class kasirPage extends StatefulWidget {
-  const kasirPage({super.key});
+  const kasirPage({super.key, this.onLogout});
+
+  final VoidCallback? onLogout;
 
   @override
   State<kasirPage> createState() => _kasirPageState();
@@ -34,9 +36,9 @@ class _kasirPageState extends State<kasirPage> {
 
   String namaKasir = '';
   double kasAwal = 0;
+  bool _showCashDrawerPanel = false;
 
   bool showWelcome = true;
-  bool showJenisPesanan = false;
 
   String? jenisPesanan;
 
@@ -414,6 +416,9 @@ class _kasirPageState extends State<kasirPage> {
   void initState() {
     super.initState();
     _cartController.addListener(_onCartChanged);
+    TransactionStore.cashDrawerEntries.addListener(_onCashDrawerChanged);
+    TransactionStore.transactions.addListener(_onCashDrawerChanged);
+    TransactionStore.unfinishedOrders.addListener(_onCashDrawerChanged);
     final shift = CashierShiftService.activeShift();
     if (shift != null) {
       namaKasir = shift.cashier;
@@ -421,12 +426,22 @@ class _kasirPageState extends State<kasirPage> {
       namaController.text = shift.cashier;
       kasController.text = shift.openingCash.toInt().toString();
       showWelcome = false;
-      showJenisPesanan = true;
     }
   }
 
   void _onCartChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _onCashDrawerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  double get _cashDrawerBalance {
+    final shift = TransactionStore.activeShift.value;
+    if (shift?['status'] != 'open') return kasAwal;
+    return (TransactionStore.activeShiftSummary()['expectedCash'] as num)
+        .toDouble();
   }
 
   // ==========================================================
@@ -438,6 +453,9 @@ class _kasirPageState extends State<kasirPage> {
     _cartController
       ..removeListener(_onCartChanged)
       ..dispose();
+    TransactionStore.cashDrawerEntries.removeListener(_onCashDrawerChanged);
+    TransactionStore.transactions.removeListener(_onCashDrawerChanged);
+    TransactionStore.unfinishedOrders.removeListener(_onCashDrawerChanged);
     namaController.dispose();
     kasController.dispose();
     super.dispose();
@@ -458,7 +476,6 @@ class _kasirPageState extends State<kasirPage> {
         namaKasir = shift.cashier;
         kasAwal = shift.openingCash;
         showWelcome = false;
-        showJenisPesanan = true;
         jenisPesanan = null;
       });
     } catch (error) {
@@ -475,11 +492,8 @@ class _kasirPageState extends State<kasirPage> {
     }
   }
 
-  void _openCashDrawerDialog() {
-    showDialog<void>(
-      context: context,
-      builder: (_) => const CashDrawerDialog(),
-    );
+  void _toggleCashDrawerPanel() {
+    setState(() => _showCashDrawerPanel = !_showCashDrawerPanel);
   }
 
   // ==========================================================
@@ -519,6 +533,7 @@ class _kasirPageState extends State<kasirPage> {
           namaKasir: namaKasir,
           headerBuilder: (_) => _header(),
           cashierBuilder: (_) => _cashierContent(),
+          onLogout: widget.onLogout,
         ),
       ),
     );
@@ -596,7 +611,7 @@ class _kasirPageState extends State<kasirPage> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(18),
                   child: InkWell(
-                    onTap: _openCashDrawerDialog,
+                    onTap: _toggleCashDrawerPanel,
                     borderRadius: BorderRadius.circular(18),
                     child: Padding(
                       padding: EdgeInsets.symmetric(
@@ -611,14 +626,15 @@ class _kasirPageState extends State<kasirPage> {
                             color: textColor,
                           ),
                           SizedBox(width: isMobile ? 4 : 7),
-                          Text(
-                            rupiah(kasAwal),
-                            style: TextStyle(
-                              color: textColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: isMobile ? 10 : 13,
+                          if (!isMobile)
+                            Text(
+                              rupiah(_cashDrawerBalance),
+                              style: TextStyle(
+                                color: textColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
                             ),
-                          ),
                           if (!isMobile) ...[
                             const SizedBox(width: 10),
                             const Text(
@@ -629,9 +645,27 @@ class _kasirPageState extends State<kasirPage> {
                               ),
                             ),
                           ],
+                          if (!isMobile)
+                            Icon(
+                              _showCashDrawerPanel
+                                  ? Icons.keyboard_arrow_up_rounded
+                                  : Icons.keyboard_arrow_down_rounded,
+                              size: 18,
+                              color: const Color(0xff607181),
+                            ),
                         ],
                       ),
                     ),
+                  ),
+                ),
+              ],
+              if (isMobile || isTablet) ...[
+                const SizedBox(width: 4),
+                Builder(
+                  builder: (context) => IconButton(
+                    tooltip: 'Buka menu',
+                    onPressed: () => Scaffold.of(context).openDrawer(),
+                    icon: const Icon(Icons.menu_rounded, color: Colors.white),
                   ),
                 ),
               ],
@@ -643,7 +677,20 @@ class _kasirPageState extends State<kasirPage> {
   }
 
   Widget _cashierContent() {
-    return _cashierBody();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_showCashDrawerPanel && !showWelcome)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: const CashDrawerPanel(),
+            ),
+          ),
+        Expanded(child: _cashierBody()),
+      ],
+    );
   }
 
   Widget _cashierBody() {
@@ -667,22 +714,6 @@ class _kasirPageState extends State<kasirPage> {
       );
     }
 
-    if (showJenisPesanan) {
-      return HomePage(
-        selectedOrderType: jenisPesanan,
-        onOrderTypeSelected: (value) {
-          setState(() {
-            jenisPesanan = value;
-          });
-        },
-        onContinue: () {
-          setState(() {
-            showJenisPesanan = false;
-          });
-        },
-      );
-    }
-
     return _cashier();
   }
 
@@ -690,7 +721,6 @@ class _kasirPageState extends State<kasirPage> {
     setState(() {
       _cartController.clear();
       showCheckout = false;
-      showJenisPesanan = true;
       jenisPesanan = null;
     });
   }
@@ -737,6 +767,17 @@ class _kasirPageState extends State<kasirPage> {
                 onPressed: cart.isEmpty
                     ? null
                     : () {
+                        if (jenisPesanan == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Pilih Dine In atau Take Away terlebih dahulu.',
+                              ),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                          return;
+                        }
                         setState(() {
                           showCheckout = true;
                         });
@@ -826,6 +867,10 @@ class _kasirPageState extends State<kasirPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    _orderTypeSelector(),
+
+                    const SizedBox(height: 12),
+
                     // Pencarian produk
                     _search(),
 
@@ -835,28 +880,6 @@ class _kasirPageState extends State<kasirPage> {
                     _categories(),
 
                     const SizedBox(height: 8),
-
-                    // Tombol ubah jenis pesanan di bawah kategori
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            showJenisPesanan = true;
-                          });
-                        },
-                        icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                        label: Text(
-                          ': ${jenisPesanan ?? "-"}',
-                          style: TextStyle(
-                            color: navy,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 9),
 
                     // Daftar produk
                     _productGrid(),
@@ -872,6 +895,64 @@ class _kasirPageState extends State<kasirPage> {
           ],
         );
       },
+    );
+  }
+
+  Widget _orderTypeSelector() {
+    Widget option({required String label, required IconData icon}) {
+      final selected = jenisPesanan == label;
+      return Expanded(
+        child: Material(
+          color: selected ? navy : Colors.white,
+          elevation: selected ? 5 : 2,
+          shadowColor: navy.withValues(alpha: 0.16),
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () => setState(() => jenisPesanan = label),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 19, color: selected ? Colors.white : navy),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: selected ? Colors.white : navy,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Jenis Pesanan',
+          style: TextStyle(
+            color: navy,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 7),
+        Row(
+          children: [
+            option(label: 'Dine In', icon: Icons.restaurant_rounded),
+            const SizedBox(width: 10),
+            option(label: 'Take Away', icon: Icons.takeout_dining_rounded),
+          ],
+        ),
+      ],
     );
   }
 

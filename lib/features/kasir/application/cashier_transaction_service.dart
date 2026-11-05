@@ -13,32 +13,11 @@ class CashierTransactionService {
     required List<Map<String, dynamic>> cart,
     required DateTime time,
   }) {
-    const categoryCodes = {
-      'coffee': 'CF',
-      'non-coffee': 'NC',
-      'food': 'FD',
-      'snack': 'SN',
-    };
-    final categoryTags =
-        cart
-            .map((item) {
-              final category = item['category']
-                  ?.toString()
-                  .trim()
-                  .toLowerCase();
-              if (category == null || category.isEmpty) return 'OT';
-              return categoryCodes[category] ??
-                  category
-                      .substring(0, category.length >= 2 ? 2 : 1)
-                      .toUpperCase();
-            })
-            .toSet()
-            .toList()
-          ..sort();
-
     final date =
-        '${time.day.toString().padLeft(2, '0')}${time.month.toString().padLeft(2, '0')}';
-    final prefix = '${categoryTags.join('-')}-$date-';
+        '${time.year.toString().padLeft(4, '0')}'
+        '${time.month.toString().padLeft(2, '0')}'
+        '${time.day.toString().padLeft(2, '0')}';
+    final prefix = 'CC-$date-';
     final existingIds = [
       ...TransactionStore.unfinishedOrders.value,
       ...TransactionStore.transactions.value,
@@ -50,9 +29,8 @@ class CashierTransactionService {
       if (previous != null && previous >= number) number = previous + 1;
     }
 
-    final sequence = number.toString().padLeft(2, '0');
-    final tag = categoryTags.join('-');
-    return {'id': '$prefix$sequence', 'display': '-$tag\n-$date-\n$sequence'};
+    final orderId = '$prefix${number.toString().padLeft(3, '0')}';
+    return {'id': orderId, 'display': orderId};
   }
 
   static Future<void> saveUnfinishedOrder({

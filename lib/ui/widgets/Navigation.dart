@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../pages/LaporanPage.dart';
 import '../pages/ProdukPage.dart';
+import 'package:kasir_celcious_coffe/features/kasir/presentation/cash_drawer_page.dart';
 import 'package:kasir_celcious_coffe/features/kasir/presentation/Transaksi.dart';
 
 // Navigasi bersama untuk membuka layar tiap area aplikasi.
@@ -21,6 +22,7 @@ const _navigationItems = <_NavigationItem>[
   _NavigationItem('Laporan keuangan', Icons.bar_chart_rounded),
   _NavigationItem('Produk', Icons.local_drink_outlined),
   _NavigationItem('Transaksi', Icons.account_balance_wallet_rounded),
+  _NavigationItem('Kas Laci', Icons.point_of_sale_rounded),
 ];
 
 // ============================================================
@@ -33,11 +35,13 @@ class AppNavigation extends StatelessWidget {
     required this.selectedMenu,
     required this.namaKasir,
     required this.onMenuSelected,
+    this.onLogout,
   });
 
   final int selectedMenu;
   final String namaKasir;
   final ValueChanged<int> onMenuSelected;
+  final VoidCallback? onLogout;
 
   @override
   Widget build(BuildContext context) {
@@ -129,6 +133,15 @@ class AppNavigation extends StatelessWidget {
               ],
             ),
           ),
+          if (onLogout != null)
+            ListTile(
+              leading: const Icon(Icons.logout_rounded, color: Colors.white),
+              title: const Text(
+                'Keluar',
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: onLogout,
+            ),
         ],
       ),
     );
@@ -145,11 +158,13 @@ class AppNavigationShell extends StatefulWidget {
     required this.namaKasir,
     required this.headerBuilder,
     required this.cashierBuilder,
+    this.onLogout,
   });
 
   final String namaKasir;
   final WidgetBuilder headerBuilder;
   final WidgetBuilder cashierBuilder;
+  final VoidCallback? onLogout;
 
   @override
   State<AppNavigationShell> createState() => _AppNavigationShellState();
@@ -157,6 +172,7 @@ class AppNavigationShell extends StatefulWidget {
 
 class _AppNavigationShellState extends State<AppNavigationShell> {
   int selectedMenu = 0;
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   void _selectMenu(int index) {
     setState(() {
@@ -170,34 +186,44 @@ class _AppNavigationShellState extends State<AppNavigationShell> {
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth >= 950;
 
-        return Column(
-          children: [
-            widget.headerBuilder(context),
-
-            Expanded(
-              child: isDesktop
-                  ? Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        AppNavigation(
-                          selectedMenu: selectedMenu,
-                          namaKasir: widget.namaKasir,
-                          onMenuSelected: _selectMenu,
-                        ),
-                        Expanded(child: _animatedContent()),
-                      ],
-                    )
-                  : Column(
-                      children: [
-                        Expanded(child: _animatedContent()),
-                        AppBottomNavigation(
-                          selectedMenu: selectedMenu,
-                          onMenuSelected: _selectMenu,
-                        ),
-                      ],
+        return Scaffold(
+          key: _scaffoldKey,
+          drawer: isDesktop
+              ? null
+              : Drawer(
+                  child: SafeArea(
+                    child: AppNavigation(
+                      selectedMenu: selectedMenu,
+                      namaKasir: widget.namaKasir,
+                      onMenuSelected: (index) {
+                        _selectMenu(index);
+                        _scaffoldKey.currentState?.closeDrawer();
+                      },
+                      onLogout: widget.onLogout,
                     ),
-            ),
-          ],
+                  ),
+                ),
+          body: Column(
+            children: [
+              widget.headerBuilder(context),
+              Expanded(
+                child: isDesktop
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          AppNavigation(
+                            selectedMenu: selectedMenu,
+                            namaKasir: widget.namaKasir,
+                            onMenuSelected: _selectMenu,
+                            onLogout: widget.onLogout,
+                          ),
+                          Expanded(child: _animatedContent()),
+                        ],
+                      )
+                    : _animatedContent(),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -238,6 +264,9 @@ class _AppNavigationShellState extends State<AppNavigationShell> {
           },
         );
 
+      case 4:
+        return const CashDrawerPage();
+
       default:
         return widget.cashierBuilder(context);
     }
@@ -258,7 +287,7 @@ class AppBottomNavigation extends StatelessWidget {
   final int selectedMenu;
   final ValueChanged<int> onMenuSelected;
 
-  static const labels = ['Kasir', 'Laporan', 'Produk', 'Transaksi'];
+  static const labels = ['Kasir', 'Laporan', 'Produk', 'Transaksi', 'Kas'];
 
   @override
   Widget build(BuildContext context) {

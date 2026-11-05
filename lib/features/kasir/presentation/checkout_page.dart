@@ -1054,6 +1054,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
           builder: (_) => TransaksiBerhasilPage(
+            receiptData: {
+              'orderId': kodePesanan['id'] ?? '',
+              'customerName': namaCustomer,
+              'cashierName': widget.namaKasir,
+              'orderType': widget.jenisPesanan,
+              'paymentMethod': metodePembayaran,
+              'orderedAt': waktu,
+              'items': widget.cart
+                  .map((item) => Map<String, dynamic>.from(item))
+                  .toList(),
+              'subtotal': total,
+              'tax': biayaLainnya,
+              'discount': nominalDiskon,
+              'total': totalAkhir,
+            },
             onSelesai: () {
               Navigator.of(context).pop();
               widget.onLanjutPembayaran();

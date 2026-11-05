@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:kasir_celcious_coffe/data/app_branding_store.dart';
 import 'package:kasir_celcious_coffe/data/qris_store.dart';
+import 'package:kasir_celcious_coffe/data/receipt_settings_store.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 import 'package:kasir_celcious_coffe/features/settings/application/settings_service.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
@@ -31,6 +32,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
 
   bool strukAktif = true;
   bool stikerAktif = false;
+  bool _showReceiptManagement = false;
 
   String namaToko = 'Nama Toko';
   String alamatToko = 'Alamat Toko';
@@ -69,15 +71,54 @@ class _PengaturanPageState extends State<PengaturanPage> {
   void initState() {
     super.initState();
     _muatFotoQris();
+    _muatPengaturanStruk();
+  }
+
+  Future<void> _muatPengaturanStruk() async {
+    try {
+      await ReceiptSettingsStore.initialize();
+      if (!mounted) return;
+      setState(() {
+        strukAktif = ReceiptSettingsStore.options.value['enabled'] ?? true;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memuat pengaturan struk: $error')),
+      );
+    }
+  }
+
+  Future<void> _simpanOpsiStruk(String key, bool value) async {
+    try {
+      await ReceiptSettingsStore.setOption(key, value);
+      if (!mounted) return;
+      setState(() {
+        if (key == 'enabled') strukAktif = value;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menyimpan pengaturan struk: $error')),
+      );
+    }
   }
 
   Future<void> _muatFotoQris() async {
-    final bytes = await QrisStore.loadImageBytes();
-    if (!mounted) return;
-    setState(() {
-      _qrisImageBytes = bytes;
-      _memuatQris = false;
-    });
+    try {
+      final bytes = await QrisStore.loadImageBytes();
+      if (!mounted) return;
+      setState(() {
+        _qrisImageBytes = bytes;
+        _memuatQris = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _memuatQris = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memuat foto QRIS: $error')));
+    }
   }
 
   Future<void> pilihFotoQris() async {
@@ -272,6 +313,14 @@ class _PengaturanPageState extends State<PengaturanPage> {
 
         final double maxContentWidth = isDesktop ? 1100 : double.infinity;
 
+        if (_showReceiptManagement) {
+          return _halamanKelolaStruk(
+            isMobile: isMobile,
+            isTablet: isTablet,
+            maxContentWidth: maxContentWidth,
+          );
+        }
+
         return Container(
           width: double.infinity,
           height: double.infinity,
@@ -316,11 +365,8 @@ class _PengaturanPageState extends State<PengaturanPage> {
                                 value: strukAktif,
                                 icon: Icons.print_outlined,
                                 size: contentSize,
-                                onChanged: (value) {
-                                  setState(() {
-                                    strukAktif = value;
-                                  });
-                                },
+                                onChanged: (value) =>
+                                    _simpanOpsiStruk('enabled', value),
                               ),
 
                               deviceSwitch(
@@ -405,7 +451,23 @@ class _PengaturanPageState extends State<PengaturanPage> {
                           titleSize: titleSize,
                           horizontalPadding: horizontalPadding,
                           isMobile: isMobile,
-                          child: const SizedBox.shrink(),
+                          onTap: () {
+                            setState(() => _showReceiptManagement = true);
+                          },
+                          child: TextButton.icon(
+                            onPressed: () {
+                              setState(() => _showReceiptManagement = true);
+                            },
+                            icon: Icon(
+                              Icons.tune_rounded,
+                              size: contentSize + 2,
+                            ),
+                            label: Text(
+                              'Kelola',
+                              style: TextStyle(fontSize: contentSize - 1),
+                            ),
+                            style: TextButton.styleFrom(foregroundColor: navy),
+                          ),
                         ),
 
                         // ==================================================
@@ -474,6 +536,366 @@ class _PengaturanPageState extends State<PengaturanPage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _halamanKelolaStruk({
+    required bool isMobile,
+    required bool isTablet,
+    required double maxContentWidth,
+  }) {
+    final options = ReceiptSettingsStore.options.value;
+    final receiptItems = <(String, String)>[
+      ('storeLogo', 'Logo Toko'),
+      ('orderNumber', 'Nomor Antri'),
+      ('cashierName', 'Nama Kasir'),
+      ('orderTime', 'Waktu Pesan'),
+      ('qrCode', 'QR Code'),
+      ('total', 'Total Bayar'),
+    ];
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: background,
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            isMobile ? 14 : 22,
+            isMobile ? 14 : 20,
+            isMobile ? 14 : 22,
+            28,
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxContentWidth),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () {
+                          setState(() => _showReceiptManagement = false);
+                        },
+                        tooltip: 'Kembali ke Pengaturan',
+                        icon: Icon(Icons.arrow_back_rounded, color: navy),
+                      ),
+                      Expanded(
+                        child: Text(
+                          'Pengaturan Pengelolaan Struk',
+                          style: TextStyle(
+                            color: navy,
+                            fontSize: isMobile ? 19 : 25,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(
+                      left: isMobile ? 4 : 58,
+                      bottom: 14,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: strukAktif
+                            ? const Color(0xffc7f0ce)
+                            : const Color(0xffe6e9ec),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        strukAktif ? 'Pratinjau aktif' : 'Struk dinonaktifkan',
+                        style: TextStyle(
+                          color: strukAktif
+                              ? const Color(0xff246a32)
+                              : const Color(0xff5d6871),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (isMobile || isTablet)
+                    Column(
+                      children: [
+                        _panelOpsiStruk(receiptItems, options),
+                        const SizedBox(height: 16),
+                        _previewStruk(options, isMobile: isMobile),
+                      ],
+                    )
+                  else
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _panelOpsiStruk(receiptItems, options)),
+                        const SizedBox(width: 18),
+                        SizedBox(
+                          width: 285,
+                          child: _previewStruk(options, isMobile: false),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _panelOpsiStruk(
+    List<(String, String)> receiptItems,
+    Map<String, bool> options,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: navy,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: navy.withValues(alpha: 0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            namaTokoController.text.trim().isEmpty
+                ? 'Celcious Coffee'
+                : namaTokoController.text.trim(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const Text(
+            'Atur elemen yang ditampilkan pada struk',
+            style: TextStyle(color: Colors.white70, fontSize: 11),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(13, 11, 13, 14),
+            decoration: BoxDecoration(
+              color: const Color(0xffdce9f4),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.tune_rounded, color: navy, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Elemen Tampilan Struk',
+                      style: TextStyle(
+                        color: navy,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                Divider(color: navy.withValues(alpha: 0.3), height: 18),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final tileWidth = (constraints.maxWidth - 10) / 2;
+                    return Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        for (final (key, label) in receiptItems)
+                          SizedBox(
+                            width: tileWidth,
+                            child: _receiptOptionTile(
+                              key: key,
+                              label: label,
+                              enabled: options[key] ?? true,
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _receiptOptionTile({
+    required String key,
+    required String label,
+    required bool enabled,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xff214261),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Tampilkan pada struk',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.white70, fontSize: 8),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            key: ValueKey('receipt-option-$key'),
+            value: enabled,
+            activeThumbColor: const Color(0xff55adf5),
+            onChanged: (value) => _simpanOpsiStruk(key, value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _previewStruk(Map<String, bool> options, {required bool isMobile}) {
+    final storeName = namaTokoController.text.trim().isEmpty
+        ? 'Celcious Coffee'
+        : namaTokoController.text.trim();
+
+    Widget detail(String label, String value) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(fontSize: 9, color: Color(0xff3f5261)),
+              ),
+            ),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 9, color: Color(0xff3f5261)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      width: isMobile ? double.infinity : null,
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: navy.withValues(alpha: 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (options['storeLogo'] ?? true)
+            Container(
+              width: 58,
+              height: 58,
+              clipBehavior: Clip.antiAlias,
+              decoration: const BoxDecoration(shape: BoxShape.circle),
+              child: const AppBrandingLogo(fit: BoxFit.cover, height: 58),
+            ),
+          if (options['storeLogo'] ?? true) const SizedBox(height: 7),
+          Text(
+            storeName,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xff214261),
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const Text(
+            'Alamat Cafe',
+            style: TextStyle(color: Color(0xff6a7b88), fontSize: 8),
+          ),
+          const Divider(height: 18),
+          if (options['orderNumber'] ?? true)
+            const Text(
+              'Order #C001',
+              style: TextStyle(
+                color: Color(0xff214261),
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          if (options['cashierName'] ?? true)
+            const Text(
+              'Kasir: Admin',
+              style: TextStyle(color: Color(0xff526575), fontSize: 8),
+            ),
+          if (options['orderTime'] ?? true) ...[
+            const SizedBox(height: 8),
+            detail('Tanggal / Waktu', '05/11/2026 14:10'),
+          ],
+          const Divider(height: 16),
+          detail('Americano  x1', 'Rp 20.000'),
+          detail('Pajak', 'Rp 2.200'),
+          if (options['total'] ?? true) ...[
+            const Divider(height: 12),
+            detail('Total', 'Rp 22.200'),
+          ],
+          if (options['qrCode'] ?? true) ...[
+            const SizedBox(height: 16),
+            if (_qrisImageBytes != null)
+              Image.memory(
+                _qrisImageBytes!,
+                width: 84,
+                height: 84,
+                fit: BoxFit.contain,
+              )
+            else
+              Icon(Icons.qr_code_2_rounded, size: 84, color: navy),
+          ],
+        ],
+      ),
     );
   }
 
@@ -607,8 +1029,9 @@ class _PengaturanPageState extends State<PengaturanPage> {
     required double horizontalPadding,
     required bool isMobile,
     required Widget child,
+    VoidCallback? onTap,
   }) {
-    return Container(
+    final row = Container(
       width: double.infinity,
       constraints: const BoxConstraints(minHeight: 48),
       padding: EdgeInsets.symmetric(
@@ -652,6 +1075,11 @@ class _PengaturanPageState extends State<PengaturanPage> {
           ),
         ],
       ),
+    );
+    if (onTap == null) return row;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(onTap: onTap, child: row),
     );
   }
 

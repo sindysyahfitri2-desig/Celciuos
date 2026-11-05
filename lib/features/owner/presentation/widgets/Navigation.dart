@@ -23,6 +23,7 @@ const _destinations = <_OwnerDestination>[
   _OwnerDestination('Kelola Staf', 'Kelola Staf', Icons.person_outline_rounded),
   _OwnerDestination('Profil', 'Profil', Icons.person_outline_rounded),
   _OwnerDestination('Pengaturan', 'Atur', Icons.settings_outlined),
+  _OwnerDestination('Kas Laci', 'Kas Laci', Icons.point_of_sale_rounded),
 ];
 
 // ============================================================
@@ -226,6 +227,8 @@ class OwnerNavigation extends StatelessWidget {
     required this.onLaporan,
     required this.onProfil,
     required this.onPengaturan,
+    required this.onKasLaci,
+    this.onLogout,
   });
 
   final int selectedIndex;
@@ -242,6 +245,8 @@ class OwnerNavigation extends StatelessWidget {
   final VoidCallback onKelolaStaf;
   final VoidCallback onProfil;
   final VoidCallback onPengaturan;
+  final VoidCallback onKasLaci;
+  final VoidCallback? onLogout;
 
   // Menentukan halaman tujuan dari menu yang ditekan.
   void _navigateTo(int index) {
@@ -268,6 +273,9 @@ class OwnerNavigation extends StatelessWidget {
         break;
       case 6:
         onPengaturan();
+        break;
+      case 7:
+        onKasLaci();
         break;
     }
   }
@@ -347,6 +355,15 @@ class OwnerNavigation extends StatelessWidget {
               ],
             ),
           ),
+          if (onLogout != null)
+            ListTile(
+              leading: const Icon(Icons.logout_rounded, color: Colors.white),
+              title: const Text(
+                'Keluar',
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: onLogout,
+            ),
         ],
       ),
     );

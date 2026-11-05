@@ -7,6 +7,7 @@ import 'package:kasir_celcious_coffe/features/owner/presentation/pages/KelolaPro
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/KelolaStaf.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/Transaksi/Kelola_Transaksi.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/widgets/Navigation.dart';
+import 'package:kasir_celcious_coffe/features/kasir/presentation/cash_drawer_page.dart';
 import 'package:kasir_celcious_coffe/ui/pages/LaporanPage.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/PengaturanPage.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
@@ -83,6 +84,7 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     'Laporan',
     "Profil",
     'Pengaturan',
+    'Kas Laci',
   ];
 
   @override
@@ -96,8 +98,11 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     setState(() => selectedMenu = index);
   }
 
-  // Laptop (>= 1000): sidebar di kiri.
-  // Tablet & HP (< 1000): navigasi pindah ke bawah.
+  void _pilihMenuDariDrawer(int index) {
+    Navigator.of(context).pop();
+    selectMenu(index);
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -106,12 +111,28 @@ class _DashboardOwnerState extends State<DashboardOwner> {
 
         return Scaffold(
           backgroundColor: ownerBackground,
+          drawer: isDesktop
+              ? null
+              : Drawer(
+                  child: OwnerNavigation(
+                    selectedIndex: selectedMenu,
+                    ownerName: widget.namaOwner,
+                    onDestinationSelected: _pilihMenuDariDrawer,
+                    onDashboard: () {},
+                    onLaporan: () {},
+                    onProduk: () {},
+                    onTransaksi: () {},
+                    onKelolaStaf: () {},
+                    onProfil: () {},
+                    onPengaturan: () {},
+                    onKasLaci: () {},
+                    onLogout: widget.onLogout,
+                  ),
+                ),
           body: SafeArea(
-            // Di mode bawah, safe area bawah ditangani oleh bottom bar.
-            bottom: isDesktop,
             child: Column(
               children: [
-                _topBar(showOwner: !isDesktop),
+                _topBar(showOwner: !isDesktop, isDesktop: isDesktop),
                 Expanded(
                   child: Row(
                     children: [
@@ -127,6 +148,7 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                           onKelolaStaf: () => selectMenu(4),
                           onProfil: () => selectMenu(5),
                           onPengaturan: () => selectMenu(6),
+                          onKasLaci: () => selectMenu(7),
                         ),
                       Expanded(child: _content()),
                     ],
@@ -135,14 +157,6 @@ class _DashboardOwnerState extends State<DashboardOwner> {
               ],
             ),
           ),
-          // PERBAIKAN: pakai OwnerBottomNavigation (widget asli dari
-          // Navigation.dart), bukan method kosong "BottomNavigation".
-          bottomNavigationBar: isDesktop
-              ? null
-              : OwnerBottomNavigation(
-                  selectedIndex: selectedMenu,
-                  onDestinationSelected: selectMenu,
-                ),
         );
       },
     );
@@ -180,6 +194,7 @@ class _DashboardOwnerState extends State<DashboardOwner> {
           3 => const KelolaTransaksiPage(pakaiDataContoh: false),
           4 => const KontrolStafPage(),
           6 => const PengaturanPage(),
+          7 => const CashDrawerPage(),
           _ => _DashboardBody(
             namaOwner: widget.namaOwner,
             searchController: searchController,
@@ -194,7 +209,7 @@ class _DashboardOwnerState extends State<DashboardOwner> {
   // TOP BAR
   // ============================================================
 
-  Widget _topBar({bool showOwner = false}) {
+  Widget _topBar({bool showOwner = false, required bool isDesktop}) {
     return Container(
       height: 46,
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -210,6 +225,14 @@ class _DashboardOwnerState extends State<DashboardOwner> {
       ),
       child: Row(
         children: [
+          if (!isDesktop)
+            Builder(
+              builder: (context) => IconButton(
+                tooltip: 'Buka menu',
+                onPressed: Scaffold.of(context).openDrawer,
+                icon: const Icon(Icons.menu_rounded, color: Colors.white),
+              ),
+            ),
           Container(
             width: 30,
             height: 30,

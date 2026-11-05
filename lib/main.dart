@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'data/app_branding_store.dart';
 import 'data/produk_data.dart';
+import 'data/receipt_settings_store.dart';
 import 'data/transaction_store.dart';
 import 'features/auth/presentation/login_page.dart';
 
@@ -29,6 +30,7 @@ class _MyAppState extends State<MyApp> {
     await TransactionStore.initialize();
     await ProdukData.initialize();
     await AppBrandingStore.initialize();
+    await ReceiptSettingsStore.initialize();
   }
 
   void _retryInitialization() {

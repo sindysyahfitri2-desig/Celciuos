@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:kasir_celcious_coffe/data/receipt_settings_store.dart';
+import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 
 /// Halaman sukses setelah transaksi berhasil disimpan.
 /// onSelesai dipanggil saat kasir menekan tombol "Selesai".
 class TransaksiBerhasilPage extends StatefulWidget {
   final VoidCallback onSelesai;
+  final Map<String, dynamic>? receiptData;
 
   const TransaksiBerhasilPage({
     super.key,
     required this.onSelesai,
+    this.receiptData,
   });
 
   @override
@@ -82,47 +86,53 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
               color: const Color(0xff505050),
             ),
 
-            // Isi utama ditempatkan di tengah layar.
             Expanded(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      FadeTransition(
-                        opacity: _fadeAnimation,
-                        child: ScaleTransition(
-                          scale: _scaleAnimation,
-                          child: Container(
-                            width: 100,
-                            height: 100,
-                            decoration: const BoxDecoration(
-                              color: _successGreen,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.check_rounded,
-                              color: _background,
-                              size: 68,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 430),
+                    child: Column(
+                      children: [
+                        FadeTransition(
+                          opacity: _fadeAnimation,
+                          child: ScaleTransition(
+                            scale: _scaleAnimation,
+                            child: Container(
+                              width: 76,
+                              height: 76,
+                              decoration: const BoxDecoration(
+                                color: _successGreen,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.check_rounded,
+                                color: _background,
+                                size: 52,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 58),
-
-                      // Teks dibuat dua baris seperti desain referensi.
-                      const Text(
-                        'Transaksi Berhasil\nDisimpan',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 23,
-                          height: 1.05,
-                          fontWeight: FontWeight.w400,
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Transaksi Berhasil Disimpan',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                    ],
+                        if (widget.receiptData != null)
+                          ValueListenableBuilder<Map<String, bool>>(
+                            valueListenable: ReceiptSettingsStore.options,
+                            builder: (context, options, _) => Padding(
+                              padding: const EdgeInsets.only(top: 18),
+                              child: _receiptCard(options),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -153,6 +163,128 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _receiptCard(Map<String, bool> options) {
+    final receipt = widget.receiptData!;
+    final dateValue = receipt['orderedAt'];
+    final date = dateValue is DateTime ? dateValue : DateTime.now();
+    final items = (receipt['items'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+
+    String amount(Object? value) {
+      final digits = ((value as num?) ?? 0).round().toString();
+      return 'Rp ${digits.replaceAllMapped(
+        RegExp(r'\B(?=(\d{3})+(?!\d))'),
+        (_) => '.',
+      )}';
+    }
+
+    Widget detail(String label, String value, {bool bold = false}) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: _navy,
+                  fontSize: 12,
+                  fontWeight: bold ? FontWeight.w700 : FontWeight.normal,
+                ),
+              ),
+            ),
+            Text(
+              value,
+              style: TextStyle(
+                color: _navy,
+                fontSize: 12,
+                fontWeight: bold ? FontWeight.w700 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: _navy.withValues(alpha: 0.14),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          if (options['storeLogo'] ?? true) ...[
+            const SizedBox(
+              height: 48,
+              child: AppBrandingLogo(height: 48),
+            ),
+            const SizedBox(height: 6),
+          ],
+          const Text(
+            'CELCIOUS COFFEE',
+            style: TextStyle(
+              color: _navy,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const Divider(height: 18),
+          if (options['orderNumber'] ?? true)
+            detail('ID Pesanan', receipt['orderId']?.toString() ?? '', bold: true),
+          if (options['cashierName'] ?? true)
+            detail('Kasir', receipt['cashierName']?.toString() ?? '-'),
+          if (options['orderTime'] ?? true)
+            detail(
+              'Waktu',
+              '${date.day.toString().padLeft(2, '0')}/'
+              '${date.month.toString().padLeft(2, '0')}/'
+              '${date.year} ${date.hour.toString().padLeft(2, '0')}:'
+              '${date.minute.toString().padLeft(2, '0')}',
+            ),
+          detail('Jenis Pesanan', receipt['orderType']?.toString() ?? '-'),
+          detail('Pembayaran', receipt['paymentMethod']?.toString() ?? '-'),
+          const Divider(height: 18),
+          for (final item in items)
+            detail(
+              '${item['name'] ?? 'Menu'}  x${item['quantity'] ?? 1}',
+              amount(
+                ((item['price'] as num?) ?? 0) *
+                    ((item['quantity'] as num?) ?? 1),
+              ),
+            ),
+          const Divider(height: 18),
+          detail('Subtotal', amount(receipt['subtotal'])),
+          detail('Pajak', amount(receipt['tax'])),
+          if (((receipt['discount'] as num?) ?? 0) > 0)
+            detail('Diskon', '-${amount(receipt['discount'])}'),
+          if (options['total'] ?? true)
+            detail('Total Bayar', amount(receipt['total']), bold: true),
+          if (options['qrCode'] ?? true) ...[
+            const SizedBox(height: 12),
+            Icon(Icons.qr_code_2_rounded, color: _navy, size: 58),
+            const Text(
+              'Terima kasih atas pesanan Anda',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: _navy, fontSize: 10),
+            ),
+          ],
+        ],
       ),
     );
   }

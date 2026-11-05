@@ -2,16 +2,6 @@ import 'package:flutter/material.dart';
 import 'product_image.dart';
 
 class ProductCard extends StatelessWidget {
-  final String name;
-  final double price;
-  final Object? image;
-  final String category;
-  final VoidCallback onAdd;
-  final int quantity;
-  final VoidCallback onMinus;
-  final VoidCallback onDelete;
-  final bool showCartControls;
-
   const ProductCard({
     super.key,
     required this.name,
@@ -25,293 +15,163 @@ class ProductCard extends StatelessWidget {
     this.showCartControls = true,
   });
 
-  // ==========================================================
-  // FORMAT RUPIAH
-  // ==========================================================
+  final String name;
+  final double price;
+  final Object? image;
+  final String category;
+  final VoidCallback onAdd;
+  final int quantity;
+  final VoidCallback onMinus;
+  final VoidCallback onDelete;
+  final bool showCartControls;
 
-  String rupiah(double value) {
-    final number = value.toInt().toString();
+  static const _navy = Color(0xff082640);
 
-    String result = '';
-    int count = 0;
-
-    for (int i = number.length - 1; i >= 0; i--) {
-      result = number[i] + result;
-      count++;
-
-      if (count == 3 && i != 0) {
-        result = '.$result';
-        count = 0;
-      }
-    }
-
-    return 'Rp $result';
+  String _rupiah(double value) {
+    final digits = value.toInt().toString();
+    return 'Rp ${digits.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => '.',
+    )}';
   }
 
-  // ==========================================================
-  // TOMBOL
-  // ==========================================================
-
-  Widget tombol({
-    required IconData icon,
-    required VoidCallback onTap,
-    double ukuran = 32,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        width: ukuran,
-        height: ukuran,
-        decoration: BoxDecoration(
-          color: const Color(0xff082640),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        alignment: Alignment.center,
-        child: Icon(
-          icon,
-          color: Colors.white,
-          size: ukuran <= 28 ? 15 : 17,
+  Widget _quantityButton(IconData icon, VoidCallback onTap) {
+    return Material(
+      color: _navy,
+      borderRadius: BorderRadius.circular(7),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(7),
+        child: SizedBox(
+          width: 26,
+          height: 26,
+          child: Icon(icon, color: Colors.white, size: 15),
         ),
       ),
     );
   }
 
-  // ==========================================================
-  // BUILD
-  // ==========================================================
-
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
-      builder: (context, ukuranCard) {
-        final double lebarCard = ukuranCard.maxWidth;
-
-        // ======================================================
-        // DETEKSI HP
-        // ======================================================
-
-        final bool ukuranHP =
-            lebarCard.isFinite && lebarCard < 200;
-
-        // ======================================================
-        // TINGGI CARD
-        // ======================================================
-
-        final double tinggiCard =
-            ukuranCard.maxHeight.isFinite
-                ? ukuranCard.maxHeight
-                : ukuranHP
-                    ? 10
-                    : 10;
-
-        // ======================================================
-        // PADDING CARD
-        // ======================================================
-
-        final double padding = ukuranHP ? 5 : 9;
-
-        // ======================================================
-        // UKURAN FOTO
-        // ======================================================
-
-        // FOTO HP DIBESARKAN
-        final double ukuranFoto = ukuranHP ? 450 : 100;
-
-        // ======================================================
-        // UKURAN TOMBOL
-        // ======================================================
-
-        final double ukuranTombol = ukuranHP ? 14 : 30;
-
-        // ======================================================
-        // UKURAN FONT
-        // ======================================================
-
-        final double ukuranNama = ukuranHP ? 18 : 16;
-
-        final double ukuranKategori = ukuranHP ? 10 : 13;
-
-        final double ukuranHarga = ukuranHP ? 12 : 14;
+      builder: (context, constraints) {
+        final height = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 116.0;
+        final compact = constraints.maxWidth < 220;
+        final imageSize = (height - 18).clamp(54.0, compact ? 72.0 : 88.0);
+        final hasQuantity = showCartControls && quantity > 0;
 
         return Container(
-          width: 280,
-          height: 260,
-          padding: EdgeInsets.all(padding),
+          height: height,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(19),
+            borderRadius: BorderRadius.circular(17),
+            boxShadow: [
+              BoxShadow(
+                color: _navy.withValues(alpha: 0.13),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-
-              // ==================================================
-              // FOTO PRODUK
-              // ==================================================
-
-              SizedBox(
-                width: ukuranFoto,
-                height: ukuranFoto,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xffd9d6e1),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: ProductImage(
-                      image: image,
-                      fit: BoxFit.cover,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(17),
+            child: Row(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Container(
+                    width: imageSize,
+                    height: imageSize,
+                    decoration: BoxDecoration(
+                      color: const Color(0xffd9d6e1),
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    clipBehavior: Clip.antiAlias,
+                    child: ProductImage(image: image, fit: BoxFit.cover),
                   ),
                 ),
-              ),
-
-              SizedBox(
-                width: ukuranHP ? 19 : 19,
-              ),
-
-              // ==================================================
-              // BAGIAN KANAN
-              // ==================================================
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  mainAxisAlignment:
-                      MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-
-                    // ==================================================
-                    // NAMA
-                    // ==================================================
-
-                    Text(
-                      name,
-                      maxLines: 10,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: const Color(0xff081d2e),
-                        fontWeight: FontWeight.bold,
-                        fontSize: ukuranNama,
-                      ),
-                    ),
-
-                    const SizedBox(height: 3),
-
-       
-                    // ==================================================
-                    // HARGA
-                    // ==================================================
-                    Text(
-                      rupiah(price),
-                      maxLines: 10,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: const Color(0xff244f6a),
-                        fontWeight: FontWeight.bold,
-                        fontSize: ukuranHarga,
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // ==================================================
-                    // TOMBOL
-                    // ==================================================
-
-                    if (showCartControls && quantity == 0)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: tombol(
-                          icon: Icons.add,
-                          onTap: onAdd,
-                          ukuran: ukuranTombol,
-                        ),
-                      ),
-
-                    // ==================================================
-                    // DELETE - MINUS - JUMLAH - PLUS
-                    // ==================================================
-
-                    if (showCartControls && quantity > 0)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(2, 10, 8, 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-
-                            // DELETE
-                            InkWell(
-                              onTap: onDelete,
-                              borderRadius:
-                                  BorderRadius.circular(8),
-                              child: SizedBox(
-                                width: ukuranTombol,
-                                height: ukuranTombol,
-                                child: Center(
-                                  child: Icon(
-                                    Icons.delete_outline,
-                                    color:
-                                        const Color(0xff082640),
-                                    size: ukuranHP ? 20 : 23,
-                                  ),
-                                ),
+                            Text(
+                              name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: const Color(0xff081d2e),
+                                fontWeight: FontWeight.w700,
+                                fontSize: compact ? 12 : 14,
                               ),
                             ),
-
-                            SizedBox(
-                              width: ukuranHP ? 3 : 5,
-                            ),
-
-                            // MINUS
-                            tombol(
-                              icon: Icons.remove,
-                              onTap: onMinus,
-                              ukuran: ukuranTombol,
-                            ),
-
-                            SizedBox(
-                              width: ukuranHP ? 4 : 5,
-                            ),
-
-                            // JUMLAH
-                            SizedBox(
-                              width: ukuranHP ? 16 : 18,
-                              child: Text(
-                                '$quantity',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color:
-                                      const Color(0xff082640),
-                                  fontWeight:
-                                      FontWeight.bold,
-                                  fontSize:
-                                      ukuranHP ? 13 : 15,
-                                ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _rupiah(price),
+                              style: TextStyle(
+                                color: const Color(0xff244f6a),
+                                fontWeight: FontWeight.w600,
+                                fontSize: compact ? 10 : 12,
                               ),
-                            ),
-
-                            SizedBox(
-                              width: ukuranHP ? 4 : 7,
-                            ),
-
-                            // PLUS
-                            tombol(
-                              icon: Icons.add,
-                              onTap: onAdd,
-                              ukuran: ukuranTombol,
                             ),
                           ],
                         ),
-                      ),
-                  ],
+                        if (showCartControls)
+                          if (hasQuantity)
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _quantityButton(
+                                  Icons.remove_rounded,
+                                  onMinus,
+                                ),
+                                SizedBox(width: compact ? 6 : 9),
+                                Text(
+                                  '$quantity',
+                                  style: const TextStyle(
+                                    color: _navy,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                SizedBox(width: compact ? 6 : 9),
+                                _quantityButton(Icons.add_rounded, onAdd),
+                              ],
+                            )
+                          else
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: _quantityButton(Icons.add_rounded, onAdd),
+                            ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ],
+                if (hasQuantity)
+                  Material(
+                    color: const Color(0xffe45a5a),
+                    child: InkWell(
+                      onTap: onDelete,
+                      child: SizedBox(
+                        width: compact ? 34 : 42,
+                        height: double.infinity,
+                        child: const Icon(
+                          Icons.delete_outline_rounded,
+                          color: Colors.white,
+                          size: 19,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         );
       },

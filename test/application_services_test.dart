@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 import 'package:kasir_celcious_coffe/features/kasir/application/cashier_checkout_pricing.dart';
+import 'package:kasir_celcious_coffe/features/kasir/application/cashier_transaction_service.dart';
 import 'package:kasir_celcious_coffe/features/settings/application/settings_service.dart';
 
 void main() {
@@ -25,6 +26,22 @@ void main() {
       expect(pricing.discountAmount, 1110);
       expect(pricing.total, 9990);
       expect(pricing.itemCount, 2);
+    });
+
+    test('order IDs use a readable store-date-sequence format', () {
+      SharedPreferences.setMockInitialValues({});
+      TransactionStore.unfinishedOrders.value = [];
+      TransactionStore.transactions.value = [];
+      final order = CashierTransactionService.createOrderCode(
+        cart: [
+          {'category': 'Food'},
+          {'category': 'Snack'},
+        ],
+        time: DateTime(2026, 11, 5),
+      );
+
+      expect(order['id'], 'CC-20261105-001');
+      expect(order['display'], order['id']);
     });
 
     test('reuses saved checkout amounts for an existing order', () {
