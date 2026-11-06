@@ -52,18 +52,18 @@ class ApiService {
   // HEADER STANDAR (JSON + BEARER TOKEN)
   // ============================================================
 
-  static Future<Map<String, String>> _headers() async {
-    final token = await getToken();
-    final headers = <String, String>{
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-    };
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-    return headers;
+  static Future<Map<String, String>> _headers({bool json = true}) async {
+  final token = await getToken();
+  final headers = <String, String>{
+    'Accept': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
+  };
+  if (json) headers['Content-Type'] = 'application/json';
+  if (token != null && token.isNotEmpty) {
+    headers['Authorization'] = 'Bearer $token';
   }
-
+  return headers;
+}
   // ============================================================
   // FUNGSI HTTP (GET, POST, PUT, DELETE)
   // ============================================================
@@ -78,23 +78,23 @@ class ApiService {
       uri = uri.replace(queryParameters: query);
     }
 
-    final response = await http.get(uri, headers: await _headers());
+    final response = await http.get(uri, headers: await _headers(json: false));
     return _handleResponse(response);
   }
 
   /// POST Request (mengirim / membuat data baru)
   static Future<Map<String, dynamic>> post(
-    String endpoint,
-    Map<String, dynamic> body,
-  ) async {
-    final uri = Uri.parse('$baseUrl/$endpoint');
-    final response = await http.post(
-      uri,
-      headers: await _headers(),
-      body: jsonEncode(body),
-    );
-    return _handleResponse(response);
-  }
+  String endpoint,
+  Map<String, dynamic> body,
+) async {
+  final uri = Uri.parse('$baseUrl/$endpoint');
+  final response = await http.post(          // <-- harus http.post
+    uri,
+    headers: await _headers(),
+    body: jsonEncode(body),
+  );
+  return _handleResponse(response);
+}
 
   /// PUT Request (memperbarui data)
   static Future<Map<String, dynamic>> put(
@@ -102,18 +102,14 @@ class ApiService {
     Map<String, dynamic> body,
   ) async {
     final uri = Uri.parse('$baseUrl/$endpoint');
-    final response = await http.put(
-      uri,
-      headers: await _headers(),
-      body: jsonEncode(body),
-    );
+    final response = await http.put(uri, headers: await _headers(), body: jsonEncode(body));
     return _handleResponse(response);
   }
 
   /// DELETE Request (menghapus data)
   static Future<Map<String, dynamic>> delete(String endpoint) async {
     final uri = Uri.parse('$baseUrl/$endpoint');
-    final response = await http.delete(uri, headers: await _headers());
+    final response = await http.delete(uri, headers: await _headers(json: false));
     return _handleResponse(response);
   }
 

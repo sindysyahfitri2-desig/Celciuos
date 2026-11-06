@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:kasir_celcious_coffe/data/api_service.dart';
 import 'package:kasir_celcious_coffe/features/kasir/presentation/buka_shift_page.dart';
 
-
 class PilihProfilPage extends StatefulWidget {
   const PilihProfilPage({super.key});
 
@@ -122,6 +121,23 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
       backgroundColor: const Color(0xffdce7f2),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : _kasir.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Tidak ada data kasir / gagal memuat.'),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() => _loading = true);
+                      _loadKasir();
+                    },
+                    child: const Text('Coba lagi'),
+                  ),
+                ],
+              ),
+            )
           : Center(
               child: Wrap(
                 spacing: 16,
@@ -148,6 +164,9 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
                                   ? Image.network(
                                       k['foto_url'],
                                       fit: BoxFit.cover,
+                                      headers: const {
+                                        'ngrok-skip-browser-warning': 'true',
+                                      },
                                       errorBuilder: (_, __, ___) =>
                                           const Icon(Icons.person, size: 60),
                                     )
