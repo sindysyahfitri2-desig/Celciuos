@@ -31,7 +31,7 @@ class LoginController extends ChangeNotifier {
   LoginController({http.Client? httpClient, String? baseUrl})
     : _httpClient = httpClient ?? http.Client(),
       _ownsHttpClient = httpClient == null,
-      _baseUrl = baseUrl ?? 'http://127.0.0.1:8000';
+      _baseUrl = baseUrl ?? 'https://clatter-distant-sterling.ngrok-free.dev';
 
   final http.Client _httpClient;
   final bool _ownsHttpClient;
