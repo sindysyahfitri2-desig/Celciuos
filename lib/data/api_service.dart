@@ -8,7 +8,7 @@ class ApiService {
   // Alamat base URL backend Laravel kamu (default lokal)
   // Bisa disesuaikan jika memakai ngrok atau domain lain
   static const String baseUrl =
-    'https://clatter-distant-sterling.ngrok-free.dev/api';
+    'https://clatter-distant-sterling.ngrok-free.dev/api/kasir-profil';
 
   static const String _tokenKey = 'celcious_auth_token';
   static const String _userKey = 'celcious_user_data';

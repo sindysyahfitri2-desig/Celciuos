@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:kasir_celcious_coffe/data/api_service.dart';
 
+
 enum LoginSubmissionStatus { invalid, authenticated, failed, ignored }
 
 class LoginSubmission {
@@ -31,7 +32,7 @@ class LoginController extends ChangeNotifier {
   LoginController({http.Client? httpClient, String? baseUrl})
     : _httpClient = httpClient ?? http.Client(),
       _ownsHttpClient = httpClient == null,
-      _baseUrl = baseUrl ?? 'https://clatter-distant-sterling.ngrok-free.dev';
+      _baseUrl = baseUrl ?? 'https://clatter-distant-sterling.ngrok-free.dev/api/kasir-profil';
 
   final http.Client _httpClient;
   final bool _ownsHttpClient;

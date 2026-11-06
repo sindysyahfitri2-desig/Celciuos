@@ -12,7 +12,7 @@ import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 import 'KelolaLaporan.dart';
 
 // Area Owner; komponen bersama berada di lib/widgets dan data di lib/data.
-const Color ownerNavy = Color(0xFF103456);
+const Color ownerNavy = Color(0xFF082640);
 const Color ownerDarkNavy = Color(0xFF082640);
 const Color ownerBackground = Color(0xFFDCE9F4);
 const Color ownerBlue = Color(0xFF4098CE);
@@ -73,8 +73,6 @@ class DashboardOwner extends StatefulWidget {
 
 class _DashboardOwnerState extends State<DashboardOwner> {
   int selectedMenu = 0;
-  final TextEditingController searchController = TextEditingController();
-
   static const menuTitles = [
     'Dashboard',
     'Kelola Laporan',
@@ -83,12 +81,6 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     'Kelola Staf',
     'Pengaturan',
   ];
-
-  @override
-  void dispose() {
-    searchController.dispose();
-    super.dispose();
-  }
 
   void selectMenu(int index) {
     if (index < 0 || index >= menuTitles.length) return;
@@ -177,21 +169,13 @@ class _DashboardOwnerState extends State<DashboardOwner> {
       child: KeyedSubtree(
         key: ValueKey(selectedMenu),
         child: switch (selectedMenu) {
-          0 => _DashboardBody(
-            namaOwner: widget.namaOwner,
-            searchController: searchController,
-            onMessage: _showMessage,
-          ),
+          0 => _DashboardBody(namaOwner: widget.namaOwner),
           1 => const KelolaLaporanContent(),
           2 => const owner_products.ProdukPage(),
           3 => const KelolaTransaksiPage(pakaiDataContoh: false),
           4 => const KontrolStafPage(),
           5 => const PengaturanPage(),
-          _ => _DashboardBody(
-            namaOwner: widget.namaOwner,
-            searchController: searchController,
-            onMessage: _showMessage,
-          ),
+          _ => _DashboardBody(namaOwner: widget.namaOwner),
         },
       ),
     );
@@ -323,15 +307,9 @@ class _DashboardOwnerState extends State<DashboardOwner> {
 // ============================================================
 
 class _DashboardBody extends StatefulWidget {
-  const _DashboardBody({
-    required this.namaOwner,
-    required this.searchController,
-    required this.onMessage,
-  });
+  const _DashboardBody({required this.namaOwner});
 
   final String namaOwner;
-  final TextEditingController searchController;
-  final void Function(String message) onMessage;
 
   @override
   State<_DashboardBody> createState() => _DashboardBodyState();
@@ -415,12 +393,15 @@ class _DashboardBodyState extends State<_DashboardBody>
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 650;
+        final width = constraints.maxWidth;
+        final compact = width < 600;
+        final tablet = width >= 600 && width < 1000;
+        final pagePadding = compact ? 14.0 : tablet ? 18.0 : 22.0;
 
         return Container(
           color: ownerBackground,
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(compact ? 14 : 22),
+            padding: EdgeInsets.all(pagePadding),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -428,12 +409,14 @@ class _DashboardBodyState extends State<_DashboardBody>
                   animation: _stage(0.0, 0.35),
                   child: _greeting(compact),
                 ),
-                const SizedBox(height: 26),
+                SizedBox(height: compact ? 18 : 24),
                 LayoutBuilder(
                   builder: (context, box) {
-                    final columns = box.maxWidth >= 800
+                    // Tiga kartu sejajar di layar lebar, dua di tablet,
+                    // dan satu kolom penuh di HP agar angka tetap terbaca.
+                    final columns = box.maxWidth >= 760
                         ? 3
-                        : box.maxWidth >= 460
+                        : box.maxWidth >= 500
                         ? 2
                         : 1;
 
@@ -447,14 +430,7 @@ class _DashboardBodyState extends State<_DashboardBody>
                       children: [
                         for (var i = 0; i < _summaries.length; i++)
                           SizedBox(
-                            // Di tablet (2 kolom), kartu ganjil terakhir
-                            // dibuat selebar penuh agar tidak timpang.
-                            width:
-                                (columns == 2 &&
-                                    i == _summaries.length - 1 &&
-                                    _summaries.length.isOdd)
-                                ? box.maxWidth
-                                : colWidth,
+                            width: colWidth,
                             child: _Reveal(
                               animation: _stage(0.08 + i * 0.1, 0.48 + i * 0.1),
                               child: _SummaryCard(
@@ -470,7 +446,7 @@ class _DashboardBodyState extends State<_DashboardBody>
                     );
                   },
                 ),
-                const SizedBox(height: 22),
+                SizedBox(height: compact ? 16 : 22),
                 _Reveal(
                   animation: _stage(0.3, 0.7),
                   child: _SalesChartCard(controller: _controller),
@@ -484,99 +460,44 @@ class _DashboardBodyState extends State<_DashboardBody>
   }
 
   Widget _greeting(bool compact) {
-    final title = Text(
-      'Halo Bos ${widget.namaOwner}',
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: ownerNavy,
-        fontSize: compact ? 22 : 28,
-        fontWeight: FontWeight.w900,
-        shadows: const [
-          Shadow(color: Color(0x6689A7B8), offset: Offset(1, 2), blurRadius: 3),
-        ],
-      ),
-    );
+    final width = MediaQuery.sizeOf(context).width;
+    final fontSize = width < 600 ? 22.0 : width < 1000 ? 25.0 : 28.0;
 
-    final subtitle = Text(
-      '${_tanggalHariIni()}. Ringkasan penjualan hari ini.',
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: const TextStyle(color: _mutedText, fontSize: 12),
-    );
-
-    if (compact) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          title,
-          const SizedBox(height: 2),
-          subtitle,
-          const SizedBox(height: 12),
-          SizedBox(height: 36, child: _searchField()),
-        ],
-      );
-    }
-
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [title, const SizedBox(height: 2), subtitle],
+        Text(
+          'Halo Bos ${widget.namaOwner}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: ownerNavy,
+            fontSize: fontSize,
+            fontWeight: FontWeight.w900,
+            height: 1.12,
+            shadows: const [
+              Shadow(
+                color: Color(0x6689A7B8),
+                offset: Offset(1, 2),
+                blurRadius: 3,
+              ),
+            ],
           ),
         ),
-        const SizedBox(width: 12),
-        SizedBox(width: 200, height: 36, child: _searchField()),
+        const SizedBox(height: 4),
+        Text(
+          '${_tanggalHariIni()}. Ringkasan penjualan hari ini.',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: _mutedText,
+            fontSize: compact ? 10 : 12,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _searchField() {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: _softShadow(),
-      ),
-      child: TextField(
-        controller: widget.searchController,
-        onSubmitted: (value) {
-          if (value.trim().isNotEmpty) {
-            widget.onMessage('Pencarian "$value" belum terhubung ke data.');
-          }
-        },
-        style: const TextStyle(color: ownerNavy, fontSize: 12),
-        decoration: InputDecoration(
-          hintText: 'Cari',
-          hintStyle: const TextStyle(color: Color(0xFF7591A7), fontSize: 12),
-          prefixIcon: const Icon(
-            Icons.search,
-            size: 17,
-            color: Color(0xFF7591A7),
-          ),
-          prefixIconConstraints: const BoxConstraints(
-            minWidth: 36,
-            minHeight: 32,
-          ),
-          contentPadding: EdgeInsets.zero,
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(22),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(22),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(22),
-            borderSide: const BorderSide(color: ownerBlue),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // Fade dan geser naik sedikit saat elemen muncul.
@@ -832,7 +753,12 @@ class _SalesChartCardState extends State<_SalesChartCard> {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+      padding: EdgeInsets.fromLTRB(
+        MediaQuery.sizeOf(context).width < 600 ? 14 : 18,
+        MediaQuery.sizeOf(context).width < 600 ? 14 : 18,
+        MediaQuery.sizeOf(context).width < 600 ? 14 : 18,
+        12,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
@@ -890,16 +816,21 @@ class _SalesChartCardState extends State<_SalesChartCard> {
           const SizedBox(height: 14),
           LayoutBuilder(
             builder: (context, box) {
-              final chartHeight = box.maxWidth < 500
-                  ? 200.0
-                  : box.maxWidth < 900
-                  ? 235.0
-                  : 290.0;
+              final chartHeight = box.maxWidth < 420
+                  ? 185.0
+                  : box.maxWidth < 760
+                  ? 215.0
+                  : 265.0;
               final maxBarHeight =
                   chartHeight - _hourLabelHeight - _valueLabelHeight;
 
-              // Setiap batang minimal 46px; kalau layar kurang, bisa digeser.
-              const minSlot = 46.0;
+              // Lebar batang mengikuti perangkat; HP tetap nyaman tanpa
+              // memaksa grafik melebar dan menimbulkan scroll horizontal.
+              final minSlot = box.maxWidth < 420
+                  ? 32.0
+                  : box.maxWidth < 760
+                  ? 38.0
+                  : 46.0;
               final slot = math.max(box.maxWidth / values.length, minSlot);
               final contentWidth = slot * values.length;
 
