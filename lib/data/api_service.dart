@@ -5,11 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:typed_data';
 
 class ApiService {
-  // Alamat base URL backend Laravel kamu (default lokal)
+  // Alamat base URL backend Laravel kamu (default lokal 127.0.0.1:8000)
   // Bisa disesuaikan jika memakai ngrok atau domain lain
   static const String baseUrl =
-    'https://clatter-distant-sterling.ngrok-free.dev/api/kasir-profil';
-
+    'https://clatter-distant-sterling.ngrok-free.dev/api';
+    
   static const String _tokenKey = 'celcious_auth_token';
   static const String _userKey = 'celcious_user_data';
 

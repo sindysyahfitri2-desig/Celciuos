@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:kasir_celcious_coffe/data/api_service.dart';
 
-
 enum LoginSubmissionStatus { invalid, authenticated, failed, ignored }
 
 class LoginSubmission {
