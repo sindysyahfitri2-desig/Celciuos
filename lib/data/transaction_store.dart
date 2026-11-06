@@ -176,6 +176,7 @@ class TransactionStore {
     shiftHistory.value = updatedHistory;
     activeShift.value = shift;
   }
+  
 
   static Future<Map<String, dynamic>> closeActiveShift() async {
     final current = activeShift.value;
@@ -336,6 +337,8 @@ class TransactionStore {
       if (shift != null) 'shiftOpenedAt': shift['openedAt'],
       if (cashier?.trim().isNotEmpty == true)
         'kasir': cashier!.trim()
+      else if (value['kasir']?.toString().trim().isNotEmpty == true)
+        'kasir': value['kasir']          // <- baru: hormati kasir dari transaksi
       else if (shift != null)
         'kasir': shift['cashier'],
     };

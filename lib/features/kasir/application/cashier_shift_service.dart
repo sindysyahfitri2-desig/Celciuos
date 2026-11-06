@@ -39,4 +39,8 @@ class CashierShiftService {
     );
     return CashierShiftData(cashier: cleanName, openingCash: openingCash);
   }
+
+  static Future<Map<String, dynamic>> closeShift() async {
+    return TransactionStore.closeActiveShift();
+  }
 }

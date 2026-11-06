@@ -34,12 +34,18 @@ class AppNavigation extends StatelessWidget {
     required this.namaKasir,
     required this.onMenuSelected,
     this.onLogout,
+    this.shiftKe = 1,
+    this.fotoUrl,
+    this.onAksiShift,
   });
 
   final int selectedMenu;
   final String namaKasir;
   final ValueChanged<int> onMenuSelected;
   final VoidCallback? onLogout;
+  final int shiftKe;
+  final String? fotoUrl;
+  final VoidCallback? onAksiShift;
 
   @override
   Widget build(BuildContext context) {
@@ -99,10 +105,22 @@ class AppNavigation extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const CircleAvatar(
-                  radius: 17,
+                CircleAvatar(
+                  radius: 20,
                   backgroundColor: Colors.white70,
-                  child: Icon(Icons.person, size: 20, color: Color(0xff082640)),
+                  backgroundImage: fotoUrl != null
+                      ? NetworkImage(
+                          fotoUrl!,
+                          headers: const {'ngrok-skip-browser-warning': 'true'},
+                        )
+                      : null,
+                  child: fotoUrl == null
+                      ? const Icon(
+                          Icons.person,
+                          size: 22,
+                          color: Color(0xff082640),
+                        )
+                      : null,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -116,18 +134,32 @@ class AppNavigation extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 2),
-                      const Text(
-                        'Kasir',
-                        style: TextStyle(color: Colors.white60, fontSize: 10),
+                      Text(
+                        'Shift $shiftKe',
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 11,
+                        ),
                       ),
                     ],
                   ),
                 ),
+                if (onAksiShift != null)
+                  IconButton(
+                    tooltip: shiftKe == 1 ? 'Ganti shift' : 'Logout',
+                    icon: Icon(
+                      shiftKe == 1
+                          ? Icons.switch_account_outlined
+                          : Icons.logout,
+                      color: Colors.white,
+                    ),
+                    onPressed: onAksiShift,
+                  ),
               ],
             ),
           ),
@@ -148,12 +180,18 @@ class AppNavigationShell extends StatefulWidget {
     required this.headerBuilder,
     required this.cashierBuilder,
     this.onLogout,
+    this.shiftKe = 1, // baru
+    this.fotoUrl, // baru
+    this.onAksiShift, // baru
   });
 
   final String namaKasir;
   final WidgetBuilder headerBuilder;
   final WidgetBuilder cashierBuilder;
   final VoidCallback? onLogout;
+  final int shiftKe; // baru
+  final String? fotoUrl; // baru
+  final VoidCallback? onAksiShift; // baru
 
   @override
   State<AppNavigationShell> createState() => _AppNavigationShellState();
@@ -170,6 +208,18 @@ class _AppNavigationShellState extends State<AppNavigationShell> {
   }
 
   @override
+  Widget _sidebar() {
+    return AppNavigation(
+      selectedMenu: selectedMenu,
+      namaKasir: widget.namaKasir,
+      shiftKe: widget.shiftKe,
+      fotoUrl: widget.fotoUrl,
+      onAksiShift: widget.onAksiShift,
+      onMenuSelected: _selectMenu,
+      onLogout: widget.onLogout,
+    );
+  }
+
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -184,6 +234,14 @@ class _AppNavigationShellState extends State<AppNavigationShell> {
                     child: AppNavigation(
                       selectedMenu: selectedMenu,
                       namaKasir: widget.namaKasir,
+                      shiftKe: widget.shiftKe,
+                      fotoUrl: widget.fotoUrl,
+                      onAksiShift: widget.onAksiShift == null
+                          ? null
+                          : () {
+                              _scaffoldKey.currentState?.closeDrawer();
+                              widget.onAksiShift!();
+                            },
                       onMenuSelected: (index) {
                         _selectMenu(index);
                         _scaffoldKey.currentState?.closeDrawer();
@@ -198,14 +256,8 @@ class _AppNavigationShellState extends State<AppNavigationShell> {
               Expanded(
                 child: isDesktop
                     ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          AppNavigation(
-                            selectedMenu: selectedMenu,
-                            namaKasir: widget.namaKasir,
-                            onMenuSelected: _selectMenu,
-                            onLogout: widget.onLogout,
-                          ),
+                          _sidebar(),
                           Expanded(child: _animatedContent()),
                         ],
                       )

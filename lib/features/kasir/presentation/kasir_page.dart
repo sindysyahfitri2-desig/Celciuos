@@ -13,6 +13,8 @@ import 'package:kasir_celcious_coffe/ui/widgets/product_cart.dart';
 
 import 'checkout_page.dart';
 import 'widgets/cash_drawer_panel.dart';
+import 'package:kasir_celcious_coffe/data/api_service.dart';
+import 'package:kasir_celcious_coffe/features/kasir/presentation/ganti_shift_dialog.dart';
 
 // Layar dan alur Kasir; penyimpanan bersama tetap berada di lib/data.
 class kasirPage extends StatefulWidget {
@@ -38,6 +40,9 @@ class _kasirPageState extends State<kasirPage> {
   // ==========================================================
 
   String namaKasir = '';
+  int shiftKe = 1;
+  int? _idKasir;
+  String? _fotoUrl;
   double kasAwal = 0;
   bool _showCashDrawerPanel = false;
   DateTime _today = DateTime.now();
@@ -435,6 +440,14 @@ class _kasirPageState extends State<kasirPage> {
       showWelcome = false;
       showJenisPesanan = true;
     }
+        ApiService.getUser().then((u) {
+      if (!mounted || u == null) return;
+      setState(() {
+        _idKasir = u['id_pengguna'] as int?;
+        _fotoUrl = u['foto_url']?.toString();
+        namaKasir = u['nama']?.toString() ?? namaKasir;
+      });
+    });
   }
 
   void _onCartChanged() {
@@ -531,6 +544,61 @@ class _kasirPageState extends State<kasirPage> {
     }
   }
 
+  Future<void> _gantiShift() async {
+    final user = await showGantiShiftDialog(context, idKasirSaatIni: _idKasir);
+    if (user == null || !mounted) return;
+    setState(() {
+      shiftKe = 2;
+      namaKasir = user['nama'].toString();
+      _idKasir = user['id_pengguna'] as int?;
+      _fotoUrl = user['foto_url']?.toString();
+    });
+  }
+
+  Future<void> _konfirmasiLogout() async {
+    final ya = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: navy,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text(
+          'Apakah anda yakin shift sudah berakhir semua?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+        actionsAlignment: MainAxisAlignment.spaceEvenly,
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xffE06060),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Tidak'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xff0F8A5A),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ya'),
+          ),
+        ],
+      ),
+    );
+        if (ya == true) {
+      try {
+        await CashierShiftService.closeShift();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menutup shift: $e')),
+        );
+        return;
+      }
+      widget.onLogout?.call();
+    } }
+
   void _toggleCashDrawerPanel() {
     setState(() => _showCashDrawerPanel = !_showCashDrawerPanel);
   }
@@ -570,6 +638,9 @@ class _kasirPageState extends State<kasirPage> {
         backgroundColor: appPageBackground,
         body: AppNavigationShell(
           namaKasir: namaKasir,
+          shiftKe: shiftKe,
+          fotoUrl: _fotoUrl,
+          onAksiShift: shiftKe == 1 ? _gantiShift : _konfirmasiLogout,
           headerBuilder: (_) => _header(),
           cashierBuilder: (_) => _cashierContent(),
           onLogout: widget.onLogout,

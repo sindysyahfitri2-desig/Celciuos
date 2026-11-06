@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:kasir_celcious_coffe/data/api_service.dart';
 import 'package:kasir_celcious_coffe/features/kasir/presentation/buka_shift_page.dart';
+import 'package:kasir_celcious_coffe/features/kasir/application/cashier_shift_service.dart';
+import 'package:kasir_celcious_coffe/features/kasir/presentation/kasir_page.dart';
+import 'package:kasir_celcious_coffe/features/auth/presentation/pilih_peran_page.dart';
 
 class PilihProfilPage extends StatefulWidget {
   const PilihProfilPage({super.key});
@@ -86,21 +89,25 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
 
       final navigator = Navigator.of(context);
 
+      Future<void> logout() async {
+        await ApiService.clearAuth();
+        if (!navigator.mounted) return;
+        navigator.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const PilihPeranPage()),  // sebelumnya PilihProfilPage
+          (route) => false,
+        );
+      }
+
+      final shiftAktif = CashierShiftService.activeShift() != null;
+
       navigator.pushReplacement(
         MaterialPageRoute(
-          builder: (_) => BukaShiftPage(
-            namaKasir: k['nama'].toString(),
-            onLogout: () async {
-              await ApiService.clearAuth();
-
-              if (!navigator.mounted) return;
-
-              navigator.pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const PilihProfilPage()),
-                (route) => false,
-              );
-            },
-          ),
+          builder: (_) => shiftAktif
+              ? kasirPage(onLogout: logout)
+              : BukaShiftPage(
+                  namaKasir: k['nama'].toString(),
+                  onLogout: logout,
+                ),
         ),
       );
     } catch (e) {
