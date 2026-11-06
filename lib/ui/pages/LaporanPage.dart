@@ -265,7 +265,7 @@ class _LaporanPageState extends State<LaporanPage> {
   // ============================================================
 
   Widget _header(double lebar) {
-    bool hp = lebar < 600;
+    bool hp = lebar < 550;
 
     return Container(
       width: double.infinity,
