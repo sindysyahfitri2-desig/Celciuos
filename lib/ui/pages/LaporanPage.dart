@@ -1133,10 +1133,6 @@ class _LaporanPageState extends State<LaporanPage> {
                   _infoRow("Pembayaran", data["pembayaran"]!),
                   _infoRow("Jumlah Pesanan", data["jumlah"]!),
                   _infoRow("Total Harga", "Rp ${data["total"]!}", bold: true),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: _tombolLihatBukti(data),
-                  ),
                 ],
               ),
             ),
@@ -1171,7 +1167,6 @@ class _LaporanPageState extends State<LaporanPage> {
                 DataColumn(label: Text("Pembayaran")),
                 DataColumn(label: Text("Jumlah Pemesanan")),
                 DataColumn(label: Text("Total Harga")),
-                DataColumn(label: Text("Bukti Pembayaran")),
               ],
               rows: rows.map((data) {
                 return DataRow(

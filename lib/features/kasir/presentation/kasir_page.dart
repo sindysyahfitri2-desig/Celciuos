@@ -905,7 +905,7 @@ class _kasirPageState extends State<kasirPage> {
     final jumlahItem = _cartController.itemCount;
 
     return Container(
-      height: 50,
+      height: 65,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xffa8cbe9),
@@ -964,7 +964,7 @@ class _kasirPageState extends State<kasirPage> {
                     124,
                     153,
                   ),
-                  elevation: 8,
+                  elevation: 10,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(25),
                   ),
@@ -981,47 +981,95 @@ class _kasirPageState extends State<kasirPage> {
     );
   }
   // ==========================================================
-  // SEARCH
-  // ==========================================================
+// SEARCH - TWITTER STYLE
+// ==========================================================
 
-  Widget _search() {
-    return Container(
-      height: 43,
-      decoration: BoxDecoration(
+Widget _search() {
+  return Container(
+    height: 43,
+    decoration: BoxDecoration(
+      color: const Color(0xff283542),
+      borderRadius: BorderRadius.circular(30),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.08),
+          blurRadius: 4,
+          offset: const Offset(0, 1),
+        ),
+      ],
+    ),
+    child: TextField(
+      onChanged: (value) {
+        setState(() {
+          searchQuery = value.toLowerCase().trim();
+        });
+      },
+      style: const TextStyle(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(23),
+        fontSize: 14,
       ),
-      child: TextField(
-        onChanged: (value) {
-          setState(() {
-            searchQuery = value.toLowerCase().trim();
-          });
-        },
-        decoration: InputDecoration(
-          hintText: 'Cari menu',
-          hintStyle: const TextStyle(color: Color(0xff9aa7b2), fontSize: 14),
-          prefixIcon: const Icon(
-            Icons.search,
-            size: 19,
-            color: Color(0xff31566e),
+      cursorColor: const Color(0xff1b9bee),
+      decoration: InputDecoration(
+        hintText: 'Cari menu',
+        hintStyle: const TextStyle(
+          color: Color(0xff949faa),
+          fontSize: 14,
+        ),
+
+        prefixIcon: const Icon(
+          Icons.search,
+          size: 19,
+          color: Color(0xff949faa),
+        ),
+
+        suffixIcon: searchQuery.isNotEmpty
+            ? IconButton(
+                icon: const Icon(
+                  Icons.close,
+                  size: 15,
+                  color: Colors.white,
+                ),
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xff1b9bee),
+                  shape: const CircleBorder(),
+                  padding: const EdgeInsets.all(4),
+                ),
+                onPressed: () {
+                  setState(() {
+                    searchQuery = '';
+                  });
+                },
+              )
+            : null,
+
+        filled: true,
+        fillColor: Colors.transparent,
+
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 11,
+        ),
+
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: BorderSide.none,
+        ),
+
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: BorderSide.none,
+        ),
+
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: const BorderSide(
+            color: Color(0xff1b9bee),
+            width: 1,
           ),
-          suffixIcon: searchQuery.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  color: navy,
-                  onPressed: () {
-                    setState(() {
-                      searchQuery = '';
-                    });
-                  },
-                )
-              : null,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 11),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
   // ==========================================================
   // HALAMAN KASIR
   // ==========================================================

@@ -1,4 +1,3 @@
-
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -28,6 +27,13 @@ class _PengaturanPageState extends State<PengaturanPage> {
   final Color navy = const Color(0xFF103657);
   final Color background = const Color(0xffdce9f4);
 
+  // Warna khusus halaman Kelola Struk
+  final Color _panelNavy = const Color(0xff1f3f5f);
+  final Color _tileNavy = const Color(0xff214261);
+  final Color _tileMati = const Color(0xff1a3450);
+  final Color _judulStruk = const Color(0xff176080);
+  final Color _biruSwitch = const Color(0xff55adf5);
+
   // ==========================================================
   // DATA PENGATURAN
   // ==========================================================
@@ -45,6 +51,9 @@ class _PengaturanPageState extends State<PengaturanPage> {
 
   Uint8List? _qrisImageBytes;
   bool _memuatQris = true;
+
+  // urutan baris untuk animasi masuk bertahap
+  int _barisKe = 0;
 
   // ==========================================================
   // CONTROLLER
@@ -356,6 +365,8 @@ class _PengaturanPageState extends State<PengaturanPage> {
         final double maxContentWidth =
             isDesktop ? 1100 : double.infinity;
 
+        _barisKe = 0;
+
         if (_showReceiptManagement) {
           return _halamanKelolaStruk(
             isMobile: isMobile,
@@ -474,11 +485,20 @@ class _PengaturanPageState extends State<PengaturanPage> {
                                 size: contentSize,
                                 isMobile: isMobile,
                               ),
-                              SizedBox(
-                                width: isMobile ? 300 : 390,
-                                child: previewFotoQris(
-                                  isMobile: isMobile,
-                                ),
+                              // muncul halus hanya setelah foto QRIS ditambahkan (tombol +)
+                              AnimatedSize(
+                                duration:
+                                    const Duration(milliseconds: 350),
+                                curve: Curves.easeOutCubic,
+                                alignment: Alignment.topRight,
+                                child: _qrisImageBytes != null
+                                    ? SizedBox(
+                                        width: isMobile ? 300 : 390,
+                                        child: previewFotoQris(
+                                          isMobile: isMobile,
+                                        ),
+                                      )
+                                    : const SizedBox.shrink(),
                               ),
                             ],
                           ),
@@ -581,7 +601,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
   }
 
   // ==========================================================
-  // HALAMAN KELOLA STRUK
+  // HALAMAN KELOLA STRUK  (DISESUAIKAN: ukuran, tinggi, warna)
   // ==========================================================
 
   Widget _halamanKelolaStruk({
@@ -600,6 +620,27 @@ class _PengaturanPageState extends State<PengaturanPage> {
       ('total', 'Total Bayar'),
     ];
 
+    final bool besar = !isMobile; // tablet & laptop = ukuran besar
+    final double judulSize = isMobile ? 19 : (isTablet ? 25 : 30);
+    final double padLuar = isMobile ? 14 : 28;
+
+    // animasi masuk: fade + naik
+    Widget masuk(Widget child, int urutan) {
+      return TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: Duration(milliseconds: 450 + urutan * 150),
+        curve: Curves.easeOutCubic,
+        builder: (_, v, c) => Opacity(
+          opacity: v,
+          child: Transform.translate(
+            offset: Offset(0, 24 * (1 - v)),
+            child: c,
+          ),
+        ),
+        child: child,
+      );
+    }
+
     return Container(
       width: double.infinity,
       height: double.infinity,
@@ -607,24 +648,19 @@ class _PengaturanPageState extends State<PengaturanPage> {
       child: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(14, 8, 14, 24),
+          padding: EdgeInsets.fromLTRB(padLuar, 8, padLuar, 28),
           child: Center(
             child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: maxContentWidth,
-              ),
+              constraints: BoxConstraints(maxWidth: maxContentWidth),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final bool sideBySide =
-                      constraints.maxWidth >= 390;
+                  final bool sideBySide = constraints.maxWidth >= 390;
 
                   final double previewWidth =
-                      (constraints.maxWidth * 0.32)
-                          .clamp(120.0, 285.0);
+                      (constraints.maxWidth * 0.32).clamp(120.0, 320.0);
 
                   return Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // JUDUL
                       Row(
@@ -639,15 +675,17 @@ class _PengaturanPageState extends State<PengaturanPage> {
                             icon: Icon(
                               Icons.arrow_back_rounded,
                               color: navy,
+                              size: besar ? 28 : 24,
                             ),
                           ),
                           Expanded(
                             child: Text(
                               'Pengaturan Pengelolaan Struk',
                               style: TextStyle(
-                                color: const Color(0xff176080),
-                                fontSize: isMobile ? 19 : 25,
+                                color: _judulStruk,
+                                fontSize: judulSize,
                                 fontWeight: FontWeight.w800,
+                                letterSpacing: -0.5,
                               ),
                             ),
                           ),
@@ -656,21 +694,21 @@ class _PengaturanPageState extends State<PengaturanPage> {
 
                       // STATUS
                       Padding(
-                        padding: const EdgeInsets.only(
-                          left: 4,
-                          bottom: 14,
+                        padding: EdgeInsets.only(
+                          left: besar ? 8 : 4,
+                          bottom: besar ? 20 : 14,
                         ),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: besar ? 14 : 10,
+                            vertical: besar ? 7 : 5,
                           ),
                           decoration: BoxDecoration(
                             color: strukAktif
                                 ? const Color(0xffc7f0ce)
                                 : const Color(0xffe6e9ec),
-                            borderRadius:
-                                BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(20),
                             border: Border.all(
                               color: strukAktif
                                   ? const Color(0xff65bd70)
@@ -685,7 +723,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                               color: strukAktif
                                   ? const Color(0xff246a32)
                                   : const Color(0xff5d6871),
-                              fontSize: 9,
+                              fontSize: besar ? 12 : 9,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -695,21 +733,33 @@ class _PengaturanPageState extends State<PengaturanPage> {
                       // PANEL DAN PREVIEW
                       if (sideBySide)
                         Row(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              child: _panelOpsiStruk(
-                                receiptItems,
-                                options,
+                              child: masuk(
+                                _panelOpsiStruk(
+                                  receiptItems,
+                                  options,
+                                  besar: besar,
+                                ),
+                                0,
                               ),
                             ),
-                            const SizedBox(width: 10),
+                            SizedBox(width: besar ? 20 : 10),
                             SizedBox(
                               width: previewWidth,
-                              child: _previewStruk(
-                                options,
-                                isMobile: previewWidth < 170,
+                              child: masuk(
+                                AnimatedSize(
+                                  duration:
+                                      const Duration(milliseconds: 300),
+                                  curve: Curves.easeOutCubic,
+                                  alignment: Alignment.topCenter,
+                                  child: _previewStruk(
+                                    options,
+                                    isMobile: previewWidth < 170,
+                                  ),
+                                ),
+                                1,
                               ),
                             ),
                           ],
@@ -717,14 +767,27 @@ class _PengaturanPageState extends State<PengaturanPage> {
                       else
                         Column(
                           children: [
-                            _panelOpsiStruk(
-                              receiptItems,
-                              options,
+                            masuk(
+                              _panelOpsiStruk(
+                                receiptItems,
+                                options,
+                                besar: false,
+                              ),
+                              0,
                             ),
                             const SizedBox(height: 16),
-                            _previewStruk(
-                              options,
-                              isMobile: true,
+                            masuk(
+                              AnimatedSize(
+                                duration:
+                                    const Duration(milliseconds: 300),
+                                curve: Curves.easeOutCubic,
+                                alignment: Alignment.topCenter,
+                                child: _previewStruk(
+                                  options,
+                                  isMobile: true,
+                                ),
+                              ),
+                              1,
                             ),
                           ],
                         ),
@@ -745,54 +808,58 @@ class _PengaturanPageState extends State<PengaturanPage> {
 
   Widget _panelOpsiStruk(
     List<(String, String)> receiptItems,
-    Map<String, bool> options,
-  ) {
+    Map<String, bool> options, {
+    bool besar = false,
+  }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(8),
+      padding: EdgeInsets.all(besar ? 18 : 8),
       decoration: BoxDecoration(
-        color: const Color(0xff214261),
-        borderRadius: BorderRadius.circular(13),
+        color: _panelNavy,
+        borderRadius: BorderRadius.circular(besar ? 24 : 13),
         boxShadow: [
           BoxShadow(
-            color: navy.withValues(alpha: 0.18),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
+            color: navy.withValues(alpha: 0.22),
+            blurRadius: besar ? 24 : 12,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Column(
         children: [
-          const SizedBox(height: 5),
+          SizedBox(height: besar ? 10 : 5),
 
           Text(
             namaTokoController.text.trim().isEmpty
                 ? 'Celcious Coffee'
                 : namaTokoController.text.trim(),
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
-              fontSize: 21,
+              fontSize: besar ? 34 : 21,
               fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
             ),
           ),
 
-          const Text(
+          Text(
             'Alamat Cafe',
             style: TextStyle(
               color: Colors.white70,
-              fontSize: 9,
+              fontSize: besar ? 13 : 9,
             ),
           ),
 
-          const SizedBox(height: 18),
+          SizedBox(height: besar ? 28 : 18),
 
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(9, 10, 9, 12),
+            padding: besar
+                ? const EdgeInsets.fromLTRB(18, 16, 18, 20)
+                : const EdgeInsets.fromLTRB(9, 10, 9, 12),
             decoration: BoxDecoration(
-              color: const Color(0xffdce9f4),
-              borderRadius: BorderRadius.circular(14),
+              color: background,
+              borderRadius: BorderRadius.circular(besar ? 22 : 14),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -802,14 +869,14 @@ class _PengaturanPageState extends State<PengaturanPage> {
                     Icon(
                       Icons.tune_rounded,
                       color: navy,
-                      size: 17,
+                      size: besar ? 24 : 17,
                     ),
-                    const SizedBox(width: 7),
+                    SizedBox(width: besar ? 10 : 7),
                     Text(
                       'Elemen Tampilan Struk',
                       style: TextStyle(
                         color: navy,
-                        fontSize: 11,
+                        fontSize: besar ? 17 : 11,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -818,17 +885,18 @@ class _PengaturanPageState extends State<PengaturanPage> {
 
                 Divider(
                   color: navy.withValues(alpha: 0.35),
-                  height: 17,
+                  height: besar ? 28 : 17,
                 ),
 
                 LayoutBuilder(
                   builder: (context, constraints) {
+                    final double gap = besar ? 14 : 8;
                     final double tileWidth =
-                        (constraints.maxWidth - 8) / 2;
+                        (constraints.maxWidth - gap) / 2;
 
                     return Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                      spacing: gap,
+                      runSpacing: gap,
                       children: [
                         for (final (key, label) in receiptItems)
                           SizedBox(
@@ -837,6 +905,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                               key: key,
                               label: label,
                               enabled: options[key] ?? true,
+                              besar: besar,
                             ),
                           ),
                       ],
@@ -859,73 +928,90 @@ class _PengaturanPageState extends State<PengaturanPage> {
     required String key,
     required String label,
     required bool enabled,
+    bool besar = false,
   }) {
-    return Container(
-      constraints: const BoxConstraints(
-        minHeight: 57,
-      ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 7,
-        vertical: 6,
-      ),
-      decoration: BoxDecoration(
-        color: const Color(0xff214261),
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 5,
-            offset: const Offset(0, 2),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        // seluruh tile bisa diklik, tetap lewat _simpanOpsiStruk
+        onTap: () => _simpanOpsiStruk(key, !enabled),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          constraints: BoxConstraints(minHeight: besar ? 98 : 57),
+          padding: EdgeInsets.symmetric(
+            horizontal: besar ? 14 : 7,
+            vertical: besar ? 12 : 6,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
+          decoration: BoxDecoration(
+            color: enabled ? _tileNavy : _tileMati,
+            borderRadius: BorderRadius.circular(besar ? 16 : 10),
+            border: Border.all(
+              color: enabled
+                  ? _biruSwitch.withValues(alpha: 0.55)
+                  : Colors.transparent,
+              width: 1.2,
             ),
-          ),
-
-          const Text(
-            'Tampilkan pada struk',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 6,
-            ),
-          ),
-
-          const SizedBox(height: 2),
-
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Transform.scale(
-              scale: 0.72,
-              alignment: Alignment.centerLeft,
-              child: Switch(
-                key: ValueKey('receipt-option-$key'),
-                value: enabled,
-                activeThumbColor: Colors.white,
-                activeTrackColor: const Color(0xff55adf5),
-                inactiveThumbColor: Colors.white,
-                inactiveTrackColor: Colors.grey,
-                materialTapTargetSize:
-                    MaterialTapTargetSize.shrinkWrap,
-                onChanged: (value) {
-                  _simpanOpsiStruk(key, value);
-                },
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: besar ? 8 : 5,
+                offset: const Offset(0, 3),
               ),
-            ),
+            ],
           ),
-        ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 250),
+                style: TextStyle(
+                  color: enabled ? Colors.white : Colors.white54,
+                  fontSize: besar ? 19 : 11,
+                  fontWeight: FontWeight.w800,
+                ),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
+              Text(
+                'Tampilkan pada struk',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: besar ? 10 : 6,
+                ),
+              ),
+
+              SizedBox(height: besar ? 6 : 2),
+
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Transform.scale(
+                  scale: besar ? 0.95 : 0.72,
+                  alignment: Alignment.centerLeft,
+                  child: Switch(
+                    key: ValueKey('receipt-option-$key'),
+                    value: enabled,
+                    activeThumbColor: Colors.white,
+                    activeTrackColor: _biruSwitch,
+                    inactiveThumbColor: Colors.white,
+                    inactiveTrackColor: Colors.grey,
+                    materialTapTargetSize:
+                        MaterialTapTargetSize.shrinkWrap,
+                    onChanged: (value) {
+                      _simpanOpsiStruk(key, value);
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1260,14 +1346,32 @@ class _PengaturanPageState extends State<PengaturanPage> {
       ),
     );
 
-    if (onTap == null) return row;
+    final Widget isi = onTap == null
+        ? row
+        : Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              hoverColor: navy.withValues(alpha: 0.05),
+              splashColor: navy.withValues(alpha: 0.08),
+              child: row,
+            ),
+          );
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: row,
+    final int urutan = _barisKe++;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 350 + urutan * 70),
+      curve: Curves.easeOutCubic,
+      builder: (_, v, c) => Opacity(
+        opacity: v,
+        child: Transform.translate(
+          offset: Offset(0, 16 * (1 - v)),
+          child: c,
+        ),
       ),
+      child: isi,
     );
   }
 
