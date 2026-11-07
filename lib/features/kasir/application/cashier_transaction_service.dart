@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:kasir_celcious_coffe/data/payment_proof_store.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
+import 'package:kasir_celcious_coffe/data/produk_data.dart';
+import 'package:kasir_celcious_coffe/data/api_service.dart';
 
 /// Builds and persists cashier orders and completed transactions.
 class CashierTransactionService {
@@ -60,6 +62,17 @@ class CashierTransactionService {
       };
     }).toList();
 
+    final res = await ApiService.post('transaksi', {
+      'kode': orderCode['id'],
+      'nama_pelanggan': customerName,
+      'tipe_pesanan': orderType,
+      'status_bayar': 'belum_lunas',
+      'jenis_diskon': discountType,
+      'diskon_input': discountInput,
+      'items': _itemsApi(cart),
+    });
+    final idTransaksi = (res['data'] as Map)['id_transaksi'];
+
     await TransactionStore.addUnfinishedOrder({
       'id': orderCode['id'],
       'kode': orderCode['display'],
@@ -80,6 +93,7 @@ class CashierTransactionService {
       'bayar': 'Pending',
       'selesai': false,
       'cart': cartItems,
+      'idTransaksi': idTransaksi,
     });
   }
 
@@ -144,12 +158,30 @@ class CashierTransactionService {
 
     try {
       if (existingOrder != null) {
+        final idTrx = existingOrder['idTransaksi'];
+        if (idTrx != null) {
+          await ApiService.patch('transaksi/$idTrx/bayar', {
+            'metode': paymentMethod,
+          });
+        }
         await TransactionStore.markUnfinishedOrderPaid(
           id: orderCode['id']!,
           paymentMethod: paymentMethod,
           transaction: transaction,
         );
       } else {
+        final res = await ApiService.post('transaksi', {
+          'kode': orderCode['id'],
+          'nama_pelanggan': customerName,
+          'tipe_pesanan': orderType,
+          'status_bayar': 'lunas',
+          'metode': paymentMethod,
+          'jenis_diskon': discountType,
+          'diskon_input': discountInput,
+          'items': _itemsApi(cart),
+        });
+        final idTransaksi = (res['data'] as Map)['id_transaksi'];
+
         await TransactionStore.addPaidOrder(
           order: {
             ...transaction,
@@ -158,6 +190,7 @@ class CashierTransactionService {
             'bayar': 'Lunas',
             'selesai': false,
             'cart': cartItems,
+            'idTransaksi': idTransaksi,
           },
           transaction: {},
         );
@@ -166,5 +199,30 @@ class CashierTransactionService {
       if (proofPath != null) await PaymentProofStore.delete(proofPath);
       rethrow;
     }
+  }
+
+  static int _idProduk(Map<String, dynamic> item) {
+    final id = item['id_produk'];
+    if (id is num) return id.toInt();
+    final nama = item['name'].toString();
+    for (final p in ProdukData.produk.value) {
+      if (p['name'] == nama && p['id_produk'] is num) {
+        return (p['id_produk'] as num).toInt();
+      }
+    }
+    throw StateError(
+      'Produk "$nama" belum sinkron dengan server. Login ulang.',
+    );
+  }
+
+  static List<Map<String, dynamic>> _itemsApi(List<Map<String, dynamic>> cart) {
+    return cart.map((item) {
+      final catatan = item['catatan']?.toString().trim() ?? '';
+      return <String, dynamic>{
+        'id_produk': _idProduk(item),
+        'jumlah': item['quantity'] as int,
+        'varian': catatan.isEmpty ? null : catatan,
+      };
+    }).toList();
   }
 }

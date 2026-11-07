@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:kasir_celcious_coffe/data/transaction_store.dart';
+import 'package:kasir_celcious_coffe/features/kasir/application/cashier_shift_service.dart';
 
 enum _CashDrawerType { addition, deduction, refund }
 
@@ -118,7 +118,7 @@ class _CashDrawerPanelState extends State<CashDrawerPanel> {
         : _descriptionController.text.trim();
 
     try {
-      await TransactionStore.addCashDrawerEntry(
+      await CashierShiftService.addCashDrawerEntry(
         type: type,
         amount: amount,
         description: description,

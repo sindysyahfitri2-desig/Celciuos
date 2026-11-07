@@ -4,6 +4,7 @@ import 'package:kasir_celcious_coffe/features/kasir/presentation/buka_shift_page
 import 'package:kasir_celcious_coffe/features/kasir/application/cashier_shift_service.dart';
 import 'package:kasir_celcious_coffe/features/kasir/presentation/kasir_page.dart';
 import 'package:kasir_celcious_coffe/features/auth/presentation/pilih_peran_page.dart';
+import 'package:kasir_celcious_coffe/data/produk_data.dart';
 
 class PilihProfilPage extends StatefulWidget {
   const PilihProfilPage({super.key});
@@ -93,10 +94,18 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
         await ApiService.clearAuth();
         if (!navigator.mounted) return;
         navigator.pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const PilihPeranPage()),  // sebelumnya PilihProfilPage
+          MaterialPageRoute(
+            builder: (_) => const PilihPeranPage(),
+          ), // sebelumnya PilihProfilPage
           (route) => false,
         );
       }
+
+      try {
+        await CashierShiftService.syncFromBackend();
+      } catch (_) {}
+
+      await ProdukData.loadFromApi();
 
       final shiftAktif = CashierShiftService.activeShift() != null;
 

@@ -3,6 +3,7 @@ import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 
 import 'package:kasir_celcious_coffe/features/kasir/application/cashier_order_service.dart';
 import 'checkout_page.dart';
+import 'package:kasir_celcious_coffe/data/api_service.dart';
 
 class PesananBelumSelesaiPage extends StatefulWidget {
   const PesananBelumSelesaiPage({super.key, this.onKeLaporan});
@@ -596,6 +597,10 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
               onPressed: () async {
                 final id = data['id']?.toString();
                 try {
+                  final idTrx = data['idTransaksi'];
+                  if (idTrx != null) {
+                    await ApiService.patch('transaksi/$idTrx/selesai', {});
+                  }
                   if (id != null) {
                     await TransactionStore.completeUnfinishedOrder(id);
                   }

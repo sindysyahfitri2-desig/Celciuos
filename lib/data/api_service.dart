@@ -8,8 +8,8 @@ class ApiService {
   // Alamat base URL backend Laravel kamu (default lokal 127.0.0.1:8000)
   // Bisa disesuaikan jika memakai ngrok atau domain lain
   static const String baseUrl =
-    'https://clatter-distant-sterling.ngrok-free.dev/api';
-    
+      'https://clatter-distant-sterling.ngrok-free.dev/api';
+
   static const String _tokenKey = 'celcious_auth_token';
   static const String _userKey = 'celcious_user_data';
 
@@ -53,17 +53,17 @@ class ApiService {
   // ============================================================
 
   static Future<Map<String, String>> _headers({bool json = true}) async {
-  final token = await getToken();
-  final headers = <String, String>{
-    'Accept': 'application/json',
-    'ngrok-skip-browser-warning': 'true',
-  };
-  if (json) headers['Content-Type'] = 'application/json';
-  if (token != null && token.isNotEmpty) {
-    headers['Authorization'] = 'Bearer $token';
+    final token = await getToken();
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      'ngrok-skip-browser-warning': 'true',
+    };
+    if (json) headers['Content-Type'] = 'application/json';
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    return headers;
   }
-  return headers;
-}
   // ============================================================
   // FUNGSI HTTP (GET, POST, PUT, DELETE)
   // ============================================================
@@ -84,17 +84,18 @@ class ApiService {
 
   /// POST Request (mengirim / membuat data baru)
   static Future<Map<String, dynamic>> post(
-  String endpoint,
-  Map<String, dynamic> body,
-) async {
-  final uri = Uri.parse('$baseUrl/$endpoint');
-  final response = await http.post(          // <-- harus http.post
-    uri,
-    headers: await _headers(),
-    body: jsonEncode(body),
-  );
-  return _handleResponse(response);
-}
+    String endpoint,
+    Map<String, dynamic> body,
+  ) async {
+    final uri = Uri.parse('$baseUrl/$endpoint');
+    final response = await http.post(
+      // <-- harus http.post
+      uri,
+      headers: await _headers(),
+      body: jsonEncode(body),
+    );
+    return _handleResponse(response);
+  }
 
   /// PUT Request (memperbarui data)
   static Future<Map<String, dynamic>> put(
@@ -102,14 +103,35 @@ class ApiService {
     Map<String, dynamic> body,
   ) async {
     final uri = Uri.parse('$baseUrl/$endpoint');
-    final response = await http.put(uri, headers: await _headers(), body: jsonEncode(body));
+    final response = await http.put(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode(body),
+    );
+    return _handleResponse(response);
+  }
+
+  /// PATCH
+  static Future<Map<String, dynamic>> patch(
+    String endpoint,
+    Map<String, dynamic> body,
+  ) async {
+    final uri = Uri.parse('$baseUrl/$endpoint');
+    final response = await http.patch(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode(body),
+    );
     return _handleResponse(response);
   }
 
   /// DELETE Request (menghapus data)
   static Future<Map<String, dynamic>> delete(String endpoint) async {
     final uri = Uri.parse('$baseUrl/$endpoint');
-    final response = await http.delete(uri, headers: await _headers(json: false));
+    final response = await http.delete(
+      uri,
+      headers: await _headers(json: false),
+    );
     return _handleResponse(response);
   }
 

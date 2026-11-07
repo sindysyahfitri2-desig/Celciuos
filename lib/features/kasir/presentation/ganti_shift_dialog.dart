@@ -53,9 +53,9 @@ class _GantiShiftDialogState extends State<_GantiShiftDialog> {
   }
 
   void _snack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.red),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
   }
 
   Future<String?> _askPin(String nama) {
@@ -74,11 +74,13 @@ class _GantiShiftDialogState extends State<_GantiShiftDialog> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Batal')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
           ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, c.text.trim()),
-              child: const Text('Masuk')),
+            onPressed: () => Navigator.pop(ctx, c.text.trim()),
+            child: const Text('Masuk'),
+          ),
         ],
       ),
     );
@@ -120,8 +122,10 @@ class _GantiShiftDialogState extends State<_GantiShiftDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Ganti Shift :',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+              const Text(
+                'Ganti Shift :',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              ),
               const SizedBox(height: 14),
               const Text('Pilih Nama Kasir :', style: TextStyle(fontSize: 16)),
               const SizedBox(height: 10),
@@ -136,42 +140,48 @@ class _GantiShiftDialogState extends State<_GantiShiftDialog> {
                     shrinkWrap: true,
                     children: _kasir.map((k) {
                       final aktif = k['id_pengguna'] == _dipilih;
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Material(
                           color: aktif
                               ? const Color(0xffdce7f2)
                               : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: aktif
-                                ? const Color(0xff0E2F56)
-                                : Colors.transparent,
-                            width: 1.5,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(
+                              color: aktif
+                                  ? const Color(0xff0E2F56)
+                                  : Colors.transparent,
+                              width: 1.5,
+                            ),
                           ),
-                        ),
-                        child: ListTile(
-                          onTap: () =>
-                              setState(() => _dipilih = k['id_pengguna'] as int),
-                          leading: CircleAvatar(
-                            backgroundColor: Colors.grey.shade300,
-                            backgroundImage: k['foto_url'] != null
-                                ? NetworkImage(
-                                    k['foto_url'],
-                                    headers: const {
-                                      'ngrok-skip-browser-warning': 'true'
-                                    },
+                          clipBehavior: Clip.antiAlias,
+                          child: ListTile(
+                            onTap: () => setState(
+                              () => _dipilih = k['id_pengguna'] as int,
+                            ),
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.grey.shade300,
+                              backgroundImage: k['foto_url'] != null
+                                  ? NetworkImage(
+                                      k['foto_url'],
+                                      headers: const {
+                                        'ngrok-skip-browser-warning': 'true',
+                                      },
+                                    )
+                                  : null,
+                              child: k['foto_url'] == null
+                                  ? const Icon(Icons.person)
+                                  : null,
+                            ),
+                            title: Text(k['nama'].toString()),
+                            trailing: aktif
+                                ? const Icon(
+                                    Icons.check_circle,
+                                    color: Color(0xff0E2F56),
                                   )
                                 : null,
-                            child: k['foto_url'] == null
-                                ? const Icon(Icons.person)
-                                : null,
                           ),
-                          title: Text(k['nama'].toString()),
-                          trailing: aktif
-                              ? const Icon(Icons.check_circle,
-                                  color: Color(0xff0E2F56))
-                              : null,
                         ),
                       );
                     }).toList(),
@@ -185,11 +195,14 @@ class _GantiShiftDialogState extends State<_GantiShiftDialog> {
                     onChanged: (v) => setState(() => _yakin = v ?? false),
                   ),
                   const Expanded(
-                    child: Text('Apakah Sudah Yakin?',
-                        style: TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13)),
+                    child: Text(
+                      'Apakah Sudah Yakin?',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -202,22 +215,29 @@ class _GantiShiftDialogState extends State<_GantiShiftDialog> {
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed:
-                        (_dipilih != null && _yakin && !_submitting) ? _simpan : null,
+                    onPressed: (_dipilih != null && _yakin && !_submitting)
+                        ? _simpan
+                        : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xff0E2F56),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 28, vertical: 14),
+                        horizontal: 28,
+                        vertical: 14,
+                      ),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30)),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
                     ),
                     child: _submitting
                         ? const SizedBox(
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
                         : const Text('Simpan'),
                   ),
                 ],

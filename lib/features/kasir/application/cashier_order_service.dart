@@ -10,7 +10,7 @@ class CashierOrderService {
     return saved.where((order) => !existingIds.contains(order['id'])).map((
       order,
     ) {
-      final quantity = order['jumlah'] as int? ?? 0;
+      final quantity = _toInt(order['jumlah']);
       final total = (order['total'] as num?)?.toDouble() ?? 0;
       return <String, dynamic>{
         ...order,
@@ -65,5 +65,10 @@ class CashierOrderService {
       RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
       (match) => '${match[1]}.',
     );
+  }
+    static int _toInt(Object? value) {
+    if (value is num) return value.toInt();
+    final digits = RegExp(r'\d+').firstMatch(value?.toString() ?? '');
+    return int.tryParse(digits?.group(0) ?? '') ?? 0;
   }
 }
