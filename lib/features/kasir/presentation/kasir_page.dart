@@ -440,7 +440,7 @@ class _kasirPageState extends State<kasirPage> {
       showWelcome = false;
       showJenisPesanan = true;
     }
-    ApiService.getUser().then((u) {
+        ApiService.getUser().then((u) {
       if (!mounted || u == null) return;
       setState(() {
         _idKasir = u['id_pengguna'] as int?;
@@ -448,10 +448,6 @@ class _kasirPageState extends State<kasirPage> {
         namaKasir = u['nama']?.toString() ?? namaKasir;
       });
     });
-        CashierShiftService.fetchAktif().then((d) {
-      if (!mounted || d == null) return;
-      setState(() => shiftKe = (d['shift_ke'] as num?)?.toInt() ?? 1);
-    }).catchError((_) {});
   }
 
   void _onCartChanged() {
@@ -551,20 +547,6 @@ class _kasirPageState extends State<kasirPage> {
   Future<void> _gantiShift() async {
     final user = await showGantiShiftDialog(context, idKasirSaatIni: _idKasir);
     if (user == null || !mounted) return;
-
-    try {
-      await CashierShiftService.gantiShift();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceAll('Exception: ', '')),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
     setState(() {
       shiftKe = 2;
       namaKasir = user['nama'].toString();
@@ -604,19 +586,18 @@ class _kasirPageState extends State<kasirPage> {
         ],
       ),
     );
-    if (ya == true) {
+        if (ya == true) {
       try {
         await CashierShiftService.closeShift();
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal menutup shift: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menutup shift: $e')),
+        );
         return;
       }
       widget.onLogout?.call();
-    }
-  }
+    } }
 
   void _toggleCashDrawerPanel() {
     setState(() => _showCashDrawerPanel = !_showCashDrawerPanel);
@@ -981,95 +962,47 @@ class _kasirPageState extends State<kasirPage> {
     );
   }
   // ==========================================================
-// SEARCH - TWITTER STYLE
-// ==========================================================
+  // SEARCH
+  // ==========================================================
 
-Widget _search() {
-  return Container(
-    height: 43,
-    decoration: BoxDecoration(
-      color: const Color(0xff283542),
-      borderRadius: BorderRadius.circular(30),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.08),
-          blurRadius: 4,
-          offset: const Offset(0, 1),
-        ),
-      ],
-    ),
-    child: TextField(
-      onChanged: (value) {
-        setState(() {
-          searchQuery = value.toLowerCase().trim();
-        });
-      },
-      style: const TextStyle(
+  Widget _search() {
+    return Container(
+      height: 43,
+      decoration: BoxDecoration(
         color: Colors.white,
-        fontSize: 14,
+        borderRadius: BorderRadius.circular(23),
       ),
-      cursorColor: const Color(0xff1b9bee),
-      decoration: InputDecoration(
-        hintText: 'Cari menu',
-        hintStyle: const TextStyle(
-          color: Color(0xff949faa),
-          fontSize: 14,
-        ),
-
-        prefixIcon: const Icon(
-          Icons.search,
-          size: 19,
-          color: Color(0xff949faa),
-        ),
-
-        suffixIcon: searchQuery.isNotEmpty
-            ? IconButton(
-                icon: const Icon(
-                  Icons.close,
-                  size: 15,
-                  color: Colors.white,
-                ),
-                style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xff1b9bee),
-                  shape: const CircleBorder(),
-                  padding: const EdgeInsets.all(4),
-                ),
-                onPressed: () {
-                  setState(() {
-                    searchQuery = '';
-                  });
-                },
-              )
-            : null,
-
-        filled: true,
-        fillColor: Colors.transparent,
-
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 11,
-        ),
-
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(30),
-          borderSide: BorderSide.none,
-        ),
-
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(30),
-          borderSide: BorderSide.none,
-        ),
-
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(30),
-          borderSide: const BorderSide(
-            color: Color(0xff1b9bee),
-            width: 1,
+      child: TextField(
+        onChanged: (value) {
+          setState(() {
+            searchQuery = value.toLowerCase().trim();
+          });
+        },
+        decoration: InputDecoration(
+          hintText: 'Cari menu',
+          hintStyle: const TextStyle(color: Color(0xff9aa7b2), fontSize: 14),
+          prefixIcon: const Icon(
+            Icons.search,
+            size: 19,
+            color: Color(0xff31566e),
           ),
+          suffixIcon: searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  color: navy,
+                  onPressed: () {
+                    setState(() {
+                      searchQuery = '';
+                    });
+                  },
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 11),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
   // ==========================================================
   // HALAMAN KASIR
   // ==========================================================
