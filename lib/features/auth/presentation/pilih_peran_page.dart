@@ -12,17 +12,17 @@ class PilihPeranPage extends StatefulWidget {
 
 class _PilihPeranPageState extends State<PilihPeranPage> {
   int? selectedIndex;
-  int? hoveredIndex;
 
-  final Color navy = const Color(0xff082640);
-  final Color glowBlue = const Color(0xff38BDF8);
+  static const Color navy = Color(0xff082640);
 
   Future<void> _pilihPeran(int index) async {
     setState(() {
       selectedIndex = index;
     });
 
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(
+      const Duration(milliseconds: 300),
+    );
 
     if (!mounted) return;
 
@@ -47,156 +47,99 @@ class _PilihPeranPageState extends State<PilihPeranPage> {
     required String label,
   }) {
     final bool isSelected = selectedIndex == index;
-    final bool isHovered = hoveredIndex == index;
 
-    final bool showBorder = isSelected || isHovered;
+    return GestureDetector(
+      onTap: () => _pilihPeran(index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
+        width: 190,
+        height: 225,
 
-      onEnter: (_) {
-        setState(() {
-          hoveredIndex = index;
-        });
-      },
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
 
-      onExit: (_) {
-        setState(() {
-          hoveredIndex = null;
-        });
-      },
-
-      child: GestureDetector(
-        onTap: () => _pilihPeran(index),
-
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-
-          width: 185,
-          height: 210,
-
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.97),
-            borderRadius: BorderRadius.circular(12),
-
-            // BORDER BIRU
-            border: Border.all(
-              color: showBorder
-                  ? navy
-                  : Colors.transparent,
-              width: 2.9,
-            ),
-
-            // EFEK GLOWING BIRU
-            boxShadow: [
-              BoxShadow(
-                color: showBorder
-                    ? glowBlue.withValues(alpha: 0.20)
-                    : Colors.white.withValues(alpha: 0.15),
-                blurRadius: showBorder ? 30 : 6,
-                spreadRadius: showBorder ? 5 : 0,
-                offset: const Offset(0, 0),
-              ),
-
-              // Cahaya tambahan
-              BoxShadow(
-                color: showBorder
-                    ? glowBlue.withValues(alpha: 0.35)
-                    : Colors.transparent,
-                blurRadius: showBorder ? 45 : 0,
-                spreadRadius: showBorder ? 8 : 0,
-                offset: const Offset(0, 0),
-              ),
-
-              // Bayangan bawah
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.20),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-              ),
-            ],
+          // Border hanya ketika dipilih
+          border: Border.all(
+            color: isSelected
+                ? navy
+                : Colors.transparent,
+            width: 4,
           ),
 
-          child: Stack(
-            children: [
-              // INDIKATOR CHECK
+          // Hanya bayangan biasa, tanpa glow
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+
+        child: Stack(
+          children: [
+            // Tanda O hanya ketika dipilih
+            if (isSelected)
               Positioned(
-                top: 8,
-                left: 8,
-
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  width: 18,
-                  height: 18,
-
+                top: 9,
+                left: 9,
+                child: Container(
+                  width: 17,
+                  height: 17,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: navy,
                       width: 2,
                     ),
-                    color: showBorder
-                        ? navy
-                        : Colors.transparent,
                   ),
-
-                  child: showBorder
-                      ? const Icon(
-                          Icons.check,
-                          size: 11,
-                          color: Colors.white,
-                        )
-                      : null,
+                  child: Center(
+                    child: Container(
+                      width: 7,
+                      height: 7,
+                      decoration: const BoxDecoration(
+                        color: navy,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
                 ),
               ),
 
-              // ISI CARD
-              Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // ANIMASI IKON MEMBESAR
-                    AnimatedScale(
-                      scale: isHovered ? 1.12 : 1.0,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
+            // Isi card
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: 76,
+                    color: navy,
+                  ),
 
-                      child: Icon(
-                        icon,
-                        size: 76,
-                        color: navy,
-                      ),
+                  const SizedBox(height: 20),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
                     ),
-
-                    const SizedBox(height: 13),
-
-                    // TULISAN KASIR / OWNER
-                    AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 250),
-
-                      style: TextStyle(
-                        fontSize: isHovered ? 15 : 15,
+                    child: Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 11,
                         fontWeight: FontWeight.w800,
                         color: navy,
                       ),
-
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 3,
-                        ),
-
-                        child: Text(
-                          label,
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -208,101 +151,96 @@ class _PilihPeranPageState extends State<PilihPeranPage> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // BACKGROUND GAMBAR
+          // Background
           Image.asset(
             'assets/images/bg_pilih_peran.jpeg',
             fit: BoxFit.cover,
           ),
 
-          // OVERLAY
+          // Overlay navy
           Container(
             color: const Color(0xff061e35)
                 .withValues(alpha: 0.58),
           ),
 
-          // KONTEN HALAMAN
+          // Konten
           SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return Center(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 25,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Ikon profil
+                    Container(
+                      width: 45,
+                      height: 45,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 4,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.person,
+                        color: Colors.white,
+                        size: 30,
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Judul
+                    const Text(
+                      'Selamat Datang !',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 40,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+
+                    const SizedBox(height: 5),
+
+                    const Text(
+                      'Silahkan Pilih Peran Anda',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 17,
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+
+                    const SizedBox(height: 30),
+
+                    // Pilihan peran
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 24,
+                      runSpacing: 20,
                       children: [
-                        // IKON PROFIL
-                        Container(
-                          width: 45,
-                          height: 45,
-
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white,
-                              width: 4,
-                            ),
-                          ),
-
-                          child: const Icon(
-                            Icons.person,
-                            color: Colors.white,
-                            size: 30,
-                          ),
+                        _tombol(
+                          index: 0,
+                          icon: Icons.point_of_sale_rounded,
+                          label: 'Masuk Sebagai Kasir',
                         ),
 
-                        const SizedBox(height: 8),
-
-                        // JUDUL
-                        const Text(
-                          'Selamat Datang !',
-
-                          style: TextStyle(
-                            fontSize: 44,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-
-                        const SizedBox(height: 4),
-
-                        // SUBJUDUL
-                        const Text(
-                          'Silahkan Pilih Peran Anda',
-
-                          style: TextStyle(
-                            fontSize: 17,
-                            color: Colors.white70,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-
-                        const SizedBox(height: 24),
-
-                        // PILIHAN PERAN
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 14,
-                          runSpacing: 14,
-
-                          children: [
-                            _tombol(
-                              index: 0,
-                              icon: Icons.point_of_sale_rounded,
-                              label: 'Masuk Sebagai Kasir',
-                            ),
-
-                            _tombol(
-                              index: 1,
-                              icon: Icons.admin_panel_settings_rounded,
-                              label: 'Masuk Sebagai Owner',
-                            ),
-                          ],
+                        _tombol(
+                          index: 1,
+                          icon: Icons.admin_panel_settings_rounded,
+                          label: 'Masuk Sebagai Owner',
                         ),
                       ],
                     ),
-                  ),
-                );
-              },
+                  ],
+                ),
+              ),
             ),
           ),
         ],

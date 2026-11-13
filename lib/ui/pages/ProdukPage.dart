@@ -396,10 +396,18 @@ class _ProdukPageState extends State<ProdukPage> {
 
           _ProductToggle(
             value: isActive,
-            onChanged: (value) {
-              setState(() {
-                product['is_active'] = value;
-              });
+            onChanged: (value) async {
+              try {
+                await ProdukData.setProductActive(
+                  product,
+                  isActive: value,
+                );
+              } catch (error) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Gagal mengubah status produk: $error')),
+                );
+              }
             },
           ),
         ],

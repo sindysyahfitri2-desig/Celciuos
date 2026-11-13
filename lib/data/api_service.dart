@@ -5,6 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:typed_data';
 
 class ApiService {
+  static http.Client _client = http.Client();
+
+  @visibleForTesting
+  static set clientForTesting(http.Client client) => _client = client;
+
+  @visibleForTesting
+  static void resetClientForTesting() => _client = http.Client();
+
   // Alamat base URL backend Laravel kamu (default lokal 127.0.0.1:8000)
   // Bisa disesuaikan jika memakai ngrok atau domain lain
   static const String baseUrl =
@@ -78,7 +86,7 @@ class ApiService {
       uri = uri.replace(queryParameters: query);
     }
 
-    final response = await http.get(uri, headers: await _headers(json: false));
+    final response = await _client.get(uri, headers: await _headers(json: false));
     return _handleResponse(response);
   }
 
@@ -88,7 +96,7 @@ class ApiService {
     Map<String, dynamic> body,
   ) async {
     final uri = Uri.parse('$baseUrl/$endpoint');
-    final response = await http.post(
+    final response = await _client.post(
       // <-- harus http.post
       uri,
       headers: await _headers(),
@@ -103,7 +111,7 @@ class ApiService {
     Map<String, dynamic> body,
   ) async {
     final uri = Uri.parse('$baseUrl/$endpoint');
-    final response = await http.put(
+    final response = await _client.put(
       uri,
       headers: await _headers(),
       body: jsonEncode(body),
@@ -117,7 +125,7 @@ class ApiService {
     Map<String, dynamic> body,
   ) async {
     final uri = Uri.parse('$baseUrl/$endpoint');
-    final response = await http.patch(
+    final response = await _client.patch(
       uri,
       headers: await _headers(),
       body: jsonEncode(body),
@@ -128,7 +136,7 @@ class ApiService {
   /// DELETE Request (menghapus data)
   static Future<Map<String, dynamic>> delete(String endpoint) async {
     final uri = Uri.parse('$baseUrl/$endpoint');
-    final response = await http.delete(
+    final response = await _client.delete(
       uri,
       headers: await _headers(json: false),
     );

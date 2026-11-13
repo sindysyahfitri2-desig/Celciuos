@@ -196,7 +196,7 @@ class ProdukData {
         };
       }).toList();
 
-      if (hasil.isNotEmpty) produk.value = hasil;
+      produk.value = hasil;
     } catch (e) {
       debugPrint('Gagal memuat produk dari API: $e');
     }
@@ -249,6 +249,13 @@ class ProdukData {
     final products = List<Map<String, dynamic>>.from(produk.value);
     final index = products.indexWhere((item) => identical(item, product));
     if (index < 0) throw StateError('Produk sudah tidak tersedia.');
+
+    final id = product['id_produk'];
+    if (id is num) {
+      await ApiService.patch('produk/${id.toInt()}/status', {
+        'status': isActive ? 'aktif' : 'nonaktif',
+      });
+    }
 
     products[index] = {...products[index], 'is_active': isActive};
     await saveProducts(products);

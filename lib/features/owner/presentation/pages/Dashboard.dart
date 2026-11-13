@@ -306,6 +306,10 @@ class _DashboardOwnerState extends State<DashboardOwner> {
 // ISI DASHBOARD — animasi masuk berurutan
 // ============================================================
 
+// ============================================================
+// ISI DASHBOARD
+// ============================================================
+
 class _DashboardBody extends StatefulWidget {
   const _DashboardBody({required this.namaOwner});
 
@@ -318,31 +322,14 @@ class _DashboardBody extends StatefulWidget {
 class _DashboardBodyState extends State<_DashboardBody>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  bool _started = false;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1700),
-    );
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_started) return;
-    _started = true;
-
-    // Hormati pengaturan "kurangi animasi" milik perangkat.
-    final reduceMotion =
-        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    if (reduceMotion) {
-      _controller.value = 1;
-    } else {
-      _controller.forward();
-    }
+      duration: const Duration(milliseconds: 1200),
+    )..forward();
   }
 
   @override
@@ -351,31 +338,21 @@ class _DashboardBodyState extends State<_DashboardBody>
     super.dispose();
   }
 
-  // Potongan waktu dari satu controller supaya elemen muncul bergantian.
-  Animation<double> _stage(double begin, double end) {
-    return CurveTween(
-      curve: Interval(begin, end, curve: Curves.easeOutCubic),
-    ).animate(_controller);
-  }
-
-  // Contoh data. Ganti dengan data dari API saat backend sudah siap.
   static const List<_SummaryData> _summaries = [
     _SummaryData(
-      title: 'Total Omzet Penjualan',
+      title: 'Total Omset Penjualan',
       amount: 3500000,
-      prefix: 'Rp. ',
       icon: Icons.payments_outlined,
-      accent: ownerDarkNavy,
-      detail: 'Target harian Rp. 4.000.000',
+      accent: Color(0xFF082640),
+      detail: 'Target Harian (Rp. 4.000.000)',
       progress: 0.875,
     ),
     _SummaryData(
       title: 'Kas Laci & Non Tunai',
       amount: 3000000,
-      prefix: 'Rp. ',
       icon: Icons.account_balance_wallet_outlined,
       accent: Color(0xFF1687A7),
-      detail: 'Tunai dan pembayaran digital',
+      detail: 'Tunai Rp. 1.500.000  •  QRIS Rp. 1.500.000',
       progress: 0.75,
     ),
     _SummaryData(
@@ -385,7 +362,7 @@ class _DashboardBodyState extends State<_DashboardBody>
       icon: Icons.receipt_long_outlined,
       accent: Color(0xFF159B76),
       detail: 'Transaksi hari ini',
-      progress: 0.8,
+      progress: 1,
     ),
   ];
 
@@ -395,130 +372,67 @@ class _DashboardBodyState extends State<_DashboardBody>
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final compact = width < 600;
-        final tablet = width >= 600 && width < 1000;
-        final pagePadding = compact ? 14.0 : tablet ? 18.0 : 22.0;
 
         return Container(
           color: ownerBackground,
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(pagePadding),
+            padding: EdgeInsets.fromLTRB(
+              compact ? 14 : 20,
+              compact ? 10 : 8,
+              compact ? 14 : 20,
+              20,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Reveal(
-                  animation: _stage(0.0, 0.35),
-                  child: _greeting(compact),
+                // SAPAAN OWNER
+                Text(
+                  'Halo Bos ${widget.namaOwner}',
+                  style: TextStyle(
+                    color: const Color(0xFF07506D),
+                    fontSize: compact ? 22 : 25,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                    shadows: const [
+                      Shadow(
+                        color: Color(0x6689A7B8),
+                        offset: Offset(1, 2),
+                        blurRadius: 3,
+                      ),
+                    ],
+                  ),
                 ),
-                SizedBox(height: compact ? 18 : 24),
+
+                SizedBox(height: compact ? 22 : 72),
+
+                // TIGA KARTU RINGKASAN
                 LayoutBuilder(
                   builder: (context, box) {
-                    // Tiga kartu sejajar di layar lebar, dua di tablet,
-                    // dan satu kolom penuh di HP agar angka tetap terbaca.
-                    final columns = box.maxWidth >= 760
-                        ? 3
-                        : box.maxWidth >= 500
-                        ? 2
-                        : 1;
-
-                    const gap = 14.0;
-                    final colWidth =
+                    const gap = 8.0;
+                    final columns = box.maxWidth < 480 ? 1 : 3;
+                    final cardWidth =
                         (box.maxWidth - gap * (columns - 1)) / columns;
 
                     return Wrap(
                       spacing: gap,
-                      runSpacing: gap,
+                      runSpacing: 10,
                       children: [
-                        for (var i = 0; i < _summaries.length; i++)
+                        for (final data in _summaries)
                           SizedBox(
-                            width: colWidth,
-                            child: _Reveal(
-                              animation: _stage(0.08 + i * 0.1, 0.48 + i * 0.1),
-                              child: _SummaryCard(
-                                data: _summaries[i],
-                                animation: _stage(
-                                  0.12 + i * 0.1,
-                                  0.62 + i * 0.1,
-                                ),
-                              ),
-                            ),
+                            width: cardWidth,
+                            child: _SummaryCard(data: data),
                           ),
                       ],
                     );
                   },
                 ),
-                SizedBox(height: compact ? 16 : 22),
-                _Reveal(
-                  animation: _stage(0.3, 0.7),
-                  child: _SalesChartCard(controller: _controller),
-                ),
+
+                const SizedBox(height: 24),
+
+                // GRAFIK PENJUALAN
+                _SalesChartCard(controller: _controller),
               ],
             ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _greeting(bool compact) {
-    final width = MediaQuery.sizeOf(context).width;
-    final fontSize = width < 600 ? 22.0 : width < 1000 ? 25.0 : 28.0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Halo Bos ${widget.namaOwner}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: ownerNavy,
-            fontSize: fontSize,
-            fontWeight: FontWeight.w900,
-            height: 1.12,
-            shadows: const [
-              Shadow(
-                color: Color(0x6689A7B8),
-                offset: Offset(1, 2),
-                blurRadius: 3,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '${_tanggalHariIni()}. Ringkasan penjualan hari ini.',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: _mutedText,
-            fontSize: compact ? 10 : 12,
-          ),
-        ),
-      ],
-    );
-  }
-
-}
-
-// Fade dan geser naik sedikit saat elemen muncul.
-class _Reveal extends StatelessWidget {
-  const _Reveal({required this.animation, required this.child});
-
-  final Animation<double> animation;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: animation,
-      child: child,
-      builder: (context, child) {
-        final t = animation.value.clamp(0.0, 1.0);
-        return Opacity(
-          opacity: t,
-          child: Transform.translate(
-            offset: Offset(0, (1 - t) * 20),
-            child: child,
           ),
         );
       },
@@ -538,13 +452,11 @@ class _SummaryData {
     required this.accent,
     required this.detail,
     required this.progress,
-    this.prefix = '',
     this.suffix,
   });
 
   final String title;
   final double amount;
-  final String prefix;
   final String? suffix;
   final IconData icon;
   final Color accent;
@@ -552,151 +464,173 @@ class _SummaryData {
   final double progress;
 }
 
-class _SummaryCard extends StatefulWidget {
-  const _SummaryCard({required this.data, required this.animation});
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({required this.data});
 
   final _SummaryData data;
-  final Animation<double> animation;
-
-  @override
-  State<_SummaryCard> createState() => _SummaryCardState();
-}
-
-class _SummaryCardState extends State<_SummaryCard> {
-  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    final data = widget.data;
+    final isTransaction = data.suffix != null;
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        height: 118,
-        transform: Matrix4.translationValues(0, _hovered ? -4 : 0, 0),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: _softShadow(lifted: _hovered),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Row(
-            children: [
-              // Garis warna di tepi kiri sebagai penanda jenis kartu.
-              Container(width: 5, color: data.accent),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(13, 13, 13, 12),
-                  child: AnimatedBuilder(
-                    animation: widget.animation,
-                    builder: (context, _) {
-                      final t = widget.animation.value;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      height: 108,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(5),
+        boxShadow: [
+          BoxShadow(
+            color: ownerNavy.withValues(alpha: 0.25),
+            blurRadius: 5,
+            offset: const Offset(1, 2),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // AKSEN WARNA BAGIAN ATAS KARTU
+          Positioned(
+            top: 0,
+            left: 0,
+            child: Container(
+              width: 70,
+              height: 8,
+              decoration: BoxDecoration(
+                color: data.accent,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(5),
+                  bottomRight: Radius.circular(8),
+                ),
+              ),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.fromLTRB(9, 13, 9, 7),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        data.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: ownerNavy,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: 17,
+                      height: 17,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEAF0F5),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Icon(
+                        data.icon,
+                        size: 11,
+                        color: ownerNavy,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 8),
+
+                if (isTransaction)
+                  Expanded(
+                    child: Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  data.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: ownerNavy,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.all(5),
-                                decoration: BoxDecoration(
-                                  color: data.accent.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(
-                                  data.icon,
-                                  size: 16,
-                                  color: data.accent,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Spacer(),
-                          // Angka berhitung naik dari 0 sampai nilai akhir.
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  '${data.prefix}'
-                                  '${_formatNumber(data.amount * t)}',
-                                  style: const TextStyle(
-                                    color: ownerNavy,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                if (data.suffix != null) ...[
-                                  const SizedBox(width: 5),
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 4),
-                                    child: Text(
-                                      data.suffix!,
-                                      style: const TextStyle(
-                                        color: ownerNavy,
-                                        fontSize: 10,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                          const Spacer(),
                           Text(
-                            data.detail,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            _formatNumber(data.amount),
                             style: const TextStyle(
-                              color: Colors.black54,
-                              fontSize: 9,
+                              color: ownerNavy,
+                              fontSize: 25,
+                              fontWeight: FontWeight.w900,
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(5),
-                            child: LinearProgressIndicator(
-                              value: data.progress * t,
-                              minHeight: 4,
-                              backgroundColor: const Color(0xFFE6EDF3),
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                data.accent,
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 4, left: 3),
+                            child: Text(
+                              'Struk',
+                              style: TextStyle(
+                                color: ownerNavy,
+                                fontSize: 7,
                               ),
                             ),
                           ),
                         ],
-                      );
-                    },
+                      ),
+                    ),
+                  )
+                else
+                  Text(
+                    'Rp. ${_formatNumber(data.amount)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: ownerNavy,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+
+                if (!isTransaction) const Spacer(),
+
+                if (!isTransaction)
+                  Text(
+                    data.detail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: ownerNavy,
+                      fontSize: 6,
+                    ),
+                  ),
+
+                const SizedBox(height: 4),
+
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(5),
+                  child: LinearProgressIndicator(
+                    value: data.progress,
+                    minHeight: 2,
+                    backgroundColor: const Color(0xFFE5EAF0),
+                    valueColor: AlwaysStoppedAnimation<Color>(data.accent),
                   ),
                 ),
-              ),
-            ],
+
+                if (data.amount == 3500000)
+                  const Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      '87.5%',
+                      style: TextStyle(
+                        color: ownerNavy,
+                        fontSize: 6,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
 // ============================================================
-// GRAFIK PENJUALAN PER JAM
+// GRAFIK PENJUALAN
 // ============================================================
 
 class _SalesChartCard extends StatefulWidget {
@@ -709,7 +643,6 @@ class _SalesChartCard extends StatefulWidget {
 }
 
 class _SalesChartCardState extends State<_SalesChartCard> {
-  // Contoh data. Nilai 1.0 = jam tersibuk (Rp 642.500).
   static const List<double> values = [
     0.30,
     0.44,
@@ -734,147 +667,152 @@ class _SalesChartCardState extends State<_SalesChartCard> {
     '24:00',
   ];
 
-  static const double _peakAmount = 642500;
-  static const int _peakIndex = 5;
+  static const double peakAmount = 642500;
+  static const int peakIndex = 5;
 
-  static const double _hourLabelHeight = 24;
-  static const double _valueLabelHeight = 24;
-
-  int? _activeIndex;
-
-  Animation<double> _barAnimation(int index) {
-    final begin = 0.30 + index * 0.055;
-    return CurveTween(
-      curve: Interval(begin, begin + 0.26, curve: Curves.easeOutBack),
-    ).animate(widget.controller);
-  }
+  int? activeIndex;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.fromLTRB(
-        MediaQuery.sizeOf(context).width < 600 ? 14 : 18,
-        MediaQuery.sizeOf(context).width < 600 ? 14 : 18,
-        MediaQuery.sizeOf(context).width < 600 ? 14 : 18,
-        12,
-      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: _softShadow(),
+        borderRadius: BorderRadius.circular(17),
+        boxShadow: [
+          BoxShadow(
+            color: ownerNavy.withValues(alpha: 0.22),
+            blurRadius: 7,
+            offset: const Offset(1, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Wrap: di HP chip "Puncak" turun ke bawah, tidak overflow.
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            runSpacing: 8,
-            spacing: 8,
-            children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Grafik penjualan Celcious',
-                    style: TextStyle(
-                      color: ownerNavy,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Penjualan per jam hari ini',
-                    style: TextStyle(color: _mutedText, fontSize: 10),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF159B76).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  'Puncak pukul ${hours[_peakIndex]}',
-                  style: const TextStyle(
-                    color: Color(0xFF0E7B5C),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
+          const Text(
+            'GRAFIK PENJUALAN CELCIOUS',
+            style: TextStyle(
+              color: Color(0xFF315A80),
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+            ),
           ),
-          const SizedBox(height: 14),
+
+          const SizedBox(height: 8),
+
           LayoutBuilder(
-            builder: (context, box) {
-              final chartHeight = box.maxWidth < 420
-                  ? 185.0
-                  : box.maxWidth < 760
-                  ? 215.0
-                  : 265.0;
-              final maxBarHeight =
-                  chartHeight - _hourLabelHeight - _valueLabelHeight;
+            builder: (context, constraints) {
+              final chartHeight = constraints.maxWidth < 450 ? 175.0 : 205.0;
 
-              // Lebar batang mengikuti perangkat; HP tetap nyaman tanpa
-              // memaksa grafik melebar dan menimbulkan scroll horizontal.
-              final minSlot = box.maxWidth < 420
-                  ? 32.0
-                  : box.maxWidth < 760
-                  ? 38.0
-                  : 46.0;
-              final slot = math.max(box.maxWidth / values.length, minSlot);
-              final contentWidth = slot * values.length;
-
-              final chart = SizedBox(
-                width: contentWidth,
+              return SizedBox(
                 height: chartHeight,
+                width: double.infinity,
                 child: Stack(
                   children: [
-                    // Garis bantu horizontal.
+                    // GARIS TARGET RATA-RATA
                     Positioned(
                       left: 0,
                       right: 0,
-                      top: _valueLabelHeight,
-                      bottom: _hourLabelHeight,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: List.generate(
-                          5,
-                          (_) => Container(
-                            height: 1,
-                            color: const Color(0xFFE3EBF2),
+                      top: chartHeight * 0.60,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              height: 1,
+                              decoration: const BoxDecoration(
+                                border: Border(
+                                  top: BorderSide(
+                                    color: Color(0xFF8BA2B8),
+                                    width: 0.7,
+                                    style: BorderStyle.solid,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 2,
+                            ),
+                            color: const Color(0xFFE5F4FA),
+                            child: const Text(
+                              'Rata-rata Target: Rp. 350.000',
+                              style: TextStyle(
+                                color: Color(0xFF1687C1),
+                                fontSize: 6,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+
+                    // BATANG GRAFIK
                     Positioned.fill(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: List.generate(values.length, (index) {
-                          return Expanded(child: _bar(index, maxBarHeight));
+                          return Expanded(
+                            child: _buildBar(index, chartHeight),
+                          );
                         }),
+                      ),
+                    ),
+
+                    // TOOLTIP PUNCAK
+                    Positioned(
+                      top: 0,
+                      left: constraints.maxWidth * 0.48,
+                      child: Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: ownerNavy,
+                          borderRadius: BorderRadius.circular(5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 5,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '● Jam Sibuk Tertinggi (21:00)',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 6,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Rp 642.500',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              '25 Struk | Best Order: Aren Latte (8 Cup)',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 5,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
               );
-
-              if (contentWidth > box.maxWidth) {
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: chart,
-                );
-              }
-              return chart;
             },
           ),
         ],
@@ -882,111 +820,90 @@ class _SalesChartCardState extends State<_SalesChartCard> {
     );
   }
 
-  Widget _bar(int index, double maxBarHeight) {
-    final isPeak = index == _peakIndex;
-    final isActive = _activeIndex == index;
-    final animation = _barAnimation(index);
-    final amount = values[index] * _peakAmount;
+  Widget _buildBar(int index, double chartHeight) {
+    final isPeak = index == peakIndex;
+    final isActive = activeIndex == index;
+
+    final amount = values[index] * peakAmount;
+    final barMaxHeight = chartHeight * 0.78;
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _activeIndex = index),
-      onExit: (_) => setState(() => _activeIndex = null),
+      onEnter: (_) => setState(() => activeIndex = index),
+      onExit: (_) => setState(() => activeIndex = null),
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        // Di layar sentuh, ketuk batang untuk melihat nilainya.
-        onTap: () =>
-            setState(() => _activeIndex = _activeIndex == index ? null : index),
+        onTap: () {
+          setState(() {
+            activeIndex = activeIndex == index ? null : index;
+          });
+        },
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 5),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              SizedBox(
-                height: _valueLabelHeight,
-                child: Center(
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 150),
-                    opacity: (isPeak || isActive) ? 1 : 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: ownerNavy,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          'Rp ${_formatNumber(amount)}',
-                          maxLines: 1,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 8,
+              Expanded(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: AnimatedBuilder(
+                    animation: widget.controller,
+                    builder: (context, child) {
+                      final progress = Curves.easeOutCubic.transform(
+                        widget.controller.value,
+                      );
+
+                      return Container(
+                        height: barMaxHeight * values[index] * progress,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(5),
+                          ),
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: isPeak
+                                ? const [
+                                    Color(0xFF35CBA0),
+                                    Color(0xFF2B9FC0),
+                                    Color(0xFF082640),
+                                  ]
+                                : const [
+                                    Color(0xFF3D6997),
+                                    Color(0xFF365D88),
+                                  ],
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ),
               ),
-              AnimatedBuilder(
-                animation: animation,
-                builder: (context, _) {
-                  final t = animation.value.clamp(0.0, 1.15);
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    height: maxBarHeight * values[index] * t,
-                    decoration: BoxDecoration(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(7),
-                      ),
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: isPeak
-                            ? const [
-                                Color(0xFF36CBA0),
-                                Color(0xFF2B9FC0),
-                                ownerNavy,
-                              ]
-                            : isActive
-                            ? const [Color(0xFF5BB0E3), Color(0xFF2F6A9C)]
-                            : const [Color(0xFF3E91C8), Color(0xFF365D88)],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: ownerNavy.withValues(
-                            alpha: isActive || isPeak ? 0.30 : 0.14,
-                          ),
-                          blurRadius: isActive ? 12 : 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-              SizedBox(
-                height: _hourLabelHeight,
-                child: Center(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      hours[index],
-                      style: TextStyle(
-                        color: isActive ? ownerNavy : Colors.black54,
-                        fontSize: 9,
-                        fontWeight: isActive
-                            ? FontWeight.w700
-                            : FontWeight.w400,
-                      ),
-                    ),
-                  ),
+
+              const SizedBox(height: 5),
+
+              Text(
+                hours[index],
+                style: TextStyle(
+                  color: isActive || index == peakIndex
+                      ? ownerNavy
+                      : Colors.black54,
+                  fontSize: 7,
+                  fontWeight: isActive || index == peakIndex
+                      ? FontWeight.bold
+                      : FontWeight.normal,
                 ),
               ),
+
+              if (isActive)
+                Text(
+                  'Rp ${_formatNumber(amount)}',
+                  maxLines: 1,
+                  style: const TextStyle(
+                    color: ownerNavy,
+                    fontSize: 6,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
             ],
           ),
         ),

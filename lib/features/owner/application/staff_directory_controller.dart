@@ -72,14 +72,15 @@ class StaffDirectoryController extends ChangeNotifier {
   }
 
   /// Helper untuk dipanggil oleh AddStaffCard
-  Future<bool> addStaff(Staff member) {
-  return add(
-    name: member.name,
-    username: member.username,
-    photoPath: member.photoPath,
-    photoBytes: member.photoBytes,
-  );
-}
+  Future<bool> addStaff(Staff member, {required String pin}) {
+    return add(
+      name: member.name,
+      username: member.username,
+      password: pin,
+      photoPath: member.photoPath,
+      photoBytes: member.photoBytes,
+    );
+  }
 
   /// Menambahkan akun kasir baru ke backend
   Future<bool> add({

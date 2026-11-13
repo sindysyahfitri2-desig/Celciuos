@@ -2,8 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:kasir_celcious_coffe/features/kasir/application/cashier_shift_service.dart';
 import 'package:kasir_celcious_coffe/features/kasir/presentation/kasir_page.dart';
-import 'package:kasir_celcious_coffe/data/api_service.dart';
-import 'package:kasir_celcious_coffe/features/kasir/presentation/ganti_shift_dialog.dart';
 
 class BukaShiftPage extends StatefulWidget {
   const BukaShiftPage({
@@ -21,9 +19,10 @@ class BukaShiftPage extends StatefulWidget {
 
 class _BukaShiftPageState extends State<BukaShiftPage> {
   final TextEditingController _kasController = TextEditingController();
+
   bool _loading = false;
 
-  static const Color navy = Color(0xff082640);
+  static const Color navy = Color(0xFF082640);
 
   // Konfirmasi sebelum mengganti kasir
   Future<void> _konfirmasiGantiKasir() async {
@@ -59,6 +58,7 @@ class _BukaShiftPageState extends State<BukaShiftPage> {
     }
   }
 
+  // Proses membuka shift
   Future<void> _bukaShift() async {
     if (_loading) return;
 
@@ -74,7 +74,9 @@ class _BukaShiftPageState extends State<BukaShiftPage> {
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => kasirPage(onLogout: widget.onLogout),
+          builder: (_) => kasirPage(
+            onLogout: widget.onLogout,
+          ),
         ),
       );
     } catch (e) {
@@ -82,7 +84,9 @@ class _BukaShiftPageState extends State<BukaShiftPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString().replaceAll('FormatException: ', '')),
+          content: Text(
+            e.toString().replaceAll('FormatException: ', ''),
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -99,125 +103,188 @@ class _BukaShiftPageState extends State<BukaShiftPage> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xffdce7f2),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Tombol Ganti Kasir
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed:
-                        _loading ? null : _konfirmasiGantiKasir,
-                    icon: const Icon(
-                      Icons.logout,
-                      color: navy,
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    backgroundColor: navy,
+    body: Stack(
+      fit: StackFit.expand,
+      children: [
+        // Background memenuhi seluruh layar
+        Image.asset(
+          'assets/images/Login_bg.jpg',
+          fit: BoxFit.cover,
+        ),
+
+        // Overlay navy transparan
+        Container(
+          color: const Color(0xCC082640),
+        ),
+
+        // Konten halaman
+        SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isSmall = constraints.maxHeight < 600;
+
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Ganti kasir
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: TextButton.icon(
+                        onPressed: _loading
+                            ? null
+                            : _konfirmasiGantiKasir,
+                        icon: const Icon(
+                          Icons.logout_rounded,
+                          color: Colors.white,
+                          size: 19,
+                        ),
+                        label: const Text(
+                          'Ganti Kasir',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     ),
-                    label: const Text(
-                      'Ganti Kasir',
+
+                    SizedBox(height: isSmall ? 5 : 15),
+
+                    // Ikon dompet
+                    Icon(
+                      Icons.account_balance_wallet_outlined,
+                      color: Colors.white,
+                      size: isSmall ? 60 : 76,
+                    ),
+
+                    SizedBox(height: isSmall ? 20 : 38),
+
+                    // Judul
+                    Text(
+                      'Buka Shift Kasir',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: navy,
-                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontSize: isSmall ? 29 : 36,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
-                  ),
-                ),
 
-                const SizedBox(height: 8),
+                    const SizedBox(height: 8),
 
-                // Kotak Buka Shift
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: navy,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Icon(
-                        Icons.account_balance_wallet_outlined,
+                    // Nama kasir
+                    Text(
+                      'Selamat Bekerja ${widget.namaKasir}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
                         color: Colors.white,
-                        size: 55,
+                        fontSize: isSmall ? 16 : 19,
                       ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Buka Shift Kasir',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 25,
-                          fontWeight: FontWeight.bold,
+                    ),
+
+                    const Spacer(),
+
+                    // Label kas awal
+                    const Text(
+                      'Masuk Kas Awal Laci',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // Input saldo
+                    TextField(
+                      controller: _kasController,
+                      enabled: !_loading,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(
+                        color: navy,
+                        fontSize: 14,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Isi saldo',
+                        hintStyle: const TextStyle(
+                          color: Color(0xFF91A0B0),
+                          fontSize: 13,
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Selamat bekerja, ${widget.namaKasir}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 15,
+                        filled: true,
+                        fillColor: const Color(0xFFF9FAFC),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 1,
+                          vertical: 16,
                         ),
-                      ),
-                      const SizedBox(height: 25),
-                      const Text(
-                        'Masukkan Kas Laci Awal',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(13),
+                          borderSide: BorderSide.none,
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _kasController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          hintText: 'Contoh: 100000',
-                          prefixText: 'Rp ',
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(13),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(13),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFB8D5EB),
+                            width: 2,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 22),
-                      ElevatedButton(
-                        onPressed: _loading ? null : _bukaShift,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: navy,
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 15,
+                    ),
+
+                    SizedBox(height: isSmall ? 25 : 44),
+
+                    // Tombol simpan
+                    Center(
+                      child: SizedBox(
+                        width: 220,
+                        height: 63,
+                        child: ElevatedButton(
+                          onPressed: _loading ? null : _bukaShift,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: navy,
+                            elevation: 8,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(40),
+                            ),
                           ),
-                        ),
-                        child: _loading
-                            ? const CircularProgressIndicator()
-                            : const Text(
-                                'Simpan dan Mulai Shift',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
+                          child: _loading
+                              ? const SizedBox(
+                                  width: 25,
+                                  height: 25,
+                                  child: CircularProgressIndicator(
+                                    color: navy,
+                                    strokeWidth: 3,
+                                  ),
+                                )
+                              : const Text(
+                                  'Simpan',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w900,
+                                  ),
                                 ),
-                              ),
+                        ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
         ),
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
 }

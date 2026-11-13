@@ -21,13 +21,10 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
   final _focusNode = FocusNode();
 
   bool _loading = false;
+  bool _obscurePin = true;
+  bool _pinInvalid = false;
 
   static const Color navy = Color(0xff103657);
-  static const Color background = Color(0xff103657);
-  static const Color cardBlue = Color(0xffD5EAFC);
-  static const Color green = Color(0xff20D5A3);
-  static const Color textBlue = Color(0xff103657);
-  static const Color mutedBlue = Color(0xff52799F);
 
   Future<void> _masuk() async {
     if (_pin.text.length != 6 || _loading) return;
@@ -77,7 +74,7 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
       _pin.clear();
 
       if (mounted) {
-        setState(() {});
+        setState(() => _pinInvalid = true);
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -88,6 +85,8 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
             behavior: SnackBarBehavior.floating,
           ),
         );
+
+        _focusNode.requestFocus();
       }
     } finally {
       if (mounted) {
@@ -103,295 +102,198 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
     super.dispose();
   }
 
-  Widget _pinBox(int index, double boxHeight) {
-    final filled = index < _pin.text.length;
-    final active = index == _pin.text.length &&
-        _pin.text.length < 6;
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => _focusNode.requestFocus(),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          height: boxHeight,
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.35),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: filled || active
-                  ? green
-                  : const Color(0xff9CC5E9),
-              width: filled || active ? 1.8 : 1.5,
-            ),
-          ),
-          child: Center(
-            child: filled
-                ? Container(
-                    width: 11,
-                    height: 11,
-                    decoration: const BoxDecoration(
-                      color: green,
-                      shape: BoxShape.circle,
-                    ),
-                  )
-                : active
-                    ? Container(
-                        width: 13,
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: green,
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                      )
-                    : const SizedBox(),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCard({
-    required double width,
-    required bool compact,
-  }) {
-    final horizontalPadding = width < 350 ? 20.0 : 30.0;
-    final boxHeight = width < 350 ? 44.0 : 51.0;
-
-    return Container(
-      width: width,
-      padding: EdgeInsets.symmetric(
-        horizontal: horizontalPadding,
-        vertical: compact ? 23 : 30,
-      ),
-      decoration: BoxDecoration(
-        color: cardBlue,
-        borderRadius: BorderRadius.circular(28),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Ikon gembok
-          Container(
-            width: compact ? 56 : 64,
-            height: compact ? 56 : 64,
-            decoration: BoxDecoration(
-              color: const Color(0xff3D72A5),
-              borderRadius: BorderRadius.circular(19),
-            ),
-            child: Icon(
-              Icons.lock_rounded,
-              color: Colors.white,
-              size: compact ? 28 : 32,
-            ),
-          ),
-
-          SizedBox(height: compact ? 13 : 16),
-
-          // Label owner
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 7,
-            ),
-            decoration: BoxDecoration(
-              color: const Color(0xffB7DDF5),
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.person_rounded,
-                  color: textBlue,
-                  size: 16,
-                ),
-                SizedBox(width: 7),
-                Text(
-                  'AREA KHUSUS OWNER',
-                  style: TextStyle(
-                    color: textBlue,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-                SizedBox(width: 7),
-                Icon(
-                  Icons.circle,
-                  color: textBlue,
-                  size: 9,
-                ),
-              ],
-            ),
-          ),
-
-          SizedBox(height: compact ? 13 : 17),
-
-          // Judul
-          Text(
-            'Masukkan PIN Owner',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: textBlue,
-              fontSize: width < 350 ? 19 : 22,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          const Text(
-            'Ketuk 6 digit PIN keamanan untuk melanjutkan',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: mutedBlue,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-
-          SizedBox(height: compact ? 22 : 27),
-
-          // TextField tersembunyi untuk menerima input PIN
-          SizedBox(
-            height: 1,
-            width: 1,
-            child: Opacity(
-              opacity: 0,
-              child: TextField(
-                controller: _pin,
-                focusNode: _focusNode,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                obscureText: true,
-                maxLength: 6,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                ],
-                decoration: const InputDecoration(
-                  counterText: '',
-                  border: InputBorder.none,
-                ),
-                onChanged: (value) {
-                  setState(() {});
-
-                  if (value.length == 6) {
-                    _masuk();
-                  }
-                },
-                onSubmitted: (_) => _masuk(),
-              ),
-            ),
-          ),
-
-          // Enam kotak PIN
-          GestureDetector(
-            onTap: () => _focusNode.requestFocus(),
-            child: Row(
-              children: List.generate(
-                6,
-                (index) => _pinBox(index, boxHeight),
-              ),
-            ),
-          ),
-
-          SizedBox(height: compact ? 21 : 25),
-
-          // Tombol navy
-          SizedBox(
-            width: double.infinity,
-            height: 46,
-            child: ElevatedButton(
-              onPressed: _loading
-                  ? null
-                  : () {
-                      if (_pin.text.length == 6) {
-                        _masuk();
-                      } else {
-                        _focusNode.requestFocus();
-                      }
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: navy,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor:
-                    navy.withOpacity(0.6),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: _loading
-                  ? const SizedBox(
-                      width: 19,
-                      height: 19,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Konfirmasi PIN',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 18,
-                        ),
-                      ],
-                    ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: background,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final screenWidth = constraints.maxWidth;
-            final screenHeight = constraints.maxHeight;
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final double cardWidth = math.min(
+            constraints.maxWidth - 40,
+            380.0,
+          ).toDouble();
 
-            final compact = screenHeight < 620;
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              // BACKGROUND FOTO KOPI
+              Image.asset(
+                'assets/images/bg_pilih_peran.jpg',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(color: navy);
+                },
+              ),
 
-            final double cardWidth;
+              // OVERLAY NAVY
+              Container(
+                color: const Color(0xff082640).withValues(alpha: 0.82),
+              ),
 
-            if (screenWidth < 600) {
-              cardWidth = math.min(screenWidth - 32, 390);
-            } else if (screenWidth < 1024) {
-              cardWidth = 420;
-            } else {
-              cardWidth = 440;
-            }
+              // KONTEN PIN OWNER
+              SafeArea(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 25,
+                    ),
+                    child: Container(
+                      width: cardWidth,
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 20,
+                            offset: Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // IKON OWNER
+                          const Icon(
+                            Icons.verified_user_rounded,
+                            color: navy,
+                            size: 82,
+                          ),
 
-            return Center(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: compact ? 12 : 24,
-                ),
-                child: _buildCard(
-                  width: cardWidth,
-                  compact: compact,
+                          const SizedBox(height: 15),
+
+                          // JUDUL
+                          const Text(
+                            'PIN OWNER',
+                            style: TextStyle(
+                              color: navy,
+                              fontSize: 21,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+
+                          const SizedBox(height: 22),
+
+                          // INPUT PIN
+                          TextField(
+                            controller: _pin,
+                            focusNode: _focusNode,
+                            autofocus: true,
+                            enabled: !_loading,
+                            keyboardType: TextInputType.number,
+                            textInputAction: TextInputAction.done,
+                            textAlign: TextAlign.center,
+                            obscureText: _obscurePin,
+                            maxLength: 6,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(6),
+                            ],
+                            style: TextStyle(
+                              color: _pinInvalid ? Colors.red : navy,
+                              fontSize: 21,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 8,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Masukkan PIN',
+                              hintStyle: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 13,
+                                letterSpacing: 0,
+                              ),
+                              counterText: '',
+                              filled: true,
+                              fillColor: Colors.grey.shade100,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 14,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(35),
+                                borderSide: BorderSide(
+                                  color: _pinInvalid ? Colors.red : navy,
+                                  width: _pinInvalid ? 2 : 1,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(35),
+                                borderSide: BorderSide(
+                                  color: _pinInvalid ? Colors.red : navy,
+                                  width: 2,
+                                ),
+                              ),
+                              suffixIcon: IconButton(
+                                tooltip: _obscurePin
+                                    ? 'Tampilkan PIN'
+                                    : 'Sembunyikan PIN',
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePin = !_obscurePin;
+                                  });
+                                },
+                                icon: Icon(
+                                  _obscurePin
+                                      ? Icons.visibility_rounded
+                                      : Icons.visibility_off_rounded,
+                                  color: _pinInvalid ? Colors.red : navy,
+                                ),
+                              ),
+                            ),
+                            onChanged: (value) {
+                              if (_pinInvalid) {
+                                setState(() => _pinInvalid = false);
+                              }
+
+                              if (value.length == 6) {
+                                _masuk();
+                              }
+                            },
+                            onSubmitted: (_) => _masuk(),
+                          ),
+
+                          if (_pinInvalid) ...[
+                            const SizedBox(height: 8),
+                            const Text(
+                              'PIN salah, silakan coba lagi.',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                          if (_loading) ...[
+                            const SizedBox(height: 16),
+                            const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: navy,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 13),
+                          const Text(
+                            'Masukkan 6 digit PIN Owner',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.black54,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            );
-          },
-        ),
+            ],
+          );
+        },
       ),
     );
   }
