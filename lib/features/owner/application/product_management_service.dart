@@ -15,7 +15,6 @@ class ProductManagementService {
     'Snack',
   ];
 
-  // Menyimpan data kategori dari server, termasuk ID kategori.
   static List<Map<String, dynamic>> _categoryRecords = [];
 
   static bool _categoriesLoaded = false;
@@ -58,7 +57,6 @@ class ProductManagementService {
     }).length;
   }
 
-  /// Menyesuaikan kategori di server dengan daftar kategori dari halaman.
   static Future<void> saveCategories(List<String> categories) async {
     await _ensureCategoriesLoaded();
 
@@ -67,7 +65,6 @@ class ProductManagementService {
         .where((item) => item.isNotEmpty)
         .toList();
 
-    // Hapus kategori yang sudah tidak ada dalam daftar.
     final removed = _categoryRecords.where((record) {
       final name = record['nama_kategori']?.toString() ?? '';
       return !desired.any(
@@ -77,6 +74,7 @@ class ProductManagementService {
 
     for (final category in removed) {
       final id = category['id_kategori'];
+
       if (id == null) {
         throw Exception('ID kategori tidak ditemukan.');
       }
@@ -84,7 +82,6 @@ class ProductManagementService {
       await ApiService.delete('kategori/$id');
     }
 
-    // Tambahkan kategori baru.
     for (final name in desired) {
       final exists = _categoryRecords.any((record) {
         final oldName = record['nama_kategori']?.toString() ?? '';
@@ -98,7 +95,6 @@ class ProductManagementService {
       }
     }
 
-    // Ambil ulang kategori terbaru dari server.
     await loadCategories();
   }
 
@@ -155,7 +151,6 @@ class ProductManagementService {
       'status': 'aktif',
     });
 
-    // Muat ulang produk dari database.
     await ProdukData.loadFromApi();
   }
 
@@ -168,13 +163,17 @@ class ProductManagementService {
     final id = product['id_produk'];
 
     if (id == null) {
-      throw Exception('ID produk tidak ditemukan. Muat ulang data produk.');
+      throw Exception(
+        'ID produk tidak ditemukan. Muat ulang data produk.',
+      );
     }
 
     final cleanName = name.trim();
 
     if (cleanName.isEmpty || price < 0) {
-      throw const FormatException('Nama dan harga produk tidak valid.');
+      throw const FormatException(
+        'Nama dan harga produk tidak valid.',
+      );
     }
 
     final categoryId = await _getCategoryId(category);

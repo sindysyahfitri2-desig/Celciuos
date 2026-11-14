@@ -21,7 +21,6 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
   int? hoveredIndex;
 
   final Color navy = const Color(0xff082640);
-  final Color whiteGlow = Colors.white;
 
   @override
   void initState() {
@@ -29,7 +28,10 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
     _loadKasir();
   }
 
+  // ==========================================
   // LOAD DATA KASIR
+  // ==========================================
+
   Future<void> _loadKasir() async {
     try {
       final res = await ApiService.get('kasir-profil');
@@ -60,152 +62,184 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
     }
   }
 
-  // DIALOG PIN KASIR
-  Future<String?> _askPin(BuildContext context, String nama) async {
+  // ==========================================
+  // DIALOG PIN KASIR + IKON MATA
+  // ==========================================
+
+  Future<String?> _askPin(
+    BuildContext context,
+    String nama,
+  ) async {
     final c = TextEditingController();
+    bool obscurePin = true;
 
     final result = await showDialog<String>(
       context: context,
       barrierDismissible: true,
       builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: Colors.white,
-          elevation: 14,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 25),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-
-          child: SizedBox(
-            width: 350,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // JUDUL DIALOG
-                  Text(
-                    'PIN Untuk Kasir',
-                    style: TextStyle(
-                      color: navy,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                    ),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.white,
+              elevation: 14,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 25,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: SizedBox(
+                width: 350,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    18, 16, 18, 16,
                   ),
-
-                  const SizedBox(height: 13),
-
-                  // INPUT PIN
-                  TextField(
-                    controller: c,
-                    autofocus: true,
-                    obscureText: true,
-                    keyboardType: TextInputType.number,
-                    maxLength: 6,
-
-                    textAlign: TextAlign.center,
-
-                    style: TextStyle(
-                      color: navy,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 5,
-                    ),
-
-                    decoration: InputDecoration(
-                      counterText: '',
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 9,
-                      ),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(
-                          color: navy,
-                          width: 1.5,
-                        ),
-                      ),
-                      focusedBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(
-                          color: navy,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-
-                    onSubmitted: (v) {
-                      Navigator.pop(dialogContext, v.trim());
-                    },
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // TOMBOL BATAL DAN MASUK
-                  Row(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 35,
-                          child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.pop(dialogContext);
-                            },
-
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: navy,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: EdgeInsets.zero,
-                              shape: const StadiumBorder(),
-                            ),
-
-                            child: const Text(
-                              'Batal',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
+                      // JUDUL
+                      Text(
+                        'PIN Untuk $nama',
+                        style: TextStyle(
+                          color: navy,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
 
-                      const SizedBox(width: 16),
+                      const SizedBox(height: 20),
 
-                      Expanded(
-                        child: SizedBox(
-                          height: 34,
-                          child: ElevatedButton(
+                      // INPUT PIN
+                      TextField(
+                        controller: c,
+                        autofocus: true,
+                        obscureText: obscurePin,
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: navy,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 5,
+                        ),
+                        decoration: InputDecoration(
+                          counterText: '',
+                          hintText: 'Masukkan PIN',
+                          hintStyle: const TextStyle(
+                            fontSize: 13,
+                            letterSpacing: 1,
+                          ),
+                          isDense: true,
+                          contentPadding:
+                              const EdgeInsets.symmetric(
+                            vertical: 12,
+                          ),
+
+                          // IKON MATA
+                          suffixIcon: IconButton(
+                            tooltip: obscurePin
+                                ? 'Lihat PIN'
+                                : 'Sembunyikan PIN',
                             onPressed: () {
-                              Navigator.pop(
-                                dialogContext,
-                                c.text.trim(),
-                              );
+                              setDialogState(() {
+                                obscurePin = !obscurePin;
+                              });
                             },
-
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: navy,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: EdgeInsets.zero,
-                              shape: const StadiumBorder(),
+                            icon: Icon(
+                              obscurePin
+                                  ? Icons.visibility_off_rounded
+                                  : Icons.visibility_rounded,
+                              color: navy,
+                              size: 21,
                             ),
+                          ),
 
-                            child: const Text(
-                              'Masuk',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                              ),
+                          enabledBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                              color: navy,
+                              width: 1.5,
+                            ),
+                          ),
+                          focusedBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                              color: navy,
+                              width: 2,
                             ),
                           ),
                         ),
+
+                        // ENTER UNTUK MASUK
+                        onSubmitted: (v) {
+                          Navigator.pop(
+                            dialogContext,
+                            v.trim(),
+                          );
+                        },
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // TOMBOL BATAL DAN MASUK
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 38,
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(dialogContext);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: navy,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: const StadiumBorder(),
+                                ),
+                                child: const Text(
+                                  'Batal',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 14),
+
+                          Expanded(
+                            child: SizedBox(
+                              height: 38,
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(
+                                    dialogContext,
+                                    c.text.trim(),
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: navy,
+                                  foregroundColor: Colors.white,
+                                  elevation: 3,
+                                  shape: const StadiumBorder(),
+                                ),
+                                child: const Text(
+                                  'Masuk',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -214,7 +248,10 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
     return result;
   }
 
+  // ==========================================
   // LOGIN KASIR
+  // ==========================================
+
   Future<void> _login(Map<String, dynamic> k) async {
     final pin = await _askPin(
       context,
@@ -240,6 +277,7 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
 
       final navigator = Navigator.of(context);
 
+      // LOGOUT
       Future<void> logout() async {
         await ApiService.clearAuth();
 
@@ -253,10 +291,12 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
         );
       }
 
+      // SINKRONISASI SHIFT
       try {
         await CashierShiftService.syncFromBackend();
       } catch (_) {}
 
+      // LOAD PRODUK
       await ProdukData.loadFromApi();
 
       if (!mounted) return;
@@ -264,6 +304,7 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
       final shiftAktif =
           CashierShiftService.activeShift() != null;
 
+      // NAVIGASI HALAMAN
       navigator.pushReplacement(
         MaterialPageRoute(
           builder: (_) => shiftAktif
@@ -288,7 +329,10 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
     }
   }
 
+  // ==========================================
   // CARD PROFIL KASIR
+  // ==========================================
+
   Widget _cardKasir(
     Map<String, dynamic> k,
     int index,
@@ -301,14 +345,12 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
 
-      // KURSOR MASUK
       onEnter: (_) {
         setState(() {
           hoveredIndex = index;
         });
       },
 
-      // KURSOR KELUAR
       onExit: (_) {
         setState(() {
           hoveredIndex = null;
@@ -319,39 +361,35 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
         onTap: () => _login(k),
 
         child: AnimatedScale(
-          scale: isHovered ? 1.04 : 1.0,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeInOut,
+          scale: isHovered ? 1.02 : 1.0,
+          duration: const Duration(milliseconds: 200),
 
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
+            duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
 
-            width: 200,
+            width: 169,
 
-            padding: const EdgeInsets.all(5),
+            padding: const EdgeInsets.all(6),
 
             decoration: BoxDecoration(
               color: navy,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
 
               // BORDER PUTIH SAAT HOVER
               border: Border.all(
                 color: isHovered
                     ? Colors.white
                     : Colors.transparent,
-                width: 6,
+                width: 4,
               ),
 
-              // GLOWING PUTIH LEMBUT
+              // BAYANGAN BIASA TANPA GLOW
               boxShadow: [
                 BoxShadow(
-                  color: isHovered
-                      ? whiteGlow.withValues(alpha: 0.22)
-                      : Colors.black.withValues(alpha: 0.18),
-                  blurRadius: isHovered ? 12 : 6,
-                  spreadRadius: isHovered ? 1 : 8,
-                  offset: const Offset(0, 3),
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -361,11 +399,11 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
               children: [
                 // FOTO KASIR
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(7),
 
                   child: Container(
                     width: double.infinity,
-                    height: 185,
+                    height: 170,
                     color: Colors.white,
 
                     child: fotoUrl != null &&
@@ -373,35 +411,33 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
                         ? Image.network(
                             fotoUrl,
                             fit: BoxFit.cover,
-
                             headers: const {
                               'ngrok-skip-browser-warning': 'true',
                             },
-
                             errorBuilder: (_, __, ___) {
                               return Icon(
                                 Icons.person,
-                                size: 55,
+                                size: 65,
                                 color: navy,
                               );
                             },
                           )
                         : Icon(
                             Icons.person,
-                            size: 55,
+                            size: 65,
                             color: navy,
                           ),
                   ),
                 ),
 
-                const SizedBox(height: 7),
+                const SizedBox(height: 10),
 
                 // NAMA KASIR
                 Padding(
                   padding: const EdgeInsets.only(
-                    bottom: 4,
-                    left: 2,
-                    right: 2,
+                    bottom: 7,
+                    left: 3,
+                    right: 3,
                   ),
 
                   child: Text(
@@ -425,6 +461,10 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
     );
   }
 
+  // ==========================================
+  // TAMPILAN UTAMA
+  // ==========================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -447,6 +487,11 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 25,
+                  horizontal: 12,
+                ),
+
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -462,6 +507,7 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
                     // JUDUL
                     const Text(
                       'Selamat Bekerja Kasir !',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 35,
                         fontWeight: FontWeight.w800,
@@ -509,8 +555,8 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
                     else
                       Wrap(
                         alignment: WrapAlignment.center,
-                        spacing: 5,
-                        runSpacing: 14,
+                        spacing: 14,
+                        runSpacing: 18,
 
                         children: List.generate(
                           _kasir.length,

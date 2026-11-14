@@ -1183,6 +1183,8 @@ class _kasirPageState extends State<kasirPage> {
             final List<Map<String, dynamic>> filteredProducts = products.where((
               product,
             ) {
+              if (product['is_active'] == false) return false;
+
               final String nama = product['name'].toString().toLowerCase();
 
               final String category = product['category']

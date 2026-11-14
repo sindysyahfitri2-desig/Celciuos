@@ -250,6 +250,13 @@ class ProdukData {
     final index = products.indexWhere((item) => identical(item, product));
     if (index < 0) throw StateError('Produk sudah tidak tersedia.');
 
+    final id = product['id_produk'];
+    if (id is num) {
+      await ApiService.patch('produk/${id.toInt()}/status', {
+        'status': isActive ? 'aktif' : 'nonaktif',
+      });
+    }
+
     products[index] = {...products[index], 'is_active': isActive};
     await saveProducts(products);
   }

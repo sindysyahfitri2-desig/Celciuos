@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:kasir_celcious_coffe/features/owner/application/staff_directory_controller.dart';
@@ -200,8 +201,8 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
                   const SizedBox(height: 25),
 
                   AddStaffCard(
-                    onSave: (staff) async {
-                      final ok = await _directory.addStaff(staff);
+                    onSave: (staff, pin) async {
+                      final ok = await _directory.addStaff(staff, pin: pin);
                       if (!ok && mounted && _directory.errorMessage != null) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -333,7 +334,7 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
 }
 
 class AddStaffCard extends StatefulWidget {
-  final Future<bool> Function(Staff) onSave; // <-- bukan ValueChanged<Staff>
+  final Future<bool> Function(Staff, String pin) onSave;
 
   const AddStaffCard({super.key, required this.onSave});
   @override
@@ -345,6 +346,7 @@ class _AddStaffCardState extends State<AddStaffCard> {
 
   String? photoPath;
   Uint8List? photoBytes;
+  bool _isSaving = false;
 
   Future<void> pickImage() async {
     final image = await ImagePicker().pickImage(source: ImageSource.gallery);
@@ -358,25 +360,94 @@ class _AddStaffCardState extends State<AddStaffCard> {
     }
   }
 
-  void save() {
-    if (controller.text.trim().isEmpty) {
-      return;
-    }
+  Future<String?> _askForPin() async {
+    final pinController = TextEditingController();
+    var obscurePin = true;
 
-    widget.onSave(
-      Staff(
-        name: controller.text.trim(),
-        photoPath: photoPath,
-        photoBytes: photoBytes,
+    final pin = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Buat PIN Staf Baru'),
+          content: TextField(
+            controller: pinController,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            obscureText: obscurePin,
+            maxLength: 6,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(6),
+            ],
+            onChanged: (_) => setDialogState(() {}),
+            decoration: InputDecoration(
+              hintText: 'Masukkan PIN 6 digit',
+              counterText: '',
+              suffixIcon: IconButton(
+                tooltip: obscurePin ? 'Tampilkan PIN' : 'Sembunyikan PIN',
+                onPressed: () {
+                  setDialogState(() => obscurePin = !obscurePin);
+                },
+                icon: Icon(
+                  obscurePin ? Icons.visibility : Icons.visibility_off,
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: pinController.text.length == 6
+                  ? () => Navigator.pop(dialogContext, pinController.text)
+                  : null,
+              child: const Text('Simpan PIN'),
+            ),
+          ],
+        ),
       ),
     );
 
-    controller.clear();
+    pinController.dispose();
+    return pin;
+  }
 
-    setState(() {
-      photoPath = null;
-      photoBytes = null;
-    });
+  Future<void> save() async {
+    final name = controller.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Nama staf harus diisi.')));
+      return;
+    }
+
+    final pin = await _askForPin();
+    if (pin == null || !mounted) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final saved = await widget.onSave(
+        Staff(
+          name: name,
+          photoPath: photoPath,
+          photoBytes: photoBytes,
+        ),
+        pin,
+      );
+
+      if (!mounted || !saved) return;
+
+      controller.clear();
+      setState(() {
+        photoPath = null;
+        photoBytes = null;
+      });
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   @override
@@ -416,12 +487,21 @@ class _AddStaffCardState extends State<AddStaffCard> {
           ),
           const SizedBox(width: 10),
           ElevatedButton(
-            onPressed: save,
+            onPressed: _isSaving ? null : save,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xff0E2F56),
               foregroundColor: Colors.white,
             ),
-            child: const Text("Simpan"),
+            child: _isSaving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text("Simpan"),
           ),
         ],
       ),

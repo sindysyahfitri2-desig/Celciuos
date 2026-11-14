@@ -19,7 +19,6 @@ const _destinations = <_OwnerDestination>[
   _OwnerDestination('Dashboard', 'Beranda', Icons.home_outlined),
   _OwnerDestination('Kelola Laporan', 'Laporan', Icons.bar_chart_rounded),
   _OwnerDestination('Kelola Produk', 'Produk', Icons.inventory_2_outlined),
-
   _OwnerDestination('Transaksi', 'Transaksi', Icons.receipt_long_outlined),
   _OwnerDestination('Kelola Staf', 'Kelola Staf', Icons.person_outline_rounded),
   _OwnerDestination('Pengaturan', 'Atur', Icons.settings_outlined),

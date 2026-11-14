@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:kasir_celcious_coffe/data/api_service.dart';
 import 'package:kasir_celcious_coffe/data/produk_data.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 import 'package:kasir_celcious_coffe/ui/pages/ProdukPage.dart' as catalog;
@@ -12,6 +15,34 @@ import 'package:kasir_celcious_coffe/features/kasir/presentation/kasir_page.dart
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    ApiService.clientForTesting = MockClient((request) async {
+      if (request.url.path.endsWith('/kategori')) {
+        return http.Response(
+          '{"data":[{"id_kategori":1,"nama_kategori":"Coffee"}]}',
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+
+      if (request.method == 'POST' && request.url.path.endsWith('/produk')) {
+        return http.Response(
+          '{"data":{"id_produk":999,"nama_produk":"Produk Sinkron"}}',
+          201,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+
+      return http.Response(
+        '{"message":"ok"}',
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+  });
+
+  tearDown(ApiService.resetClientForTesting);
 
   test(
     'product catalog changes are shared and persist across initialization',
