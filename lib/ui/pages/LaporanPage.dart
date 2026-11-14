@@ -294,7 +294,7 @@ class _LaporanPageState extends State<LaporanPage> {
 
     return Container(
       width: double.infinity,
-      height: hp ? 50 : 60,
+      height: hp ? 50 : 50,
       color: navy,
       child: Stack(
         alignment: Alignment.center,

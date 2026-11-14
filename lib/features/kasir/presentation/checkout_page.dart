@@ -344,8 +344,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   child: Row(
                     children: [
                       Container(
-                        width: 135,
-                        height: 125,
+                        width: 95,
+                        height: 105,
                         decoration: BoxDecoration(
                           color: const Color(0xffd9d6e8),
                           borderRadius: BorderRadius.circular(6),
