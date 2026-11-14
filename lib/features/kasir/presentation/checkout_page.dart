@@ -305,7 +305,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final catatan = item['catatan']?.toString().trim() ?? '';
     final terkunci = widget.existingOrder != null;
     final imagePath = item['image']?.toString() ?? '';
-    final thumb = isMobile ? 54.0 : 88.0;
 
     Widget iconCoffee() =>
         const Icon(Icons.coffee_rounded, color: _navy, size: 28);

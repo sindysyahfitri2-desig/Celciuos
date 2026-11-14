@@ -207,7 +207,7 @@ class _AppNavigationShellState extends State<AppNavigationShell> {
     });
   }
 
-  @override
+  
   Widget _sidebar() {
     return AppNavigation(
       selectedMenu: selectedMenu,
@@ -220,6 +220,7 @@ class _AppNavigationShellState extends State<AppNavigationShell> {
     );
   }
 
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {

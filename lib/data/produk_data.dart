@@ -196,7 +196,7 @@ class ProdukData {
         };
       }).toList();
 
-      if (hasil.isNotEmpty) produk.value = hasil;
+      produk.value = hasil;
     } catch (e) {
       debugPrint('Gagal memuat produk dari API: $e');
     }

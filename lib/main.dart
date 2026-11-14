@@ -3,7 +3,6 @@ import 'data/app_branding_store.dart';
 import 'data/produk_data.dart';
 import 'data/receipt_settings_store.dart';
 import 'data/transaction_store.dart';
-import 'features/auth/presentation/login_page.dart';
 import 'package:kasir_celcious_coffe/features/auth/presentation/pilih_peran_page.dart';
 
 Future<void> main() async {
@@ -40,12 +39,39 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  @override
+    @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Celcious Coffee',
-      home: const PilihPeranPage(),
+      home: FutureBuilder<void>(
+        future: _initialization,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (snapshot.hasError) {
+            return Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Gagal memuat data aplikasi.'),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _retryInitialization,
+                      child: const Text('Coba lagi'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+          return const PilihPeranPage();
+        },
+      ),
     );
   }
 }

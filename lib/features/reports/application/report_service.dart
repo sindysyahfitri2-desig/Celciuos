@@ -1,4 +1,5 @@
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
+import 'package:kasir_celcious_coffe/data/api_service.dart';
 
 /// Mengubah data transaksi bersama menjadi baris yang dipakai layar laporan.
 class ReportService {
@@ -151,6 +152,87 @@ class ReportService {
     );
   }
 
+  static double _num(Object? v) => double.tryParse(v?.toString() ?? '') ?? 0;
+
+  static String _tgl(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  static Future<ReportSnapshot> fetch({
+    required DateTime dari,
+    required DateTime sampai,
+    required String cashierFallback,
+    int? idShift,
+    int? idPengguna,
+  }) async {
+    final queryKas = <String, String>{
+      'dari_tanggal': _tgl(dari),
+      'sampai_tanggal': _tgl(sampai),
+      if (idShift != null) 'id_shift': '$idShift',
+    };
+    final queryTrx = <String, String>{
+      ...queryKas,
+      if (idPengguna != null) 'id_pengguna': '$idPengguna',
+    };
+
+    final hasil = await Future.wait([
+      ApiService.get('laporan', query: queryTrx),
+      ApiService.get('laporan/kas-laci', query: queryKas),
+    ]);
+
+    final trx = (((hasil[0]['data'] as Map)['transaksi']) as List? ?? [])
+        .whereType<Map>();
+    final transactionRows = trx.map((t) {
+      final raw = t['tanggal']?.toString() ?? '';
+      final detail = (t['detail_transaksi'] as List? ?? []).whereType<Map>();
+      final jumlah = detail.fold<int>(
+        0,
+        (s, d) => s + (int.tryParse(d['jumlah'].toString()) ?? 0),
+      );
+      final kode = t['kode']?.toString();
+      return <String, String>{
+        'id': (kode != null && kode.isNotEmpty)
+            ? kode
+            : 'TRX-${t['id_transaksi']}',
+        'tanggal': raw,
+        'jam': _timeFromDate(raw),
+        'shiftId': t['id_shift_bayar']?.toString() ?? '',
+        'kasir':
+            (t['pengguna'] as Map?)?['nama']?.toString() ?? cashierFallback,
+        'jumlah': '$jumlah',
+        'pembayaran':
+            (t['metode_pembayaran'] as Map?)?['nama_metode']?.toString() ?? '-',
+        'total': _formatAmount(_num(t['total'])),
+        'status': 'Lunas',
+        'buktiPembayaranPath': '',
+        'buktiPembayaranBase64': '',
+      };
+    }).toList();
+
+    final kas = hasil[1]['data'] as Map;
+    final ringkasan = kas['ringkasan'] as Map;
+    final drawerRows = (kas['baris'] as List? ?? []).whereType<Map>().map((b) {
+      final raw = b['waktu']?.toString() ?? '';
+      final jenis = b['jenis']?.toString() ?? 'masuk';
+      return <String, String>{
+        'kasir': b['kasir']?.toString() ?? cashierFallback,
+        'tanggal': raw,
+        'jam': _timeFromDate(raw),
+        'nominal':
+            '${jenis == 'keluar' ? '-' : '+'}${_formatAmount(_num(b['jumlah']))}',
+        'keterangan': b['keterangan']?.toString() ?? '',
+        'jenis': jenis,
+        'shiftId': b['id_shift']?.toString() ?? '',
+      };
+    }).toList();
+
+    return ReportSnapshot(
+      openingCash: _num(ringkasan['kas_awal']),
+      currentCash: _num(ringkasan['kas_saat_ini']),
+      transactionRows: transactionRows,
+      drawerRows: drawerRows,
+    );
+  }
+
   static bool _isPaid(Map<String, dynamic> transaction) {
     final status = transaction['bayar']?.toString().toLowerCase();
     if (status == 'pending' || status == 'belum bayar') return false;
@@ -166,7 +248,7 @@ class ReportService {
   }
 
   static String _timeFromDate(String value) {
-    final date = DateTime.tryParse(value);
+    final date = DateTime.tryParse(value)?.toLocal();
     if (date == null) return '--:--';
     return '${date.hour.toString().padLeft(2, '0')}:'
         '${date.minute.toString().padLeft(2, '0')}';
