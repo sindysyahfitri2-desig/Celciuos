@@ -1164,7 +1164,7 @@ class _kasirPageState extends State<kasirPage> {
       builder: (context, products, child) {
         return LayoutBuilder(
           builder: (context, box) {
-            final columns = box.maxWidth < 520 ? 1 : 3;
+            final columns = box.maxWidth < 520 ? 1 : 2;
 
             final filteredProducts = products.where((product) {
               if (product['is_active'] == false) return false;
@@ -1208,7 +1208,7 @@ class _kasirPageState extends State<kasirPage> {
                 crossAxisCount: columns,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                mainAxisExtent: 143,
+                mainAxisExtent: 135,
               ),
               itemBuilder: (context, index) {
                 final product = filteredProducts[index];

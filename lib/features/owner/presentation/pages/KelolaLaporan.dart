@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 const Color _navy = Color(0xFF082640);
@@ -7,7 +6,6 @@ const Color _pageBg = Color(0xFFDCE9F4);
 const Color _muted = Color(0xFF71869A);
 const Color _green = Color(0xFF239653);
 
-/// Satu baris transaksi untuk laporan.
 class LaporanPreviewRow {
   const LaporanPreviewRow({
     required this.tanggal,
@@ -22,7 +20,6 @@ class LaporanPreviewRow {
   final num nominal;
 }
 
-/// Data transaksi yang ditampilkan pada pratinjau.
 class LaporanPreviewData {
   const LaporanPreviewData({
     this.totalOmzet,
@@ -32,13 +29,10 @@ class LaporanPreviewData {
     this.rows = const [],
   });
 
-  // Dipertahankan agar pemanggilan lama tidak menyebabkan error.
-  // Ringkasan ini tidak ditampilkan lagi.
   final num? totalOmzet;
   final num? totalTunai;
   final num? totalNonTunai;
   final int? totalTransaksi;
-
   final List<LaporanPreviewRow> rows;
 }
 
@@ -51,9 +45,7 @@ class KelolaLaporanContent extends StatefulWidget {
     this.tanggalLaporan = '1–31 Oktober 2026',
   });
 
-  /// Fungsi untuk mengunduh file Excel.
   final VoidCallback? onDownload;
-
   final LaporanPreviewData? previewData;
   final String judulLaporan;
   final String tanggalLaporan;
@@ -339,8 +331,7 @@ class _ReportCardState extends State<_ReportCard> {
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           widget.title,
@@ -464,7 +455,13 @@ class _LaporanPreviewDialog extends StatelessWidget {
                   children: [
                     _spreadsheetHeading(),
                     const SizedBox(height: 18),
-                    _transactionTable(rows),
+
+                    // Perbaikan:
+                    // Laptop tidak menampilkan tabel kosong.
+                    // HP tetap mempertahankan tampilan lama.
+                    if (rows.isNotEmpty || isPhone)
+                      _transactionTable(rows),
+
                     const SizedBox(height: 12),
                     Text(
                       'Jumlah data transaksi: ${rows.length}',
@@ -533,7 +530,6 @@ class _LaporanPreviewDialog extends StatelessWidget {
     );
   }
 
-  /// Bagian judul seperti lembar kerja Excel.
   Widget _spreadsheetHeading() {
     return Container(
       width: double.infinity,
@@ -580,7 +576,6 @@ class _LaporanPreviewDialog extends StatelessWidget {
     );
   }
 
-  /// Tabel transaksi tanpa ringkasan keuangan.
   Widget _transactionTable(List<LaporanPreviewRow> rows) {
     return Container(
       width: double.infinity,

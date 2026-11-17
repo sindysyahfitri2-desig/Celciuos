@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/KelolaProduk.dart'
@@ -7,13 +8,16 @@ import 'package:kasir_celcious_coffe/features/owner/presentation/pages/Transaksi
 import 'package:kasir_celcious_coffe/features/owner/presentation/widgets/Navigation.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/PengaturanPage.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
-import 'KelolaLaporan.dart';
 import 'package:kasir_celcious_coffe/data/dashboard_service.dart';
+import 'package:kasir_celcious_coffe/data/report_service.dart';
 
-// TODO: Sesuaikan path import DashboardService dengan struktur folder proyek Anda:
-// import 'package:kasir_celcious_coffe/features/owner/data/services/dashboard_service.dart';
+import '../../../reports/application/report_service.dart' show ReportService;
+import 'KelolaLaporan.dart';
 
-// Area Owner; komponen bersama berada di lib/widgets dan data di lib/data.
+// ============================================================
+// WARNA
+// ============================================================
+
 const Color ownerNavy = Color(0xFF082640);
 const Color ownerDarkNavy = Color(0xFF082640);
 const Color ownerBackground = Color(0xFFDCE9F4);
@@ -21,7 +25,6 @@ const Color ownerBlue = Color(0xFF4098CE);
 
 const Color _mutedText = Color(0xFF667B8D);
 
-// Bayangan lembut berwarna navy, dipakai bersama oleh semua kartu.
 List<BoxShadow> _softShadow({bool lifted = false}) => [
   BoxShadow(
     color: ownerDarkNavy.withValues(alpha: lifted ? 0.20 : 0.10),
@@ -43,7 +46,16 @@ String _formatNumber(num value) {
 }
 
 String _tanggalHariIni() {
-  const hari = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+  const hari = [
+    'Senin',
+    'Selasa',
+    'Rabu',
+    'Kamis',
+    'Jumat',
+    'Sabtu',
+    'Minggu',
+  ];
+
   const bulan = [
     'Januari',
     'Februari',
@@ -58,13 +70,23 @@ String _tanggalHariIni() {
     'November',
     'Desember',
   ];
+
   final now = DateTime.now();
-  return '${hari[now.weekday - 1]}, ${now.day} ${bulan[now.month - 1]} '
-      '${now.year}';
+
+  return '${hari[now.weekday - 1]}, ${now.day} '
+      '${bulan[now.month - 1]} ${now.year}';
 }
 
+// ============================================================
+// DASHBOARD OWNER
+// ============================================================
+
 class DashboardOwner extends StatefulWidget {
-  const DashboardOwner({super.key, this.namaOwner = 'Daniel', this.onLogout});
+  const DashboardOwner({
+    super.key,
+    this.namaOwner = 'Daniel',
+    this.onLogout,
+  });
 
   final String namaOwner;
   final VoidCallback? onLogout;
@@ -75,6 +97,7 @@ class DashboardOwner extends StatefulWidget {
 
 class _DashboardOwnerState extends State<DashboardOwner> {
   int selectedMenu = 0;
+
   static const menuTitles = [
     'Dashboard',
     'Kelola Laporan',
@@ -86,12 +109,83 @@ class _DashboardOwnerState extends State<DashboardOwner> {
 
   void selectMenu(int index) {
     if (index < 0 || index >= menuTitles.length) return;
+
     setState(() => selectedMenu = index);
   }
 
   void _pilihMenuDariDrawer(int index) {
     Navigator.of(context).pop();
     selectMenu(index);
+  }
+
+  // ============================================================
+  // DATA LAPORAN DARI REPORT SERVICE
+  // ============================================================
+
+  Widget _buildLaporan() {
+    final snapshot = ReportService.load(
+      cashierFallback: 'Kasir',
+    );
+
+    final rows = snapshot.transactionRows
+        .where(
+          (transaction) =>
+              transaction['status']?.toLowerCase() == 'lunas',
+        )
+        .map((transaction) {
+          final nominal = num.tryParse(
+                (transaction['total'] ?? '0')
+                    .replaceAll('.', '')
+                    .replaceAll(',', ''),
+              ) ??
+              0;
+
+          final tanggal = transaction['tanggal'] ?? '-';
+          final jam = transaction['jam'] ?? '';
+          final id = transaction['id'] ?? '-';
+          final kasir = transaction['kasir'] ?? 'Kasir';
+          final metode = transaction['pembayaran'] ?? '-';
+
+          return LaporanPreviewRow(
+            tanggal: '$tanggal $jam'.trim(),
+            keterangan: '$id - $kasir',
+            metode: metode,
+            nominal: nominal,
+          );
+        })
+        .toList();
+
+    final now = DateTime.now();
+
+    const bulan = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+
+    final jumlahHari = DateTime(
+      now.year,
+      now.month + 1,
+      0,
+    ).day;
+
+    return KelolaLaporanContent(
+      judulLaporan: 'Laporan Transaksi',
+      tanggalLaporan:
+          '1–$jumlahHari ${bulan[now.month - 1]} ${now.year}',
+      previewData: LaporanPreviewData(
+        rows: rows,
+      ),
+    );
   }
 
   @override
@@ -121,7 +215,10 @@ class _DashboardOwnerState extends State<DashboardOwner> {
           body: SafeArea(
             child: Column(
               children: [
-                _topBar(showOwner: !isDesktop, isDesktop: isDesktop),
+                _topBar(
+                  showOwner: !isDesktop,
+                  isDesktop: isDesktop,
+                ),
                 Expanded(
                   child: Row(
                     children: [
@@ -137,7 +234,9 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                           onKelolaStaf: () => selectMenu(4),
                           onPengaturan: () => selectMenu(5),
                         ),
-                      Expanded(child: _content()),
+                      Expanded(
+                        child: _content(),
+                      ),
                     ],
                   ),
                 ),
@@ -149,7 +248,10 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     );
   }
 
-  // Isi halaman dengan animasi pindah menu.
+  // ============================================================
+  // CONTENT NAVIGATION
+  // ============================================================
+
   Widget _content() {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 260),
@@ -170,13 +272,19 @@ class _DashboardOwnerState extends State<DashboardOwner> {
       child: KeyedSubtree(
         key: ValueKey(selectedMenu),
         child: switch (selectedMenu) {
-          0 => _DashboardBody(namaOwner: widget.namaOwner),
-          1 => const KelolaLaporanContent(),
+          0 => _DashboardBody(
+              namaOwner: widget.namaOwner,
+            ),
+          1 => _buildLaporan(),
           2 => const owner_products.ProdukPage(),
-          3 => const KelolaTransaksiPage(pakaiDataContoh: false),
+          3 => const KelolaTransaksiPage(
+              pakaiDataContoh: false,
+            ),
           4 => const KontrolStafPage(),
           5 => const PengaturanPage(),
-          _ => _DashboardBody(namaOwner: widget.namaOwner),
+          _ => _DashboardBody(
+              namaOwner: widget.namaOwner,
+            ),
         },
       ),
     );
@@ -186,12 +294,17 @@ class _DashboardOwnerState extends State<DashboardOwner> {
   // TOP BAR
   // ============================================================
 
-  Widget _topBar({bool showOwner = false, required bool isDesktop}) {
+  Widget _topBar({
+    bool showOwner = false,
+    required bool isDesktop,
+  }) {
     return Container(
-      height: 46,
+      height: 55,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [ownerDarkNavy, ownerNavy]),
+        gradient: const LinearGradient(
+          colors: [ownerDarkNavy, ownerNavy],
+        ),
         boxShadow: [
           BoxShadow(
             color: ownerDarkNavy.withValues(alpha: 0.28),
@@ -207,7 +320,10 @@ class _DashboardOwnerState extends State<DashboardOwner> {
               builder: (context) => IconButton(
                 tooltip: 'Buka menu',
                 onPressed: Scaffold.of(context).openDrawer,
-                icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                icon: const Icon(
+                  Icons.menu_rounded,
+                  color: Colors.white,
+                ),
               ),
             ),
           Container(
@@ -216,9 +332,16 @@ class _DashboardOwnerState extends State<DashboardOwner> {
             decoration: BoxDecoration(
               color: const Color(0xFF3979AD),
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white24, width: 1),
+              border: Border.all(
+                color: Colors.white24,
+                width: 1,
+              ),
             ),
-            child: const ClipOval(child: AppBrandingLogo(fallbackIconSize: 18)),
+            child: const ClipOval(
+              child: AppBrandingLogo(
+                fallbackIconSize: 18,
+              ),
+            ),
           ),
           const SizedBox(width: 9),
           const Expanded(
@@ -240,7 +363,10 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                   'Dashboard Owner',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.white70, fontSize: 9),
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 9,
+                  ),
                 ),
               ],
             ),
@@ -253,7 +379,11 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                   const CircleAvatar(
                     radius: 11,
                     backgroundColor: Colors.white70,
-                    child: Icon(Icons.person, color: ownerDarkNavy, size: 14),
+                    child: Icon(
+                      Icons.person,
+                      color: ownerDarkNavy,
+                      size: 14,
+                    ),
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -270,7 +400,9 @@ class _DashboardOwnerState extends State<DashboardOwner> {
           IconButton(
             tooltip: 'Notifikasi',
             visualDensity: VisualDensity.compact,
-            onPressed: () => _showMessage('Belum ada notifikasi baru.'),
+            onPressed: () {
+              _showMessage('Belum ada notifikasi baru.');
+            },
             icon: const Icon(
               Icons.notifications_none_rounded,
               color: Colors.white,
@@ -295,17 +427,22 @@ class _DashboardOwnerState extends State<DashboardOwner> {
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 }
 
 // ============================================================
-// ISI DASHBOARD (DENGAN INTEGRASI API SERVICE)
+// DASHBOARD BODY
 // ============================================================
 
 class _DashboardBody extends StatefulWidget {
-  const _DashboardBody({required this.namaOwner});
+  const _DashboardBody({
+    required this.namaOwner,
+  });
 
   final String namaOwner;
 
@@ -321,10 +458,12 @@ class _DashboardBodyState extends State<_DashboardBody>
   @override
   void initState() {
     super.initState();
+
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..forward();
+
     _future = _muat();
   }
 
@@ -334,14 +473,13 @@ class _DashboardBodyState extends State<_DashboardBody>
     super.dispose();
   }
 
-  Future<Map<String, dynamic>> _muat() async {
-    // Ganti dengan cara Anda mengambil token autentikasi (misal: SharedPreferences / SecureStorage)
-    final token = '171|yEAZ1Mekd8tjy4YJNGQ5smacMjwE9q3SUdEwg0l123d3b55f';
-    return DashboardService().ambilDashboard(token);
+  Future<Map<String, dynamic>> _muat() {
+    return DashboardService().ambilDashboard();
   }
 
-  // Jaga-jaga: MySQL / PHP kadang mengirim angka SUM sebagai string
-  double _num(dynamic v) => double.tryParse('$v') ?? 0;
+  double _num(dynamic value) {
+    return double.tryParse('$value') ?? 0;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -350,19 +488,21 @@ class _DashboardBodyState extends State<_DashboardBody>
       builder: (context, snap) {
         if (snap.connectionState != ConnectionState.done) {
           return const Center(
-            child: CircularProgressIndicator(color: ownerNavy),
+            child: CircularProgressIndicator(
+              color: ownerNavy,
+            ),
           );
         }
 
         if (snap.hasError) {
           return Center(
             child: Padding(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(
-                    Icons.error_outline_rounded,
+                    Icons.error_outline,
                     color: Colors.redAccent,
                     size: 40,
                   ),
@@ -370,17 +510,17 @@ class _DashboardBodyState extends State<_DashboardBody>
                   Text(
                     'Terjadi kesalahan:\n${snap.error}',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: ownerNavy, fontSize: 13),
+                    style: const TextStyle(color: ownerNavy),
                   ),
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: ownerNavy,
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () => setState(() => _future = _muat()),
-                    icon: const Icon(Icons.refresh, size: 16),
-                    label: const Text('Coba lagi'),
+                    onPressed: () {
+                      setState(() {
+                        _future = _muat();
+                      });
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Coba Lagi'),
                   ),
                 ],
               ),
@@ -389,43 +529,56 @@ class _DashboardBodyState extends State<_DashboardBody>
         }
 
         final data = snap.data ?? {};
-        final ringkasan = (data['ringkasan'] as Map<String, dynamic>?) ?? {};
+
+        final ringkasan =
+            (data['ringkasan'] as Map<String, dynamic>?) ?? {};
+
         final metode = (data['distribusi_metode'] as List?) ?? [];
 
         final omzet = _num(ringkasan['omzet_hari_ini']);
         final totalTrx = _num(ringkasan['total_transaksi']);
+
         final totalNonTunai = metode.fold<double>(
           0,
-          (s, m) => s + _num(m['total_nominal']),
+          (sum, item) => sum + _num(item['total_nominal']),
         );
 
-        // Ambil nominal kas tunai jika tersedia dari backend atau hitung selisihnya
         final kasLaci = _num(
           ringkasan['kas_laci'] ??
               ringkasan['total_tunai'] ??
               (omzet - totalNonTunai),
         );
 
-        // Format rincian metode pembayaran untuk detail kartu kedua
         String detailMetode = '';
+
         if (metode.isNotEmpty) {
-          final rincianList = <String>[];
+          final rincian = <String>[];
+
           if (kasLaci > 0) {
-            rincianList.add('Tunai Rp. ${_formatNumber(kasLaci)}');
+            rincian.add(
+              'Tunai Rp. ${_formatNumber(kasLaci)}',
+            );
           }
-          for (final m in metode) {
-            final nama = (m['metode'] ?? m['metode_pembayaran'] ?? 'Non Tunai')
-                .toString();
-            final nom = _formatNumber(_num(m['total_nominal']));
-            rincianList.add('$nama Rp. $nom');
+
+          for (final item in metode) {
+            final nama =
+                (item['metode'] ??
+                        item['metode_pembayaran'] ??
+                        'Non Tunai')
+                    .toString();
+
+            rincian.add(
+              '$nama Rp. ${_formatNumber(_num(item['total_nominal']))}',
+            );
           }
-          detailMetode = rincianList.join('  •  ');
+
+          detailMetode = rincian.join(' • ');
         } else {
           detailMetode =
-              'Tunai Rp. ${_formatNumber(kasLaci)}  •  Non Tunai Rp. ${_formatNumber(totalNonTunai)}';
+              'Tunai Rp. ${_formatNumber(kasLaci)} • '
+              'Non Tunai Rp. ${_formatNumber(totalNonTunai)}';
         }
 
-        // Tiga Kartu Ringkasan Dinamis
         final summaries = [
           _SummaryData(
             title: 'Total Omset Penjualan',
@@ -437,15 +590,15 @@ class _DashboardBodyState extends State<_DashboardBody>
           ),
           _SummaryData(
             title: 'Kas Laci & Non Tunai',
-            amount: (kasLaci + totalNonTunai > 0)
-                ? (kasLaci + totalNonTunai)
+            amount: kasLaci + totalNonTunai > 0
+                ? kasLaci + totalNonTunai
                 : omzet,
             icon: Icons.account_balance_wallet_outlined,
             accent: const Color(0xFF1687A7),
             detail: detailMetode,
             progress: omzet > 0
                 ? (totalNonTunai / omzet).clamp(0.0, 1.0)
-                : 0.75,
+                : 0,
           ),
           _SummaryData(
             title: 'Total Transaksi',
@@ -454,34 +607,49 @@ class _DashboardBodyState extends State<_DashboardBody>
             icon: Icons.receipt_long_outlined,
             accent: const Color(0xFF159B76),
             detail: 'Transaksi hari ini',
-            progress: 1.0,
+            progress: 1,
           ),
         ];
+
+        final grafik = ((data['grafik_per_jam'] as List?) ?? [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
 
         return LayoutBuilder(
           builder: (context, constraints) {
             final width = constraints.maxWidth;
-            final compact = width < 600;
+
+            final isPhone = width < 600;
+            final isTablet = width >= 600 && width < 1000;
 
             return Container(
               color: ownerBackground,
               child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
                 padding: EdgeInsets.fromLTRB(
-                  compact ? 14 : 20,
-                  compact ? 10 : 8,
-                  compact ? 14 : 20,
-                  20,
+                  isPhone
+                      ? 12
+                      : isTablet
+                          ? 18
+                          : 22,
+                  isPhone ? 12 : 18,
+                  isPhone
+                      ? 12
+                      : isTablet
+                          ? 18
+                          : 22,
+                  24,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // SAPAAN OWNER
                     Text(
                       'Halo Bos ${widget.namaOwner}',
                       style: TextStyle(
                         color: const Color(0xFF07506D),
-                        fontSize: compact ? 22 : 25,
+                        fontSize: isPhone ? 23 : 30,
                         fontWeight: FontWeight.w900,
+                        letterSpacing: -0.6,
                         height: 1.1,
                         shadows: const [
                           Shadow(
@@ -493,37 +661,55 @@ class _DashboardBodyState extends State<_DashboardBody>
                       ),
                     ),
 
-                    SizedBox(height: compact ? 22 : 72),
-
-                    // TIGA KARTU RINGKASAN
-                    LayoutBuilder(
-                      builder: (context, box) {
-                        const gap = 8.0;
-                        final columns = box.maxWidth < 480 ? 1 : 3;
-                        final cardWidth =
-                            (box.maxWidth - gap * (columns - 1)) / columns;
-
-                        return Wrap(
-                          spacing: gap,
-                          runSpacing: 10,
-                          children: [
-                            for (final s in summaries)
-                              SizedBox(
-                                width: cardWidth,
-                                child: _SummaryCard(data: s),
-                              ),
-                          ],
-                        );
-                      },
+                    // KARTU DINAIKKAN
+                    SizedBox(
+                      height: isPhone
+                          ? 18
+                          : isTablet
+                              ? 35
+                              : 42,
                     ),
 
-                    const SizedBox(height: 24),
+                    // TIGA KARTU
+                    if (isPhone)
+                      SizedBox(
+                        height: 138,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: summaries.length,
+                          separatorBuilder: (_, _) {
+                            return const SizedBox(width: 10);
+                          },
+                          itemBuilder: (context, index) {
+                            return SizedBox(
+                              width: 215,
+                              child: _SummaryCard(
+                                data: summaries[index],
+                              ),
+                            );
+                          },
+                        ),
+                      )
+                    else
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (int i = 0; i < summaries.length; i++) ...[
+                            if (i > 0) const SizedBox(width: 10),
+                            Expanded(
+                              child: _SummaryCard(
+                                data: summaries[i],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
 
-                    // GRAFIK PENJUALAN
+                    SizedBox(height: isPhone ? 22 : 30),
+
                     _SalesChartCard(
                       controller: _controller,
-                      data: (data['grafik_per_jam'] as List)
-                          .cast<Map<String, dynamic>>(),
+                      data: grafik,
                     ),
                   ],
                 ),
@@ -536,9 +722,9 @@ class _DashboardBodyState extends State<_DashboardBody>
   }
 }
 
-// ============================================================
-// KARTU RINGKASAN
-// ============================================================
+// ======================================================
+// DATA KARTU
+// ======================================================
 
 class _SummaryData {
   const _SummaryData({
@@ -560,171 +746,247 @@ class _SummaryData {
   final double progress;
 }
 
+// ======================================================
+// SUMMARY CARD
+// ======================================================
+
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.data});
+  const _SummaryCard({
+    required this.data,
+  });
 
   final _SummaryData data;
 
   @override
   Widget build(BuildContext context) {
-    final isTransaction = data.suffix != null;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = (constraints.maxWidth / 215).clamp(0.76, 1.12);
+        final height = 138 * scale;
 
-    return Container(
-      height: 108,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(5),
-        boxShadow: [
-          BoxShadow(
-            color: ownerNavy.withValues(alpha: 0.25),
-            blurRadius: 5,
-            offset: const Offset(1, 2),
+        return Container(
+          height: height,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(6),
+            boxShadow: [
+              BoxShadow(
+                color: ownerNavy.withValues(alpha: 0.22),
+                blurRadius: 6,
+                offset: const Offset(1, 3),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          // AKSEN WARNA BAGIAN ATAS KARTU
-          Positioned(
-            top: 0,
-            left: 0,
-            child: Container(
-              width: 70,
-              height: 8,
-              decoration: BoxDecoration(
-                color: data.accent,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(5),
-                  bottomRight: Radius.circular(8),
+          child: Stack(
+            children: [
+              Positioned(
+                top: 0,
+                left: 0,
+                child: Container(
+                  width: 94 * scale,
+                  height: 10 * scale,
+                  decoration: BoxDecoration(
+                    color: data.accent,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(6 * scale),
+                      bottomRight: Radius.circular(9 * scale),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.fromLTRB(9, 13, 9, 7),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  12 * scale,
+                  16 * scale,
+                  12 * scale,
+                  10 * scale,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        data.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: ownerNavy,
-                          fontSize: 8,
-                          fontWeight: FontWeight.w800,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            data.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: ownerNavy,
+                              fontSize: 11 * scale,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          width: 23 * scale,
+                          height: 23 * scale,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEAF0F5),
+                            borderRadius: BorderRadius.circular(4 * scale),
+                          ),
+                          child: Icon(
+                            data.icon,
+                            size: 15 * scale,
+                            color: ownerNavy,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 10 * scale),
+                    if (data.suffix != null)
+                      Expanded(
+                        child: Center(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  _formatNumber(data.amount),
+                                  style: TextStyle(
+                                    color: ownerNavy,
+                                    fontSize: 34 * scale,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom: 4 * scale,
+                                    left: 3 * scale,
+                                  ),
+                                  child: Text(
+                                    data.suffix!,
+                                    style: TextStyle(
+                                      color: ownerNavy,
+                                      fontSize: 8 * scale,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Rp. ${_formatNumber(data.amount)}',
+                          style: TextStyle(
+                            color: ownerNavy,
+                            fontSize: 28 * scale,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ),
-                    ),
-                    Container(
-                      width: 17,
-                      height: 17,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEAF0F5),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Icon(data.icon, size: 11, color: ownerNavy),
-                    ),
+                    if (data.suffix == null) ...[
+                      const Spacer(),
+                      if (data.title == 'Kas Laci & Non Tunai')
+                        ...data.detail
+                            .split(' • ')
+                            .where((line) => line.isNotEmpty)
+                            .map(
+                              (line) => Padding(
+                                padding: EdgeInsets.only(
+                                  bottom: 2 * scale,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 5 * scale,
+                                      height: 5 * scale,
+                                      decoration: BoxDecoration(
+                                        color: data.accent,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    SizedBox(width: 5 * scale),
+                                    Expanded(
+                                      child: Text(
+                                        line,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: ownerNavy,
+                                          fontSize: 8 * scale,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                      else ...[
+                        Text(
+                          data.detail,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: ownerNavy,
+                            fontSize: 8 * scale,
+                          ),
+                        ),
+                        SizedBox(height: 5 * scale),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(5),
+                          child: LinearProgressIndicator(
+                            value: data.progress,
+                            minHeight: 3 * scale,
+                            backgroundColor: const Color(0xFFE5EAF0),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              data.accent,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (data.title == 'Total Omset Penjualan')
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Sisa Rp. ${_formatNumber((4000000 - data.amount).clamp(0, 4000000))}',
+                              style: TextStyle(
+                                color: _mutedText,
+                                fontSize: 7 * scale,
+                              ),
+                            ),
+                            Text(
+                              '${(data.progress * 100).toStringAsFixed(1)}%',
+                              style: TextStyle(
+                                color: ownerNavy,
+                                fontSize: 7 * scale,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
                   ],
                 ),
-
-                const SizedBox(height: 8),
-
-                if (isTransaction)
-                  Expanded(
-                    child: Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            _formatNumber(data.amount),
-                            style: const TextStyle(
-                              color: ownerNavy,
-                              fontSize: 25,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.only(bottom: 4, left: 3),
-                            child: Text(
-                              'Struk',
-                              style: TextStyle(color: ownerNavy, fontSize: 7),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                else
-                  Text(
-                    'Rp. ${_formatNumber(data.amount)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: ownerNavy,
-                      fontSize: 19,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-
-                if (!isTransaction) const Spacer(),
-
-                if (!isTransaction)
-                  Text(
-                    data.detail,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: ownerNavy, fontSize: 6),
-                  ),
-
-                const SizedBox(height: 4),
-
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(5),
-                  child: LinearProgressIndicator(
-                    value: data.progress,
-                    minHeight: 2,
-                    backgroundColor: const Color(0xFFE5EAF0),
-                    valueColor: AlwaysStoppedAnimation<Color>(data.accent),
-                  ),
-                ),
-
-                // Persentase dinamis untuk target omset penjualan
-                if (data.title == 'Total Omset Penjualan')
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      '${(data.progress * 100).toStringAsFixed(1)}%',
-                      style: const TextStyle(
-                        color: ownerNavy,
-                        fontSize: 6,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
-// ============================================================
-// GRAFIK PENJUALAN
-// ============================================================
+// ======================================================
+// SALES CHART
+// ======================================================
 
 class _SalesChartCard extends StatefulWidget {
-  const _SalesChartCard({required this.controller, required this.data});
+  const _SalesChartCard({
+    required this.controller,
+    required this.data,
+  });
 
   final AnimationController controller;
-  final List<Map<String, dynamic>> data; // dari data['grafik_per_jam']
+  final List<Map<String, dynamic>> data;
 
   @override
   State<_SalesChartCard> createState() => _SalesChartCardState();
@@ -733,20 +995,54 @@ class _SalesChartCard extends StatefulWidget {
 class _SalesChartCardState extends State<_SalesChartCard> {
   int? activeIndex;
 
-  double _num(dynamic v) => double.tryParse('$v') ?? 0;
+  double _num(dynamic value) {
+    return double.tryParse('$value') ?? 0;
+  }
 
-  List<double> get totals => widget.data.map((e) => _num(e['total'])).toList();
+  List<Map<String, dynamic>> get chartData {
+    final firstActiveHour = widget.data.indexWhere(
+      (entry) => _num(entry['total']) > 0,
+    );
 
-  List<String> get hours =>
-      widget.data.map((e) => '${e['jam']}'.substring(0, 2)).toList();
+    if (firstActiveHour == -1) return const [];
 
-  double get maxTotal => totals.fold<double>(0, (a, b) => a > b ? a : b);
+    final lastActiveHour = widget.data.lastIndexWhere(
+      (entry) => _num(entry['total']) > 0,
+    );
 
-  int get peakIndex => maxTotal > 0 ? totals.indexOf(maxTotal) : -1;
+    return widget.data.sublist(
+      firstActiveHour,
+      lastActiveHour + 1,
+    );
+  }
+
+  List<double> get totals {
+    return chartData.map((e) => _num(e['total'])).toList();
+  }
+
+  List<String> get hours {
+    return chartData.map((e) {
+      final jam = '${e['jam']}';
+      return jam.length >= 2 ? jam.substring(0, 2) : jam;
+    }).toList();
+  }
+
+  double get maxTotal {
+    return totals.fold<double>(
+      0,
+      (a, b) => a > b ? a : b,
+    );
+  }
+
+  int get peakIndex {
+    return maxTotal > 0 ? totals.indexOf(maxTotal) : -1;
+  }
 
   double get average {
-    final aktif = totals.where((t) => t > 0).toList();
+    final aktif = totals.where((e) => e > 0).toList();
+
     if (aktif.isEmpty) return 0;
+
     return aktif.reduce((a, b) => a + b) / aktif.length;
   }
 
@@ -754,149 +1050,173 @@ class _SalesChartCardState extends State<_SalesChartCard> {
   Widget build(BuildContext context) {
     final n = totals.length;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        boxShadow: [
-          BoxShadow(
-            color: ownerNavy.withValues(alpha: 0.22),
-            blurRadius: 7,
-            offset: const Offset(1, 3),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPhone = constraints.maxWidth < 600;
+        final chartHeight = isPhone ? 205.0 : 260.0;
+
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.fromLTRB(
+            isPhone ? 12 : 20,
+            14,
+            isPhone ? 12 : 20,
+            12,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'GRAFIK PENJUALAN CELCIOUS',
-            style: TextStyle(
-              color: Color(0xFF315A80),
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-            ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: ownerNavy.withValues(alpha: 0.20),
+                blurRadius: 8,
+                offset: const Offset(1, 3),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          if (n == 0 || maxTotal == 0)
-            const SizedBox(
-              height: 120,
-              child: Center(
-                child: Text(
-                  'Belum ada penjualan hari ini.',
-                  style: TextStyle(color: Colors.black54, fontSize: 11),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'GRAFIK PENJUALAN CELCIOUS',
+                style: TextStyle(
+                  color: const Color(0xFF315A80),
+                  fontSize: isPhone ? 13 : 17,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
-            )
-          else
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final chartHeight = constraints.maxWidth < 450 ? 175.0 : 205.0;
-                final barMaxHeight = chartHeight * 0.78;
-                final slot = constraints.maxWidth / n;
-                final tooltipLeft = ((peakIndex + 0.5) * slot - 55).clamp(
-                  0.0,
-                  constraints.maxWidth - 110,
-                );
-
-                return SizedBox(
+              const SizedBox(height: 12),
+              if (n == 0 || maxTotal == 0)
+                const SizedBox(
+                  height: 140,
+                  child: Center(
+                    child: Text(
+                      'Belum ada penjualan hari ini.',
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SizedBox(
                   height: chartHeight,
                   width: double.infinity,
-                  child: Stack(
-                    children: [
-                      // GARIS RATA-RATA (dari data asli)
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 17 + barMaxHeight * (average / maxTotal),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                height: 1,
-                                color: const Color(0xFF8BA2B8),
+                  child: LayoutBuilder(
+                    builder: (context, box) {
+                      final barMaxHeight = chartHeight * 0.76;
+                      final slot = box.maxWidth / n;
+
+                      final tooltipWidth = (box.maxWidth * 0.40).clamp(
+                        110.0,
+                        190.0,
+                      );
+
+                      final tooltipLeft =
+                          ((peakIndex + 0.5) * slot - tooltipWidth / 2)
+                              .clamp(
+                        0.0,
+                        box.maxWidth - tooltipWidth,
+                      );
+
+                      return Stack(
+                        children: [
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 20 +
+                                barMaxHeight * (average / maxTotal),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    height: 1,
+                                    color: const Color(0xFF8BA2B8),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 3,
+                                  ),
+                                  color: const Color(0xFFE5F4FA),
+                                  child: Text(
+                                    'Rata-rata: Rp. ${_formatNumber(average)}',
+                                    style: const TextStyle(
+                                      color: Color(0xFF1687C1),
+                                      fontSize: 7,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Positioned.fill(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: List.generate(
+                                n,
+                                (index) => Expanded(
+                                  child: _buildBar(index, chartHeight),
+                                ),
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 2,
+                          ),
+                          Positioned(
+                            top: 0,
+                            left: tooltipLeft,
+                            width: tooltipWidth,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: ownerNavy,
+                                borderRadius: BorderRadius.circular(6),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(
+                                      alpha: 0.20,
+                                    ),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
-                              color: const Color(0xFFE5F4FA),
-                              child: Text(
-                                'Rata-rata: Rp. ${_formatNumber(average)}',
-                                style: const TextStyle(
-                                  color: Color(0xFF1687C1),
-                                  fontSize: 6,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '🔴 Jam Sibuk Tertinggi (${hours[peakIndex]}:00)',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 8,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'Rp ${_formatNumber(maxTotal)}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-
-                      // BATANG GRAFIK
-                      Positioned.fill(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: List.generate(n, (index) {
-                            return Expanded(
-                              child: _buildBar(index, chartHeight),
-                            );
-                          }),
-                        ),
-                      ),
-
-                      // TOOLTIP PUNCAK (dari data asli)
-                      Positioned(
-                        top: 0,
-                        left: tooltipLeft,
-                        child: Container(
-                          padding: const EdgeInsets.all(7),
-                          decoration: BoxDecoration(
-                            color: ownerNavy,
-                            borderRadius: BorderRadius.circular(5),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.2),
-                                blurRadius: 5,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '● Jam Sibuk Tertinggi (${hours[peakIndex]}:00)',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 6,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Rp ${_formatNumber(maxTotal)}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                        ],
+                      );
+                    },
                   ),
-                );
-              },
-            ),
-        ],
-      ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -906,11 +1226,15 @@ class _SalesChartCardState extends State<_SalesChartCard> {
 
     final amount = totals[index];
     final ratio = maxTotal > 0 ? amount / maxTotal : 0.0;
-    final barMaxHeight = chartHeight * 0.78;
+    final barMaxHeight = chartHeight * 0.76;
 
     return MouseRegion(
-      onEnter: (_) => setState(() => activeIndex = index),
-      onExit: (_) => setState(() => activeIndex = null),
+      onEnter: (_) {
+        setState(() => activeIndex = index);
+      },
+      onExit: (_) {
+        setState(() => activeIndex = null);
+      },
       child: GestureDetector(
         onTap: () {
           setState(() {
@@ -931,6 +1255,7 @@ class _SalesChartCardState extends State<_SalesChartCard> {
                       final progress = Curves.easeOutCubic.transform(
                         widget.controller.value,
                       );
+
                       return Container(
                         height: barMaxHeight * ratio * progress,
                         width: double.infinity,
@@ -947,7 +1272,10 @@ class _SalesChartCardState extends State<_SalesChartCard> {
                                     Color(0xFF2B9FC0),
                                     Color(0xFF082640),
                                   ]
-                                : const [Color(0xFF3D6997), Color(0xFF365D88)],
+                                : const [
+                                    Color(0xFF3D6997),
+                                    Color(0xFF365D88),
+                                  ],
                           ),
                         ),
                       );
@@ -959,8 +1287,10 @@ class _SalesChartCardState extends State<_SalesChartCard> {
               Text(
                 hours[index],
                 style: TextStyle(
-                  color: isActive || isPeak ? ownerNavy : Colors.black54,
-                  fontSize: 7,
+                  color: isActive || isPeak
+                      ? ownerNavy
+                      : Colors.black54,
+                  fontSize: 8,
                   fontWeight: isActive || isPeak
                       ? FontWeight.bold
                       : FontWeight.normal,
@@ -970,11 +1300,10 @@ class _SalesChartCardState extends State<_SalesChartCard> {
                 Text(
                   _formatNumber(amount),
                   maxLines: 1,
-                  softWrap: false,
                   overflow: TextOverflow.clip,
                   style: const TextStyle(
                     color: ownerNavy,
-                    fontSize: 6,
+                    fontSize: 7,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
