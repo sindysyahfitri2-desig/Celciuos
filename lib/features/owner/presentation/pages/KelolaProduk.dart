@@ -4,7 +4,6 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:kasir_celcious_coffe/data/produk_data.dart';
@@ -240,7 +239,7 @@ class _ProdukPageState extends State<ProdukPage> {
             children: [
               Text(
                 'Hapus produk?',
-                style: GoogleFonts.poppins(
+                style: TextStyle(
                   color: Colors.white,
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
@@ -250,7 +249,7 @@ class _ProdukPageState extends State<ProdukPage> {
               Text(
                 'Produk "$name" akan dihapus dari katalog dan kasir.',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 12),
+                style: TextStyle(color: Colors.white70, fontSize: 12),
               ),
               const SizedBox(height: 16),
               Row(
@@ -260,7 +259,7 @@ class _ProdukPageState extends State<ProdukPage> {
                     onPressed: () => Navigator.pop(dialogContext, false),
                     child: Text(
                       'Batal',
-                      style: GoogleFonts.poppins(color: Colors.white70),
+                      style: TextStyle(color: Colors.white70),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -273,7 +272,7 @@ class _ProdukPageState extends State<ProdukPage> {
                     onPressed: () => Navigator.pop(dialogContext, true),
                     child: Text(
                       'Hapus',
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                      style: TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
                 ],
@@ -404,10 +403,10 @@ class _ProdukPageState extends State<ProdukPage> {
         onChanged: (value) {
           setState(() => _search = value.trim());
         },
-        style: GoogleFonts.poppins(color: _navy, fontSize: 12),
+        style: TextStyle(color: _navy, fontSize: 12),
         decoration: InputDecoration(
           hintText: 'Cari menu',
-          hintStyle: GoogleFonts.poppins(
+          hintStyle: TextStyle(
             color: const Color(0xff91a9bd),
             fontSize: 12,
           ),
@@ -556,14 +555,14 @@ class _ProdukPageState extends State<ProdukPage> {
             child: TextField(
               controller: _nameController,
               focusNode: _nameFocus,
-              style: GoogleFonts.poppins(
+              style: TextStyle(
                 color: _navy,
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
               ),
               decoration: InputDecoration(
                 hintText: 'Nama Produk',
-                hintStyle: GoogleFonts.poppins(
+                hintStyle: TextStyle(
                   color: _navy,
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -587,7 +586,7 @@ class _ProdukPageState extends State<ProdukPage> {
         children: [
           Text(
             'Rp.',
-            style: GoogleFonts.poppins(
+            style: TextStyle(
               color: _navy,
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -600,10 +599,10 @@ class _ProdukPageState extends State<ProdukPage> {
               focusNode: _priceFocus,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: GoogleFonts.poppins(color: _navy, fontSize: 12),
+              style: TextStyle(color: _navy, fontSize: 12),
               decoration: InputDecoration(
                 hintText: 'Harga',
-                hintStyle: GoogleFonts.poppins(color: _muted, fontSize: 12),
+                hintStyle: TextStyle(color: _muted, fontSize: 12),
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
                 border: InputBorder.none,
@@ -644,13 +643,13 @@ class _ProdukPageState extends State<ProdukPage> {
           isExpanded: true,
           hint: Text(
             'Kategori',
-            style: GoogleFonts.poppins(color: _navy, fontSize: 12),
+            style: TextStyle(color: _navy, fontSize: 12),
           ),
           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _navy),
           iconSize: 20,
           dropdownColor: Colors.white,
           borderRadius: BorderRadius.circular(14),
-          style: GoogleFonts.poppins(color: _navy, fontSize: 12),
+          style: TextStyle(color: _navy, fontSize: 12),
           items: _categories
               .map(
                 (category) => DropdownMenuItem<String>(
@@ -686,7 +685,7 @@ class _ProdukPageState extends State<ProdukPage> {
         ),
         child: Text(
           'Simpan',
-          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
         ),
       ),
     );
@@ -712,7 +711,7 @@ class _ProdukPageState extends State<ProdukPage> {
               Text(
                 'Tambah\nKategori',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
+                style: TextStyle(
                   color: _navy,
                   fontSize: narrow ? 10 : 12,
                   height: 1.2,
@@ -799,7 +798,7 @@ class _ProdukPageState extends State<ProdukPage> {
                       name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
+                      style: TextStyle(
                         color: _navy,
                         fontSize: 14,
                         height: 1.2,
@@ -811,7 +810,7 @@ class _ProdukPageState extends State<ProdukPage> {
                       _rupiah(product['price']),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
+                      style: TextStyle(
                         color: _navy,
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
@@ -873,7 +872,7 @@ class _ProdukPageState extends State<ProdukPage> {
           const SizedBox(height: 9),
           Text(
             'Produk belum tersedia',
-            style: GoogleFonts.poppins(
+            style: TextStyle(
               color: _navy,
               fontWeight: FontWeight.w800,
               fontSize: 13,
@@ -883,7 +882,7 @@ class _ProdukPageState extends State<ProdukPage> {
           Text(
             'Tambahkan produk melalui formulir di atas.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(color: _muted, fontSize: 11),
+            style: TextStyle(color: _muted, fontSize: 11),
           ),
         ],
       ),
@@ -974,7 +973,7 @@ class _AnimatedDeleteButtonState extends State<_AnimatedDeleteButton> {
                           child: Text(
                             'Delete',
                             maxLines: 1,
-                            style: GoogleFonts.poppins(
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
@@ -1085,7 +1084,7 @@ class _EditProductDialogState extends State<_EditProductDialog> {
               Center(
                 child: Text(
                   'Edit',
-                  style: GoogleFonts.poppins(
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
@@ -1117,7 +1116,7 @@ class _EditProductDialogState extends State<_EditProductDialog> {
                     isExpanded: true,
                     hint: Text(
                       'Pilih kategori',
-                      style: GoogleFonts.poppins(color: _muted, fontSize: 12),
+                      style: TextStyle(color: _muted, fontSize: 12),
                     ),
                     icon: const Icon(
                       Icons.keyboard_arrow_down_rounded,
@@ -1125,7 +1124,7 @@ class _EditProductDialogState extends State<_EditProductDialog> {
                     ),
                     dropdownColor: Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    style: GoogleFonts.poppins(color: _navy, fontSize: 12),
+                    style: TextStyle(color: _navy, fontSize: 12),
                     items: _items
                         .map(
                           (item) => DropdownMenuItem<String>(
@@ -1147,7 +1146,7 @@ class _EditProductDialogState extends State<_EditProductDialog> {
                 const SizedBox(height: 10),
                 Text(
                   _error!,
-                  style: GoogleFonts.poppins(
+                  style: TextStyle(
                     color: const Color(0xffffb4b4),
                     fontSize: 11,
                   ),
@@ -1267,7 +1266,7 @@ class _CategoryDialogState extends State<_CategoryDialog> {
               Center(
                 child: Text(
                   'Tambah Kategori',
-                  style: GoogleFonts.poppins(
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
@@ -1291,7 +1290,7 @@ class _CategoryDialogState extends State<_CategoryDialog> {
                 const SizedBox(height: 10),
                 Text(
                   _error!,
-                  style: GoogleFonts.poppins(
+                  style: TextStyle(
                     color: const Color(0xffffb4b4),
                     fontSize: 11,
                   ),
@@ -1324,7 +1323,7 @@ class _CategoryDialogState extends State<_CategoryDialog> {
                 isExpanded: true,
                 hint: Text(
                   'Belum ada kategori',
-                  style: GoogleFonts.poppins(color: _muted, fontSize: 12),
+                  style: TextStyle(color: _muted, fontSize: 12),
                 ),
                 icon: const Icon(
                   Icons.keyboard_arrow_down_rounded,
@@ -1332,7 +1331,7 @@ class _CategoryDialogState extends State<_CategoryDialog> {
                 ),
                 dropdownColor: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                style: GoogleFonts.poppins(color: _navy, fontSize: 12),
+                style: TextStyle(color: _navy, fontSize: 12),
                 items: widget.categories
                     .map(
                       (item) => DropdownMenuItem<String>(
@@ -1390,7 +1389,7 @@ class _DialogLabel extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 5, left: 2),
       child: Text(
         text,
-        style: GoogleFonts.poppins(
+        style: TextStyle(
           color: Colors.white,
           fontSize: 11,
           fontWeight: FontWeight.w500,
@@ -1422,7 +1421,7 @@ class _DialogTextField extends StatelessWidget {
         keyboardType: keyboardType,
         inputFormatters: formatters,
         onChanged: onChanged,
-        style: GoogleFonts.poppins(color: _navy, fontSize: 12),
+        style: TextStyle(color: _navy, fontSize: 12),
         decoration: InputDecoration(
           filled: true,
           fillColor: Colors.white,
@@ -1463,7 +1462,7 @@ class _DialogSaveButton extends StatelessWidget {
       ),
       child: Text(
         'Simpan',
-        style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w800),
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
       ),
     );
   }

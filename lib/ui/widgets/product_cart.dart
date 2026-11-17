@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'product_image.dart';
 
@@ -37,7 +38,10 @@ class _ProductCardState extends State<ProductCard> {
 
   String _rupiah(double value) {
     final digits = value.toInt().toString();
-    return 'Rp ${digits.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => '.')}';
+    return 'Rp ${digits.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => '.',
+    )}';
   }
 
   @override
@@ -46,53 +50,67 @@ class _ProductCardState extends State<ProductCard> {
       builder: (context, constraints) {
         final height = constraints.maxHeight.isFinite
             ? constraints.maxHeight
-            : 116.0;
-        final compact = constraints.maxWidth < 220;
-        final imageSize = (height - 18).clamp(54.0, compact ? 72.0 : 88.0);
-        final hasQuantity = widget.showCartControls && widget.quantity > 0;
-        final tabWidth = compact ? 34.0 : 42.0;
+            : 151.0;
+
+        final compact = constraints.maxWidth < 250 || height < 105;
+
+        final imageSize = compact
+            ? (height - 16).clamp(48.0, 72.0)
+            : (height - 18).clamp(70.0, 132.0);
+
+        final hasQuantity =
+            widget.showCartControls && widget.quantity > 0;
+
+        final tabWidth = compact ? 34.0 : 41.0;
+        final buttonSize = compact ? 26.0 : 36.0;
 
         return MouseRegion(
+          cursor: SystemMouseCursors.click,
           onEnter: (_) => setState(() => _hover = true),
           onExit: (_) => setState(() => _hover = false),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOutCubic,
-            height: height,
-            transform: Matrix4.translationValues(0, _hover ? -2 : 0, 0),
+            transform: Matrix4.translationValues(
+              0,
+              _hover ? -2 : 0,
+              0,
+            ),
             decoration: BoxDecoration(
-              // Warna merah di belakang membentuk tab hapus di sisi kanan.
               color: hasQuantity ? _merah : Colors.white,
-              borderRadius: BorderRadius.circular(17),
+              borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: _navy.withValues(alpha: _hover ? 0.20 : 0.13),
-                  blurRadius: _hover ? 16 : 12,
-                  offset: Offset(0, _hover ? 6 : 4),
+                  color: _navy.withValues(
+                    alpha: _hover ? 0.18 : 0.10,
+                  ),
+                  blurRadius: _hover ? 16 : 11,
+                  offset: Offset(0, _hover ? 6 : 3),
                 ),
               ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(17),
+              borderRadius: BorderRadius.circular(20),
               child: Row(
                 children: [
-                  // KARTU PUTIH
+                  // BAGIAN PUTIH CARD
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(17),
+                        borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
                         children: [
+                          // GAMBAR PRODUK
                           Padding(
                             padding: const EdgeInsets.all(8),
                             child: Container(
                               width: imageSize,
                               height: imageSize,
                               decoration: BoxDecoration(
-                                color: const Color(0xffd9d6e1),
-                                borderRadius: BorderRadius.circular(12),
+                                color: const Color(0xffd9d6e8),
+                                borderRadius: BorderRadius.circular(19),
                               ),
                               clipBehavior: Clip.antiAlias,
                               child: ProductImage(
@@ -101,11 +119,19 @@ class _ProductCardState extends State<ProductCard> {
                               ),
                             ),
                           ),
+
+                          // INFORMASI PRODUK
                           Expanded(
                             child: Padding(
-                              padding: const EdgeInsets.fromLTRB(2, 10, 10, 10),
+                              padding: EdgeInsets.fromLTRB(
+                                compact ? 2 : 8,
+                                10,
+                                compact ? 7 : 10,
+                                10,
+                              ),
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
@@ -118,80 +144,90 @@ class _ProductCardState extends State<ProductCard> {
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
-                                          color: const Color(0xff081d2e),
+                                          color: const Color(0xff10202d),
                                           fontWeight: FontWeight.w800,
-                                          fontSize: compact ? 12 : 14,
+                                          fontSize: compact ? 11 : 15,
+                                          height: 1.15,
                                         ),
                                       ),
-                                      const SizedBox(height: 2),
+                                      const SizedBox(height: 3),
                                       Text(
                                         _rupiah(widget.price),
                                         style: TextStyle(
-                                          color: const Color(0xff244f6a),
+                                          color: const Color(0xff24577e),
                                           fontWeight: FontWeight.w600,
-                                          fontSize: compact ? 10 : 12,
+                                          fontSize: compact ? 9 : 13,
                                         ),
                                       ),
                                     ],
                                   ),
-                                  // Kontrol jumlah rata kanan, seperti desain.
+
+                                  // TOMBOL JUMLAH
                                   if (widget.showCartControls)
                                     Align(
                                       alignment: Alignment.centerRight,
                                       child: hasQuantity
                                           ? Row(
-                                              mainAxisSize: MainAxisSize.min,
+                                              mainAxisSize:
+                                                  MainAxisSize.min,
                                               children: [
                                                 _QtyButton(
                                                   icon: Icons.remove_rounded,
                                                   onTap: widget.onMinus,
+                                                  size: buttonSize,
                                                 ),
-                                                SizedBox(width: compact ? 4 : 6),
                                                 SizedBox(
-                                                  width: compact ? 18 : 22,
+                                                  width: compact ? 4 : 9,
+                                                ),
+                                                SizedBox(
+                                                  width: compact ? 18 : 28,
                                                   child: Center(
                                                     child: AnimatedSwitcher(
-                                                      duration: const Duration(
+                                                      duration:
+                                                          const Duration(
                                                         milliseconds: 160,
                                                       ),
                                                       transitionBuilder:
-                                                          (child, animation) =>
-                                                              ScaleTransition(
-                                                                scale:
-                                                                    animation,
-                                                                child:
-                                                                    FadeTransition(
-                                                                      opacity:
-                                                                          animation,
-                                                                      child:
-                                                                          child,
-                                                                    ),
-                                                              ),
+                                                          (child, animation) {
+                                                        return ScaleTransition(
+                                                          scale: animation,
+                                                          child:
+                                                              FadeTransition(
+                                                            opacity: animation,
+                                                            child: child,
+                                                          ),
+                                                        );
+                                                      },
                                                       child: Text(
                                                         '${widget.quantity}',
                                                         key: ValueKey(
                                                           widget.quantity,
                                                         ),
-                                                        style: const TextStyle(
+                                                        style: TextStyle(
                                                           color: _navy,
-                                                          fontSize: 14,
+                                                          fontSize:
+                                                              compact ? 12 : 20,
                                                           fontWeight:
-                                                              FontWeight.w800,
+                                                              FontWeight.w700,
                                                         ),
                                                       ),
                                                     ),
                                                   ),
                                                 ),
-                                                SizedBox(width: compact ? 4 : 6),
+                                                SizedBox(
+                                                  width: compact ? 4 : 9,
+                                                ),
                                                 _QtyButton(
                                                   icon: Icons.add_rounded,
                                                   onTap: widget.onAdd,
+                                                  size: buttonSize,
                                                 ),
                                               ],
                                             )
                                           : _QtyButton(
                                               icon: Icons.add_rounded,
                                               onTap: widget.onAdd,
+                                              size: buttonSize,
                                             ),
                                     ),
                                 ],
@@ -203,7 +239,7 @@ class _ProductCardState extends State<ProductCard> {
                     ),
                   ),
 
-                  // TAB MERAH HAPUS (melebar halus saat jumlah > 0)
+                  // TAB MERAH HAPUS
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 240),
                     curve: Curves.easeOutCubic,
@@ -215,11 +251,11 @@ class _ProductCardState extends State<ProductCard> {
                           color: _merah,
                           child: InkWell(
                             onTap: widget.onDelete,
-                            child: const Center(
+                            child: Center(
                               child: Icon(
                                 Icons.delete_outline_rounded,
                                 color: Colors.white,
-                                size: 19,
+                                size: compact ? 18 : 22,
                               ),
                             ),
                           ),
@@ -237,12 +273,17 @@ class _ProductCardState extends State<ProductCard> {
   }
 }
 
-// Tombol + / - berwarna navy dengan efek tekan.
+// TOMBOL PLUS DAN MINUS
 class _QtyButton extends StatefulWidget {
-  const _QtyButton({required this.icon, required this.onTap});
+  const _QtyButton({
+    required this.icon,
+    required this.onTap,
+    this.size = 36,
+  });
 
   final IconData icon;
   final VoidCallback onTap;
+  final double size;
 
   @override
   State<_QtyButton> createState() => _QtyButtonState();
@@ -263,15 +304,19 @@ class _QtyButtonState extends State<_QtyButton> {
         onTap: widget.onTap,
         child: AnimatedScale(
           duration: const Duration(milliseconds: 90),
-          scale: _press ? 0.86 : 1,
+          scale: _press ? 0.88 : 1,
           child: Container(
-            width: 26,
-            height: 26,
+            width: widget.size,
+            height: widget.size,
             decoration: BoxDecoration(
               color: _ProductCardState._navy,
-              borderRadius: BorderRadius.circular(7),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(widget.icon, color: Colors.white, size: 15),
+            child: Icon(
+              widget.icon,
+              color: Colors.white,
+              size: widget.size < 30 ? 15 : 21,
+            ),
           ),
         ),
       ),

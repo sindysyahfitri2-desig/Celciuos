@@ -1,4 +1,5 @@
-/// Menghitung subtotal, pajak, diskon, dan total checkout tanpa bergantung UI.
+
+/// Menghitung subtotal, pajak, diskon, dan total checkout.
 class CashierCheckoutPricing {
   CashierCheckoutPricing._({
     required this.subtotal,
@@ -17,24 +18,36 @@ class CashierCheckoutPricing {
     required double discount,
     required String discountType,
   }) {
-    final savedSubtotal = (existingOrder?['subtotal'] as num?)?.toDouble();
-    final subtotal =
-        savedSubtotal ??
+    final savedSubtotal =
+        (existingOrder?['subtotal'] as num?)?.toDouble();
+
+    final subtotal = savedSubtotal ??
         cart.fold<double>(0, (sum, item) {
           final price = (item['price'] as num).toDouble();
           final quantity = item['quantity'] as int;
           return sum + price * quantity;
         });
+
     final taxRate =
-        (existingOrder?['ppnRate'] as num?)?.toDouble() ?? defaultTaxRate;
+        (existingOrder?['ppnRate'] as num?)?.toDouble() ??
+        defaultTaxRate;
+
     final tax =
-        (existingOrder?['ppn'] as num?)?.toDouble() ?? subtotal * taxRate;
+        (existingOrder?['ppn'] as num?)?.toDouble() ??
+        subtotal * taxRate;
+
     final totalBeforeDiscount = subtotal + tax;
-    final discountAmount = (discountType == '%'
-            ? totalBeforeDiscount * discount / 100
-            : discount)
-        .clamp(0, totalBeforeDiscount)
-        .toDouble();
+
+    // Input 0–100 dianggap persentase.
+    // Input di atas 100 dianggap nominal rupiah.
+    final isPercentage = discount >= 0 && discount <= 100;
+
+    final discountAmount = (
+      isPercentage
+          ? subtotal * discount / 100
+          : discount
+    ).clamp(0, totalBeforeDiscount).toDouble();
+
     final itemCount = cart.fold<int>(
       0,
       (count, item) => count + (item['quantity'] as int),

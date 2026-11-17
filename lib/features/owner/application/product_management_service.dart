@@ -144,12 +144,48 @@ class ProductManagementService {
 
     final categoryId = await _getCategoryId(category);
 
-    await ApiService.post('produk', {
+    final response = await ApiService.post('produk', {
       'id_kategori': categoryId,
       'nama_produk': cleanName,
       'harga': price,
       'status': 'aktif',
     });
+
+    final created = response['data'];
+    if (created is! Map || created['id_produk'] == null) {
+      throw const FormatException(
+        'Produk sudah dikirim, tetapi ID produk dari server tidak valid.',
+      );
+    }
+
+    final createdProduct = Map<String, dynamic>.from(created);
+    final id = createdProduct['id_produk'];
+    final savedName = createdProduct['nama_produk']?.toString() ?? cleanName;
+    final savedCategory = createdProduct['kategori'];
+    final savedPrice =
+        double.tryParse(createdProduct['harga']?.toString() ?? '') ??
+        price.toDouble();
+    final products = ProdukData.produk.value
+        .where(
+          (product) =>
+              product['id_produk']?.toString() != id.toString() &&
+              product['name']?.toString() != savedName,
+        )
+        .toList();
+
+    products.add({
+      'id_produk': id,
+      'name': savedName,
+      'price': savedPrice,
+      'category': savedCategory is Map
+          ? savedCategory['nama_kategori']?.toString() ?? category.trim()
+          : category.trim(),
+      'image': image ?? '',
+      'is_active':
+          createdProduct['status']?.toString().trim().toLowerCase() !=
+          'nonaktif',
+    });
+    await ProdukData.saveProducts(products);
 
     await ProdukData.loadFromApi();
   }

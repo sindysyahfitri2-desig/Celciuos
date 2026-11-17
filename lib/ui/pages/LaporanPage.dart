@@ -514,14 +514,12 @@ class _LaporanPageState extends State<LaporanPage> {
                 alignment: WrapAlignment.end,
                 spacing: 8,
                 runSpacing: 8,
-                children: [_tombolKosongkanLaporan(), _tombolExport(hp)],
               ),
             )
           else
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                _tombolKosongkanLaporan(),
                 const SizedBox(width: 8),
                 _tombolExport(hp),
               ],
@@ -1470,18 +1468,7 @@ class _LaporanPageState extends State<LaporanPage> {
     );
   }
 
-  Widget _tombolKosongkanLaporan() {
-    return OutlinedButton.icon(
-      onPressed: _konfirmasiKosongkanLaporan,
-      icon: const Icon(Icons.delete_outline, size: 17),
-      label: const Text('Kosongkan Laporan'),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: const Color(0xffa84848),
-        side: const BorderSide(color: Color(0xffa84848)),
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-      ),
-    );
-  }
+  
 
   Future<void> _konfirmasiKosongkanLaporan() async {
     final yakin = await showDialog<bool>(

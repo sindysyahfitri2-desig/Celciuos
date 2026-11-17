@@ -44,6 +44,7 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Celcious Coffee',
+      theme: ThemeData(fontFamily: 'Roboto'),
       home: FutureBuilder<void>(
         future: _initialization,
         builder: (context, snapshot) {

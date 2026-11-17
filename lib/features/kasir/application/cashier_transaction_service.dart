@@ -204,10 +204,15 @@ class CashierTransactionService {
   static int _idProduk(Map<String, dynamic> item) {
     final id = item['id_produk'];
     if (id is num) return id.toInt();
+    final parsedId = int.tryParse(id?.toString() ?? '');
+    if (parsedId != null) return parsedId;
     final nama = item['name'].toString();
     for (final p in ProdukData.produk.value) {
-      if (p['name'] == nama && p['id_produk'] is num) {
-        return (p['id_produk'] as num).toInt();
+      if (p['name'] == nama) {
+        final productId = p['id_produk'];
+        if (productId is num) return productId.toInt();
+        final parsedProductId = int.tryParse(productId?.toString() ?? '');
+        if (parsedProductId != null) return parsedProductId;
       }
     }
     throw StateError(

@@ -22,6 +22,7 @@ class CashierCartController extends ChangeNotifier {
       items[index]['quantity'] = currentQuantity + 1;
     } else {
       items.add({
+        if (product['id_produk'] != null) 'id_produk': product['id_produk'],
         'name': product['name'],
         'price': product['price'],
         'category': product['category'],
