@@ -196,8 +196,20 @@ class ApiService {
 
     // Jika terjadi error dari Laravel (misal validasi atau 401/403)
     if (data is Map<String, dynamic>) {
-      final message =
-          data['message']?.toString() ?? 'Terjadi kesalahan pada server.';
+      final message = data['message']?.toString() ??
+          'Terjadi kesalahan pada server.';
+      final errors = data['errors'];
+      if (errors is Map) {
+        final details = errors.values
+            .expand((value) => value is List ? value : [value])
+            .map((value) => value.toString())
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .join(' ');
+        if (details.isNotEmpty) {
+          throw Exception('$message $details');
+        }
+      }
       throw Exception(message);
     }
 

@@ -1,6 +1,5 @@
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../data/produk_data.dart';
 import '../widgets/product_image.dart';
@@ -123,13 +122,13 @@ class _ProdukPageState extends State<ProdukPage> {
       child: TextField(
         controller: _searchController,
         onChanged: (_) => setState(() {}),
-        style: GoogleFonts.poppins(
+        style: TextStyle(
           color: _navy,
           fontSize: 12,
         ),
         decoration: InputDecoration(
           hintText: 'Cari menu',
-          hintStyle: GoogleFonts.poppins(
+          hintStyle: TextStyle(
             color: const Color(0xff91a9bd),
             fontSize: 12,
           ),
@@ -207,7 +206,7 @@ class _ProdukPageState extends State<ProdukPage> {
                   const SizedBox(width: 5),
                   Text(
                     'Semua Menu',
-                    style: GoogleFonts.poppins(
+                    style: TextStyle(
                       color: _navy,
                       fontSize: 10,
                       fontWeight: allSelected
@@ -263,7 +262,7 @@ class _ProdukPageState extends State<ProdukPage> {
             const SizedBox(width: 6),
             Text(
               category.name,
-              style: GoogleFonts.poppins(
+              style: TextStyle(
                 color: selected ? _navy : Colors.white,
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
@@ -287,7 +286,7 @@ class _ProdukPageState extends State<ProdukPage> {
         final columns = width >= 1150
             ? 3
             : width >= 520
-                ? 2
+                ? 3
                 : 1;
 
         return GridView.builder(
@@ -366,7 +365,7 @@ class _ProdukPageState extends State<ProdukPage> {
                   name,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
+                  style: TextStyle(
                     color: isActive
                         ? _navy
                         : const Color(0xff888888),
@@ -380,7 +379,7 @@ class _ProdukPageState extends State<ProdukPage> {
                   _rupiah(product['price']),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
+                  style: TextStyle(
                     color: isActive
                         ? _priceBlue
                         : const Color(0xff999999),
@@ -440,7 +439,7 @@ class _ProdukPageState extends State<ProdukPage> {
           const SizedBox(height: 8),
           Text(
             'Produk tidak ditemukan',
-            style: GoogleFonts.poppins(
+            style: TextStyle(
               color: _navy,
               fontSize: 13,
               fontWeight: FontWeight.w700,
@@ -450,7 +449,7 @@ class _ProdukPageState extends State<ProdukPage> {
           Text(
             'Coba kata kunci atau kategori lainnya.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(
+            style: TextStyle(
               color: _mutedText,
               fontSize: 11,
             ),

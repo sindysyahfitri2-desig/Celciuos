@@ -24,6 +24,7 @@ class AppBrandingLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
+      width: height,
       height: height,
       child: ValueListenableBuilder<Uint8List?>(
         valueListenable: AppBrandingStore.logoBytes,
