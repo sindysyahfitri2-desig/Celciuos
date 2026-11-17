@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/KelolaProduk.dart'
@@ -10,6 +8,10 @@ import 'package:kasir_celcious_coffe/features/owner/presentation/widgets/Navigat
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/PengaturanPage.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 import 'KelolaLaporan.dart';
+import 'package:kasir_celcious_coffe/data/dashboard_service.dart';
+
+// TODO: Sesuaikan path import DashboardService dengan struktur folder proyek Anda:
+// import 'package:kasir_celcious_coffe/features/owner/data/services/dashboard_service.dart';
 
 // Area Owner; komponen bersama berada di lib/widgets dan data di lib/data.
 const Color ownerNavy = Color(0xFF082640);
@@ -148,7 +150,6 @@ class _DashboardOwnerState extends State<DashboardOwner> {
   }
 
   // Isi halaman dengan animasi pindah menu.
-
   Widget _content() {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 260),
@@ -297,17 +298,10 @@ class _DashboardOwnerState extends State<DashboardOwner> {
       SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
   }
-
-  // PERBAIKAN: method kosong "BottomNavigation(...) {}" yang dulu ada di
-  // sini sudah dihapus.
 }
 
 // ============================================================
-// ISI DASHBOARD — animasi masuk berurutan
-// ============================================================
-
-// ============================================================
-// ISI DASHBOARD
+// ISI DASHBOARD (DENGAN INTEGRASI API SERVICE)
 // ============================================================
 
 class _DashboardBody extends StatefulWidget {
@@ -322,6 +316,7 @@ class _DashboardBody extends StatefulWidget {
 class _DashboardBodyState extends State<_DashboardBody>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  late Future<Map<String, dynamic>> _future;
 
   @override
   void initState() {
@@ -330,6 +325,7 @@ class _DashboardBodyState extends State<_DashboardBody>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..forward();
+    _future = _muat();
   }
 
   @override
@@ -338,102 +334,202 @@ class _DashboardBodyState extends State<_DashboardBody>
     super.dispose();
   }
 
-  static const List<_SummaryData> _summaries = [
-    _SummaryData(
-      title: 'Total Omset Penjualan',
-      amount: 3500000,
-      icon: Icons.payments_outlined,
-      accent: Color(0xFF082640),
-      detail: 'Target Harian (Rp. 4.000.000)',
-      progress: 0.875,
-    ),
-    _SummaryData(
-      title: 'Kas Laci & Non Tunai',
-      amount: 3000000,
-      icon: Icons.account_balance_wallet_outlined,
-      accent: Color(0xFF1687A7),
-      detail: 'Tunai Rp. 1.500.000  •  QRIS Rp. 1.500.000',
-      progress: 0.75,
-    ),
-    _SummaryData(
-      title: 'Total Transaksi',
-      amount: 100,
-      suffix: 'Struk',
-      icon: Icons.receipt_long_outlined,
-      accent: Color(0xFF159B76),
-      detail: 'Transaksi hari ini',
-      progress: 1,
-    ),
-  ];
+  Future<Map<String, dynamic>> _muat() async {
+    // Ganti dengan cara Anda mengambil token autentikasi (misal: SharedPreferences / SecureStorage)
+    final token = '171|yEAZ1Mekd8tjy4YJNGQ5smacMjwE9q3SUdEwg0l123d3b55f';
+    return DashboardService().ambilDashboard(token);
+  }
+
+  // Jaga-jaga: MySQL / PHP kadang mengirim angka SUM sebagai string
+  double _num(dynamic v) => double.tryParse('$v') ?? 0;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final compact = width < 600;
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const Center(
+            child: CircularProgressIndicator(color: ownerNavy),
+          );
+        }
 
-        return Container(
-          color: ownerBackground,
-          child: SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(
-              compact ? 14 : 20,
-              compact ? 10 : 8,
-              compact ? 14 : 20,
-              20,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // SAPAAN OWNER
-                Text(
-                  'Halo Bos ${widget.namaOwner}',
-                  style: TextStyle(
-                    color: const Color(0xFF07506D),
-                    fontSize: compact ? 22 : 25,
-                    fontWeight: FontWeight.w900,
-                    height: 1.1,
-                    shadows: const [
-                      Shadow(
-                        color: Color(0x6689A7B8),
-                        offset: Offset(1, 2),
-                        blurRadius: 3,
-                      ),
-                    ],
+        if (snap.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.error_outline_rounded,
+                    color: Colors.redAccent,
+                    size: 40,
                   ),
-                ),
-
-                SizedBox(height: compact ? 22 : 72),
-
-                // TIGA KARTU RINGKASAN
-                LayoutBuilder(
-                  builder: (context, box) {
-                    const gap = 8.0;
-                    final columns = box.maxWidth < 480 ? 1 : 3;
-                    final cardWidth =
-                        (box.maxWidth - gap * (columns - 1)) / columns;
-
-                    return Wrap(
-                      spacing: gap,
-                      runSpacing: 10,
-                      children: [
-                        for (final data in _summaries)
-                          SizedBox(
-                            width: cardWidth,
-                            child: _SummaryCard(data: data),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 24),
-
-                // GRAFIK PENJUALAN
-                _SalesChartCard(controller: _controller),
-              ],
+                  const SizedBox(height: 12),
+                  Text(
+                    'Terjadi kesalahan:\n${snap.error}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: ownerNavy, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ownerNavy,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => setState(() => _future = _muat()),
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Coba lagi'),
+                  ),
+                ],
+              ),
             ),
+          );
+        }
+
+        final data = snap.data ?? {};
+        final ringkasan = (data['ringkasan'] as Map<String, dynamic>?) ?? {};
+        final metode = (data['distribusi_metode'] as List?) ?? [];
+
+        final omzet = _num(ringkasan['omzet_hari_ini']);
+        final totalTrx = _num(ringkasan['total_transaksi']);
+        final totalNonTunai = metode.fold<double>(
+          0,
+          (s, m) => s + _num(m['total_nominal']),
+        );
+
+        // Ambil nominal kas tunai jika tersedia dari backend atau hitung selisihnya
+        final kasLaci = _num(
+          ringkasan['kas_laci'] ??
+              ringkasan['total_tunai'] ??
+              (omzet - totalNonTunai),
+        );
+
+        // Format rincian metode pembayaran untuk detail kartu kedua
+        String detailMetode = '';
+        if (metode.isNotEmpty) {
+          final rincianList = <String>[];
+          if (kasLaci > 0) {
+            rincianList.add('Tunai Rp. ${_formatNumber(kasLaci)}');
+          }
+          for (final m in metode) {
+            final nama = (m['metode'] ?? m['metode_pembayaran'] ?? 'Non Tunai')
+                .toString();
+            final nom = _formatNumber(_num(m['total_nominal']));
+            rincianList.add('$nama Rp. $nom');
+          }
+          detailMetode = rincianList.join('  •  ');
+        } else {
+          detailMetode =
+              'Tunai Rp. ${_formatNumber(kasLaci)}  •  Non Tunai Rp. ${_formatNumber(totalNonTunai)}';
+        }
+
+        // Tiga Kartu Ringkasan Dinamis
+        final summaries = [
+          _SummaryData(
+            title: 'Total Omset Penjualan',
+            amount: omzet,
+            icon: Icons.payments_outlined,
+            accent: const Color(0xFF082640),
+            detail: 'Target Harian (Rp. 4.000.000)',
+            progress: (omzet / 4000000).clamp(0.0, 1.0),
           ),
+          _SummaryData(
+            title: 'Kas Laci & Non Tunai',
+            amount: (kasLaci + totalNonTunai > 0)
+                ? (kasLaci + totalNonTunai)
+                : omzet,
+            icon: Icons.account_balance_wallet_outlined,
+            accent: const Color(0xFF1687A7),
+            detail: detailMetode,
+            progress: omzet > 0
+                ? (totalNonTunai / omzet).clamp(0.0, 1.0)
+                : 0.75,
+          ),
+          _SummaryData(
+            title: 'Total Transaksi',
+            amount: totalTrx,
+            suffix: 'Struk',
+            icon: Icons.receipt_long_outlined,
+            accent: const Color(0xFF159B76),
+            detail: 'Transaksi hari ini',
+            progress: 1.0,
+          ),
+        ];
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final compact = width < 600;
+
+            return Container(
+              color: ownerBackground,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  compact ? 14 : 20,
+                  compact ? 10 : 8,
+                  compact ? 14 : 20,
+                  20,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // SAPAAN OWNER
+                    Text(
+                      'Halo Bos ${widget.namaOwner}',
+                      style: TextStyle(
+                        color: const Color(0xFF07506D),
+                        fontSize: compact ? 22 : 25,
+                        fontWeight: FontWeight.w900,
+                        height: 1.1,
+                        shadows: const [
+                          Shadow(
+                            color: Color(0x6689A7B8),
+                            offset: Offset(1, 2),
+                            blurRadius: 3,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    SizedBox(height: compact ? 22 : 72),
+
+                    // TIGA KARTU RINGKASAN
+                    LayoutBuilder(
+                      builder: (context, box) {
+                        const gap = 8.0;
+                        final columns = box.maxWidth < 480 ? 1 : 3;
+                        final cardWidth =
+                            (box.maxWidth - gap * (columns - 1)) / columns;
+
+                        return Wrap(
+                          spacing: gap,
+                          runSpacing: 10,
+                          children: [
+                            for (final s in summaries)
+                              SizedBox(
+                                width: cardWidth,
+                                child: _SummaryCard(data: s),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // GRAFIK PENJUALAN
+                    _SalesChartCard(
+                      controller: _controller,
+                      data: (data['grafik_per_jam'] as List)
+                          .cast<Map<String, dynamic>>(),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -531,11 +627,7 @@ class _SummaryCard extends StatelessWidget {
                         color: const Color(0xFFEAF0F5),
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: Icon(
-                        data.icon,
-                        size: 11,
-                        color: ownerNavy,
-                      ),
+                      child: Icon(data.icon, size: 11, color: ownerNavy),
                     ),
                   ],
                 ),
@@ -561,10 +653,7 @@ class _SummaryCard extends StatelessWidget {
                             padding: EdgeInsets.only(bottom: 4, left: 3),
                             child: Text(
                               'Struk',
-                              style: TextStyle(
-                                color: ownerNavy,
-                                fontSize: 7,
-                              ),
+                              style: TextStyle(color: ownerNavy, fontSize: 7),
                             ),
                           ),
                         ],
@@ -590,10 +679,7 @@ class _SummaryCard extends StatelessWidget {
                     data.detail,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: ownerNavy,
-                      fontSize: 6,
-                    ),
+                    style: const TextStyle(color: ownerNavy, fontSize: 6),
                   ),
 
                 const SizedBox(height: 4),
@@ -608,12 +694,13 @@ class _SummaryCard extends StatelessWidget {
                   ),
                 ),
 
-                if (data.amount == 3500000)
-                  const Align(
+                // Persentase dinamis untuk target omset penjualan
+                if (data.title == 'Total Omset Penjualan')
+                  Align(
                     alignment: Alignment.centerRight,
                     child: Text(
-                      '87.5%',
-                      style: TextStyle(
+                      '${(data.progress * 100).toStringAsFixed(1)}%',
+                      style: const TextStyle(
                         color: ownerNavy,
                         fontSize: 6,
                         fontWeight: FontWeight.bold,
@@ -634,46 +721,39 @@ class _SummaryCard extends StatelessWidget {
 // ============================================================
 
 class _SalesChartCard extends StatefulWidget {
-  const _SalesChartCard({required this.controller});
+  const _SalesChartCard({required this.controller, required this.data});
 
   final AnimationController controller;
+  final List<Map<String, dynamic>> data; // dari data['grafik_per_jam']
 
   @override
   State<_SalesChartCard> createState() => _SalesChartCardState();
 }
 
 class _SalesChartCardState extends State<_SalesChartCard> {
-  static const List<double> values = [
-    0.30,
-    0.44,
-    0.55,
-    0.72,
-    0.51,
-    1.00,
-    0.65,
-    0.37,
-    0.22,
-  ];
-
-  static const List<String> hours = [
-    '16:00',
-    '17:00',
-    '18:00',
-    '19:00',
-    '20:00',
-    '21:00',
-    '22:00',
-    '23:00',
-    '24:00',
-  ];
-
-  static const double peakAmount = 642500;
-  static const int peakIndex = 5;
-
   int? activeIndex;
+
+  double _num(dynamic v) => double.tryParse('$v') ?? 0;
+
+  List<double> get totals => widget.data.map((e) => _num(e['total'])).toList();
+
+  List<String> get hours =>
+      widget.data.map((e) => '${e['jam']}'.substring(0, 2)).toList();
+
+  double get maxTotal => totals.fold<double>(0, (a, b) => a > b ? a : b);
+
+  int get peakIndex => maxTotal > 0 ? totals.indexOf(maxTotal) : -1;
+
+  double get average {
+    final aktif = totals.where((t) => t > 0).toList();
+    if (aktif.isEmpty) return 0;
+    return aktif.reduce((a, b) => a + b) / aktif.length;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final n = totals.length;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
@@ -699,122 +779,122 @@ class _SalesChartCardState extends State<_SalesChartCard> {
               fontWeight: FontWeight.w900,
             ),
           ),
-
           const SizedBox(height: 8),
+          if (n == 0 || maxTotal == 0)
+            const SizedBox(
+              height: 120,
+              child: Center(
+                child: Text(
+                  'Belum ada penjualan hari ini.',
+                  style: TextStyle(color: Colors.black54, fontSize: 11),
+                ),
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final chartHeight = constraints.maxWidth < 450 ? 175.0 : 205.0;
+                final barMaxHeight = chartHeight * 0.78;
+                final slot = constraints.maxWidth / n;
+                final tooltipLeft = ((peakIndex + 0.5) * slot - 55).clamp(
+                  0.0,
+                  constraints.maxWidth - 110,
+                );
 
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final chartHeight = constraints.maxWidth < 450 ? 175.0 : 205.0;
-
-              return SizedBox(
-                height: chartHeight,
-                width: double.infinity,
-                child: Stack(
-                  children: [
-                    // GARIS TARGET RATA-RATA
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      top: chartHeight * 0.60,
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              height: 1,
-                              decoration: const BoxDecoration(
-                                border: Border(
-                                  top: BorderSide(
-                                    color: Color(0xFF8BA2B8),
-                                    width: 0.7,
-                                    style: BorderStyle.solid,
-                                  ),
+                return SizedBox(
+                  height: chartHeight,
+                  width: double.infinity,
+                  child: Stack(
+                    children: [
+                      // GARIS RATA-RATA (dari data asli)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 17 + barMaxHeight * (average / maxTotal),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                height: 1,
+                                color: const Color(0xFF8BA2B8),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 2,
+                              ),
+                              color: const Color(0xFFE5F4FA),
+                              child: Text(
+                                'Rata-rata: Rp. ${_formatNumber(average)}',
+                                style: const TextStyle(
+                                  color: Color(0xFF1687C1),
+                                  fontSize: 6,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 5,
-                              vertical: 2,
-                            ),
-                            color: const Color(0xFFE5F4FA),
-                            child: const Text(
-                              'Rata-rata Target: Rp. 350.000',
-                              style: TextStyle(
-                                color: Color(0xFF1687C1),
-                                fontSize: 6,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // BATANG GRAFIK
-                    Positioned.fill(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: List.generate(values.length, (index) {
-                          return Expanded(
-                            child: _buildBar(index, chartHeight),
-                          );
-                        }),
-                      ),
-                    ),
-
-                    // TOOLTIP PUNCAK
-                    Positioned(
-                      top: 0,
-                      left: constraints.maxWidth * 0.48,
-                      child: Container(
-                        padding: const EdgeInsets.all(7),
-                        decoration: BoxDecoration(
-                          color: ownerNavy,
-                          borderRadius: BorderRadius.circular(5),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.2),
-                              blurRadius: 5,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '● Jam Sibuk Tertinggi (21:00)',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 6,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Rp 642.500',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              '25 Struk | Best Order: Aren Latte (8 Cup)',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 5,
-                              ),
-                            ),
                           ],
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
+
+                      // BATANG GRAFIK
+                      Positioned.fill(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: List.generate(n, (index) {
+                            return Expanded(
+                              child: _buildBar(index, chartHeight),
+                            );
+                          }),
+                        ),
+                      ),
+
+                      // TOOLTIP PUNCAK (dari data asli)
+                      Positioned(
+                        top: 0,
+                        left: tooltipLeft,
+                        child: Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: ownerNavy,
+                            borderRadius: BorderRadius.circular(5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.2),
+                                blurRadius: 5,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '● Jam Sibuk Tertinggi (${hours[peakIndex]}:00)',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 6,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Rp ${_formatNumber(maxTotal)}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -824,7 +904,8 @@ class _SalesChartCardState extends State<_SalesChartCard> {
     final isPeak = index == peakIndex;
     final isActive = activeIndex == index;
 
-    final amount = values[index] * peakAmount;
+    final amount = totals[index];
+    final ratio = maxTotal > 0 ? amount / maxTotal : 0.0;
     final barMaxHeight = chartHeight * 0.78;
 
     return MouseRegion(
@@ -837,7 +918,7 @@ class _SalesChartCardState extends State<_SalesChartCard> {
           });
         },
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 2),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
@@ -850,9 +931,8 @@ class _SalesChartCardState extends State<_SalesChartCard> {
                       final progress = Curves.easeOutCubic.transform(
                         widget.controller.value,
                       );
-
                       return Container(
-                        height: barMaxHeight * values[index] * progress,
+                        height: barMaxHeight * ratio * progress,
                         width: double.infinity,
                         decoration: BoxDecoration(
                           borderRadius: const BorderRadius.vertical(
@@ -867,10 +947,7 @@ class _SalesChartCardState extends State<_SalesChartCard> {
                                     Color(0xFF2B9FC0),
                                     Color(0xFF082640),
                                   ]
-                                : const [
-                                    Color(0xFF3D6997),
-                                    Color(0xFF365D88),
-                                  ],
+                                : const [Color(0xFF3D6997), Color(0xFF365D88)],
                           ),
                         ),
                       );
@@ -878,26 +955,23 @@ class _SalesChartCardState extends State<_SalesChartCard> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 5),
-
               Text(
                 hours[index],
                 style: TextStyle(
-                  color: isActive || index == peakIndex
-                      ? ownerNavy
-                      : Colors.black54,
+                  color: isActive || isPeak ? ownerNavy : Colors.black54,
                   fontSize: 7,
-                  fontWeight: isActive || index == peakIndex
+                  fontWeight: isActive || isPeak
                       ? FontWeight.bold
                       : FontWeight.normal,
                 ),
               ),
-
               if (isActive)
                 Text(
-                  'Rp ${_formatNumber(amount)}',
+                  _formatNumber(amount),
                   maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.clip,
                   style: const TextStyle(
                     color: ownerNavy,
                     fontSize: 6,

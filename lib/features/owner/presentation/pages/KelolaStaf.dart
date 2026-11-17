@@ -75,7 +75,11 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Hapus Staf"),
-        content: Text("Yakin ingin menghapus akun ${staff.name}?"),
+        content: Text(
+          "Hapus akun ${staff.name}?\n\n"
+          "Jika staf sudah punya riwayat transaksi atau shift, akun akan "
+          "dinonaktifkan (bukan dihapus) dan bisa diaktifkan kembali.",
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -87,22 +91,40 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text("Hapus"),
+            child: const Text("Lanjutkan"),
           ),
         ],
       ),
     );
 
-    if (confirmed == true) {
-      final success = await _directory.delete(index);
-      if (!success && mounted && _directory.errorMessage != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_directory.errorMessage!),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    if (confirmed != true) return;
+
+    final success = await _directory.delete(index);
+    if (!mounted) return;
+
+    final msg = success ? _directory.infoMessage : _directory.errorMessage;
+    if (msg != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: success ? Colors.green : Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _activate(int index) async {
+    final success = await _directory.activate(index);
+    if (!mounted) return;
+
+    final msg = success ? _directory.infoMessage : _directory.errorMessage;
+    if (msg != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: success ? Colors.green : Colors.red,
+        ),
+      );
     }
   }
 
@@ -199,130 +221,182 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
                         ),
 
                   const SizedBox(height: 25),
-
-                  AddStaffCard(
-                    onSave: (staff, pin) async {
-                      final ok = await _directory.addStaff(staff, pin: pin);
-                      if (!ok && mounted && _directory.errorMessage != null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(_directory.errorMessage!),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                      return ok;
-                    },
+                  Row(
+                    children: [
+                      ChoiceChip(
+                        label: const Text("Aktif"),
+                        selected: !_directory.showInactive,
+                        onSelected: (_) => _directory.setShowInactive(false),
+                      ),
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        label: const Text("Nonaktif"),
+                        selected: _directory.showInactive,
+                        onSelected: (_) => _directory.setShowInactive(true),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 15),
 
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: filtered.length,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: columns,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 0.65,
+                  if (!_directory.showInactive) ...[
+                    AddStaffCard(
+                      onSave: (staff, pin) async {
+                        final ok = await _directory.addStaff(staff, pin: pin);
+                        if (!ok && mounted && _directory.errorMessage != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(_directory.errorMessage!),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                        return ok;
+                      },
                     ),
-                    itemBuilder: (context, index) {
-                      final staff = filtered[index];
+                    const SizedBox(height: 25),
+                  ],
 
-                      return Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: const [
-                            BoxShadow(color: Colors.black12, blurRadius: 6),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade300,
-                                  borderRadius: BorderRadius.circular(14),
+                  if (_directory.isLoading && filtered.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (filtered.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Center(child: Text("Tidak ada staf.")),
+                    )
+                  else
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: filtered.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columns,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        childAspectRatio: 0.65,
+                      ),
+                      itemBuilder: (context, index) {
+                        final staff = filtered[index];
+                        final realIndex = staffList.indexOf(staff);
+
+                        return Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black12, blurRadius: 6),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade300,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: staff.photoUrl != null
+                                      ? ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                          child: Image.network(
+                                            staff.photoUrl!,
+                                            fit: BoxFit.cover,
+                                            width: double.infinity,
+                                            height: double.infinity,
+                                            errorBuilder: (_, __, ___) =>
+                                                const Icon(
+                                                  Icons.person,
+                                                  size: 60,
+                                                ),
+                                          ),
+                                        )
+                                      : const Icon(Icons.person, size: 60),
                                 ),
-                                child: staff.photoUrl != null
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(14),
-                                        child: Image.network(
-                                          staff.photoUrl!,
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                          height: double.infinity,
-                                          errorBuilder: (_, __, ___) =>
-                                              const Icon(
-                                                Icons.person,
-                                                size: 60,
-                                              ),
-                                        ),
-                                      )
-                                    : const Icon(Icons.person, size: 60),
                               ),
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              staff.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            if (staff.username != null &&
-                                staff.username!.isNotEmpty)
+                              const SizedBox(height: 10),
                               Text(
-                                "@${staff.username}",
+                                staff.name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey,
-                                ),
                               ),
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                SizedBox(
-                                  width: 60,
-                                  height: 28,
-                                  child: ElevatedButton(
-                                    onPressed: () => editStaff(index),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xff0E2F56),
-                                      foregroundColor: Colors.white,
-                                      padding: EdgeInsets.zero,
-                                    ),
-                                    child: const Text(
-                                      "Edit",
-                                      style: TextStyle(fontSize: 11),
-                                    ),
+                              if (staff.username != null &&
+                                  staff.username!.isNotEmpty)
+                                Text(
+                                  "@${staff.username}",
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey,
                                   ),
                                 ),
-                                const SizedBox(width: 6),
-                                SizedBox(
-                                  width: 32,
-                                  height: 28,
-                                  child: IconButton(
-                                    padding: EdgeInsets.zero,
-                                    icon: const Icon(
-                                      Icons.delete_outline,
-                                      size: 20,
-                                      color: Colors.red,
+                              const SizedBox(height: 8),
+                              _directory.showInactive
+                                  ? SizedBox(
+                                      height: 28,
+                                      child: ElevatedButton(
+                                        onPressed: () => _activate(realIndex),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.green,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        child: const Text(
+                                          "Aktifkan",
+                                          style: TextStyle(fontSize: 11),
+                                        ),
+                                      ),
+                                    )
+                                  : Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          width: 60,
+                                          height: 28,
+                                          child: ElevatedButton(
+                                            onPressed: () =>
+                                                editStaff(realIndex),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(
+                                                0xff0E2F56,
+                                              ),
+                                              foregroundColor: Colors.white,
+                                              padding: EdgeInsets.zero,
+                                            ),
+                                            child: const Text(
+                                              "Edit",
+                                              style: TextStyle(fontSize: 11),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        SizedBox(
+                                          width: 32,
+                                          height: 28,
+                                          child: IconButton(
+                                            padding: EdgeInsets.zero,
+                                            icon: const Icon(
+                                              Icons.delete_outline,
+                                              size: 20,
+                                              color: Colors.red,
+                                            ),
+                                            onPressed: () =>
+                                                _confirmDelete(realIndex),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    onPressed: () => _confirmDelete(index),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                 ],
               ),
             );
@@ -430,11 +504,7 @@ class _AddStaffCardState extends State<AddStaffCard> {
     setState(() => _isSaving = true);
     try {
       final saved = await widget.onSave(
-        Staff(
-          name: name,
-          photoPath: photoPath,
-          photoBytes: photoBytes,
-        ),
+        Staff(name: name, photoPath: photoPath, photoBytes: photoBytes),
         pin,
       );
 

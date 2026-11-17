@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:kasir_celcious_coffe/data/produk_data.dart';
 import 'package:kasir_celcious_coffe/features/owner/application/product_management_service.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/product_image.dart';
+import 'dart:async';
 
 const _navy = Color(0xff082640);
 const _background = Color(0xffdce9f4);
@@ -49,14 +50,23 @@ class _ProdukPageState extends State<ProdukPage> {
     ProductManagementService.defaultCategories,
   );
 
+  Timer? _timer;
+
   @override
   void initState() {
     super.initState();
     _loadCategories();
+    ProdukData.loadFromApi().catchError((e) {
+      if (mounted) _snack('Gagal memuat produk: $e');
+    });
+    _timer = Timer.periodic(const Duration(seconds: 10), (_) {
+      ProdukData.loadFromApi();
+    });
   }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _searchController.dispose();
     _nameController.dispose();
     _priceController.dispose();
@@ -65,7 +75,7 @@ class _ProdukPageState extends State<ProdukPage> {
     super.dispose();
   }
 
-  // ============================================================
+   // ============================================================
   // KATEGORI
   // ============================================================
 
@@ -284,15 +294,49 @@ class _ProdukPageState extends State<ProdukPage> {
       ),
     );
 
-    if (confirmed != true || !mounted) return;
-
     try {
       await ProductManagementService.deleteProduct(product);
     } catch (error) {
       if (!mounted) return;
-      _snack('Gagal menghapus produk: $error');
+
+      if ('$error'.contains('riwayat transaksi')) {
+        final nonaktif = await showDialog<bool>(
+          context: context,
+          builder: (c) => AlertDialog(
+            title: const Text('Tidak bisa dihapus'),
+            content: const Text(
+              'Produk ini sudah punya riwayat transaksi. Nonaktifkan saja?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Batal'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: const Text('Nonaktifkan'),
+              ),
+            ],
+          ),
+        );
+
+        if (nonaktif == true) {
+          try {
+            await ProductManagementService.setProductActive(
+              product,
+              isActive: false,
+            );
+            if (mounted) _snack('Produk dinonaktifkan.');
+          } catch (e) {
+            if (mounted) _snack('Gagal menonaktifkan produk: $e');
+          }
+        }
+      } else {
+        _snack('Gagal menghapus produk: $error');
+      }
       return;
     }
+    // ===== AKHIR BAGIAN YANG DIGANTI =====
 
     if (!mounted) return;
     _snack('Produk "$name" berhasil dihapus.');
@@ -593,6 +637,7 @@ class _ProdukPageState extends State<ProdukPage> {
               fontWeight: FontWeight.w600,
             ),
           ),
+
           const SizedBox(width: 5),
           Expanded(
             child: TextField(
@@ -764,90 +809,107 @@ class _ProdukPageState extends State<ProdukPage> {
   //card menu
   Widget _productCard(Map<String, dynamic> product) {
     final name = product['name']?.toString() ?? 'Produk';
-
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: _shadow(),
-      ),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: SizedBox(
-                  width: 84,
-                  height: 84,
-                  child: ColoredBox(
-                    color: _imageColor,
-                    child: ProductImage(image: product['image']),
+    final aktif = product['is_active'] == true;
+    return Opacity(
+      opacity: aktif ? 1 : 0.5,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: _shadow(),
+        ),
+        child: Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: SizedBox(
+                    width: 84,
+                    height: 84,
+                    child: ColoredBox(
+                      color: _imageColor,
+                      child: ProductImage(image: product['image']),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        color: _navy,
-                        fontSize: 14,
-                        height: 1.2,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      _rupiah(product['price']),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        color: _navy,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    Row(
-                      children: [
-                        IconButton(
-                          tooltip: 'Edit $name',
-                          visualDensity: VisualDensity.compact,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints.tightFor(
-                            width: 30,
-                            height: 30,
-                          ),
-                          onPressed: () => _editProduct(product),
-                          icon: const Icon(
-                            Icons.edit_outlined,
-                            color: _navy,
-                            size: 18,
-                          ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          color: _navy,
+                          fontSize: 14,
+                          height: 1.2,
+                          fontWeight: FontWeight.w700,
                         ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: _AnimatedDeleteButton(
-                            tooltip: 'Hapus $name',
-                            onPressed: () => _deleteProduct(product),
-                          ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _rupiah(product['price']),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          color: _navy,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 7),
+                      Row(
+                        children: [
+                          IconButton(
+                            tooltip: 'Edit $name',
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints.tightFor(
+                              width: 30,
+                              height: 30,
+                            ),
+                            onPressed: () => _editProduct(product),
+                            icon: const Icon(
+                              Icons.edit_outlined,
+                              color: _navy,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: _AnimatedDeleteButton(
+                              tooltip: 'Hapus $name',
+                              onPressed: () => _deleteProduct(product),
+                            ),
+                          ),
+                          Switch(
+                            value: product['is_active'] == true,
+                            onChanged: (v) async {
+                              try {
+                                await ProductManagementService.setProductActive(
+                                  product,
+                                  isActive: v,
+                                );
+                              } catch (e) {
+                                if (mounted)
+                                  _snack('Gagal mengubah status: $e');
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

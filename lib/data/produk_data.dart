@@ -174,7 +174,7 @@ class ProdukData {
 
   /// Muat produk dari backend. Gagal -> daftar lama tetap dipakai.
   /// Butuh token login, jadi panggil SETELAH kasir/owner login.
-  static Future<void> loadFromApi() async {
+  static Future<void> loadFromApi({bool throwOnError = false}) async {
     try {
       final res = await ApiService.get('produk');
       final data = res['data'];
@@ -243,21 +243,16 @@ class ProdukData {
   }
 
   static Future<void> setProductActive(
-    Map<String, dynamic> product, {
-    required bool isActive,
-  }) async {
-    final products = List<Map<String, dynamic>>.from(produk.value);
-    final index = products.indexWhere((item) => identical(item, product));
-    if (index < 0) throw StateError('Produk sudah tidak tersedia.');
-
-    final id = product['id_produk'];
-    if (id is num) {
-      await ApiService.patch('produk/${id.toInt()}/status', {
-        'status': isActive ? 'aktif' : 'nonaktif',
-      });
-    }
-
-    products[index] = {...products[index], 'is_active': isActive};
-    await saveProducts(products);
+  Map<String, dynamic> product, {
+  required bool isActive,
+}) async {
+  final id = product['id_produk'];
+  if (id is! num) {
+    throw StateError('ID produk tidak ditemukan. Muat ulang data produk.');
   }
+  await ApiService.patch('produk/${id.toInt()}/status', {
+    'status': isActive ? 'aktif' : 'nonaktif',
+  });
+  await loadFromApi(throwOnError: true);
+}
 }

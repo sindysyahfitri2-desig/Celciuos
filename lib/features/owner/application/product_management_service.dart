@@ -201,20 +201,10 @@ class ProductManagementService {
     await ProdukData.loadFromApi();
   }
 
-  static Future<void> setProductActive(
-    Map<String, dynamic> product, {
-    required bool isActive,
-  }) async {
-    final id = product['id_produk'];
-
-    if (id == null) {
-      throw Exception('ID produk tidak ditemukan.');
-    }
-
-    await ApiService.put('produk/$id', {
-      'status': isActive ? 'aktif' : 'nonaktif',
-    });
-
-    await ProdukData.loadFromApi();
-  }
+ static Future<void> setProductActive(
+  Map<String, dynamic> product, {
+  required bool isActive,
+}) async {
+  await ProdukData.setProductActive(product, isActive: isActive);
+}
 }
