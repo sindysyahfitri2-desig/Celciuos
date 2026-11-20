@@ -56,8 +56,14 @@ class AppBrandingLogo extends StatelessWidget {
   }
 
   Widget _fallback() {
-    return Center(
-      child: Icon(fallbackIcon, color: Colors.white, size: fallbackIconSize),
+    return Image.asset(
+      'assets/images/Logo.jpeg',
+      fit: fit,
+      errorBuilder: (context, error, stackTrace) {
+        return Center(
+          child: Icon(fallbackIcon, color: const Color(0xFF103657), size: fallbackIconSize),
+        );
+      },
     );
   }
 }

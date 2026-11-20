@@ -86,7 +86,10 @@ class ApiService {
       uri = uri.replace(queryParameters: query);
     }
 
-    final response = await _client.get(uri, headers: await _headers(json: false));
+    final response = await _client.get(
+      uri,
+      headers: await _headers(json: false),
+    );
     return _handleResponse(response);
   }
 
@@ -172,6 +175,27 @@ class ApiService {
     final response = await http.Response.fromStream(streamed);
     return _handleResponse(response);
   }
+  // ============================================================
+  // PEMBAYARAN QRIS MIDTRANS
+  // ============================================================
+
+  static Future<Map<String, dynamic>> createQrisPayment({
+    required String namaPelanggan,
+    required String kode,
+    required String tipePesanan,
+    required double diskonInput,
+    required String jenisDiskon,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    return post('transaksi/qris', {
+      'nama_pelanggan': namaPelanggan,
+      'kode': kode,
+      'tipe_pesanan': tipePesanan,
+      'diskon_input': diskonInput,
+      'jenis_diskon': jenisDiskon,
+      'items': items,
+    });
+  }
 
   // ============================================================
   // PENANGANAN RESPON SERVER
@@ -196,8 +220,8 @@ class ApiService {
 
     // Jika terjadi error dari Laravel (misal validasi atau 401/403)
     if (data is Map<String, dynamic>) {
-      final message = data['message']?.toString() ??
-          'Terjadi kesalahan pada server.';
+      final message =
+          data['message']?.toString() ?? 'Terjadi kesalahan pada server.';
       final errors = data['errors'];
       if (errors is Map) {
         final details = errors.values

@@ -17,10 +17,9 @@ class AppBrandingStore {
   static Future<void> initialize() async {
     final preferences = await SharedPreferences.getInstance();
     final savedData = preferences.getString(_logoDataKey);
-    if (savedData != null) {
+    if (savedData != null && savedData.isNotEmpty) {
       try {
         logoBytes.value = base64Decode(savedData);
-        logoPath.value = null;
         return;
       } on FormatException {
         await preferences.remove(_logoDataKey);
@@ -28,12 +27,13 @@ class AppBrandingStore {
     }
 
     final savedPath = preferences.getString(_logoPathKey);
-    if (savedPath == null) return;
-
-    if (!kIsWeb && await File(savedPath).exists()) {
-      logoPath.value = savedPath;
-    } else {
-      await preferences.remove(_logoPathKey);
+    if (savedPath != null) {
+      if (!kIsWeb && await File(savedPath).exists()) {
+        logoPath.value = savedPath;
+        try {
+          logoBytes.value = await File(savedPath).readAsBytes();
+        } catch (_) {}
+      }
     }
   }
 
@@ -44,47 +44,37 @@ class AppBrandingStore {
     }
 
     final preferences = await SharedPreferences.getInstance();
-    if (kIsWeb) {
-      final saved = await preferences.setString(
-        _logoDataKey,
-        base64Encode(bytes),
-      );
-      if (!saved) {
-        throw StateError('Gagal menyimpan foto toko.');
+
+    // Selalu simpan data base64 ke SharedPreferences agar logo permanen dan tidak hilang saat sistem dimatikan/restart
+    final base64String = base64Encode(bytes);
+    await preferences.setString(_logoDataKey, base64String);
+
+    if (!kIsWeb) {
+      try {
+        final supportDirectory = await getApplicationSupportDirectory();
+        final brandingDirectory = Directory(
+          '${supportDirectory.path}${Platform.pathSeparator}branding',
+        );
+        await brandingDirectory.create(recursive: true);
+
+        final extension = image.name.contains('.')
+            ? image.name.split('.').last.toLowerCase()
+            : 'jpg';
+        const supportedExtensions = {'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'};
+        final safeExtension = supportedExtensions.contains(extension)
+            ? extension
+            : 'jpg';
+        final destination = File(
+          '${brandingDirectory.path}${Platform.pathSeparator}logo.$safeExtension',
+        );
+        await File(image.path).copy(destination.path);
+        await preferences.setString(_logoPathKey, destination.path);
+        logoPath.value = destination.path;
+      } catch (e) {
+        debugPrint('Gagal menyimpan file logo fisik: $e');
       }
-      await preferences.remove(_logoPathKey);
-      logoPath.value = null;
-      logoBytes.value = bytes;
-      return;
     }
 
-    final supportDirectory = await getApplicationSupportDirectory();
-    final brandingDirectory = Directory(
-      '${supportDirectory.path}${Platform.pathSeparator}branding',
-    );
-    await brandingDirectory.create(recursive: true);
-
-    final extension = image.name.contains('.')
-        ? image.name.split('.').last.toLowerCase()
-        : 'jpg';
-    const supportedExtensions = {'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'};
-    final safeExtension = supportedExtensions.contains(extension)
-        ? extension
-        : 'jpg';
-    final destination = File(
-      '${brandingDirectory.path}${Platform.pathSeparator}'
-      'logo-${DateTime.now().microsecondsSinceEpoch}.$safeExtension',
-    );
-    await File(image.path).copy(destination.path);
-
-    final saved = await preferences.setString(_logoPathKey, destination.path);
-    if (!saved) {
-      await destination.delete();
-      throw StateError('Gagal menyimpan lokasi foto toko.');
-    }
-
-    await preferences.remove(_logoDataKey);
-    logoPath.value = destination.path;
     logoBytes.value = bytes;
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'data/app_branding_store.dart';
 import 'data/produk_data.dart';
 import 'data/receipt_settings_store.dart';
+import 'data/sticker_settings_store.dart';
 import 'data/transaction_store.dart';
 import 'package:kasir_celcious_coffe/features/auth/presentation/pilih_peran_page.dart';
 
@@ -31,6 +32,7 @@ class _MyAppState extends State<MyApp> {
     await ProdukData.initialize();
     await AppBrandingStore.initialize();
     await ReceiptSettingsStore.initialize();
+    await StickerSettingsStore.initialize();
   }
 
   void _retryInitialization() {

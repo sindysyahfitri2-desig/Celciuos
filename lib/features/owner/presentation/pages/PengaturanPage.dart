@@ -1,13 +1,18 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:kasir_celcious_coffe/data/api_service.dart';
 import 'package:kasir_celcious_coffe/data/app_branding_store.dart';
 import 'package:kasir_celcious_coffe/data/qris_store.dart';
 import 'package:kasir_celcious_coffe/data/receipt_settings_store.dart';
+import 'package:kasir_celcious_coffe/data/sticker_settings_store.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
+import 'package:kasir_celcious_coffe/features/settings/application/backup_service.dart';
 import 'package:kasir_celcious_coffe/features/settings/application/settings_service.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
+import 'package:kasir_celcious_coffe/features/settings/application/print_service.dart';
 
 String _formatPercent(double rate) =>
     (rate * 100).toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
@@ -39,8 +44,16 @@ class _PengaturanPageState extends State<PengaturanPage> {
   // ==========================================================
 
   bool strukAktif = true;
-  bool stikerAktif = false;
+  bool stikerAktif = true;
   bool _showReceiptManagement = false;
+  // di bagian DATA PENGATURAN (hapus _showStickerManagement lama, ganti ini bila perlu)
+  bool _showStickerManagement = false;
+
+  final TextEditingController captionController = TextEditingController(
+    text: 'Selamat menikmati, semoga harimu menyenangkan ☕',
+  );
+  bool _isSavingPengaturan = false;
+  bool _isExporting = false;
 
   String namaToko = 'Nama Toko';
   String alamatToko = 'Alamat Toko';
@@ -59,15 +72,17 @@ class _PengaturanPageState extends State<PengaturanPage> {
   // CONTROLLER
   // ==========================================================
 
-  final TextEditingController namaTokoController =
-      TextEditingController(text: 'Celcious Coffe');
+  final TextEditingController namaTokoController = TextEditingController(
+    text: 'Celcious Coffe',
+  );
 
   final TextEditingController ppnController = TextEditingController(
     text: _formatPercent(TransactionStore.ppnRate.value),
   );
 
-  final TextEditingController pelayananController =
-      TextEditingController(text: '2');
+  final TextEditingController pelayananController = TextEditingController(
+    text: '2',
+  );
 
   // ==========================================================
   // INIT STATE
@@ -78,6 +93,8 @@ class _PengaturanPageState extends State<PengaturanPage> {
     super.initState();
     _muatFotoQris();
     _muatPengaturanStruk();
+    _muatPengaturanStiker();
+    _muatPengaturanBackend();
   }
 
   Future<void> _muatPengaturanStruk() async {
@@ -87,22 +104,109 @@ class _PengaturanPageState extends State<PengaturanPage> {
       if (!mounted) return;
 
       setState(() {
-        strukAktif =
-            ReceiptSettingsStore.options.value['enabled'] ?? true;
+        strukAktif = ReceiptSettingsStore.options.value['enabled'] ?? true;
       });
     } catch (error) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal memuat pengaturan struk: $error'),
-        ),
+        SnackBar(content: Text('Gagal memuat pengaturan struk: $error')),
       );
     }
   }
 
+  Future<void> _muatPengaturanStiker() async {
+    try {
+      await StickerSettingsStore.initialize();
+
+      if (!mounted) return;
+
+      setState(() {
+        stikerAktif = StickerSettingsStore.options.value['enabled'] ?? true;
+      });
+    } catch (error) {
+      debugPrint('Gagal memuat pengaturan stiker: $error');
+    }
+  }
+
   // ==========================================================
-  // SIMPAN OPSI STRUK
+  // MUAT PENGATURAN DARI BACKEND
+  // ==========================================================
+
+  Future<void> _muatPengaturanBackend() async {
+    try {
+      final res = await ApiService.get('pengaturan-toko');
+      final data = res['data'];
+      if (data is Map<String, dynamic> && mounted) {
+        setState(() {
+          if (data['nama_toko'] != null &&
+              data['nama_toko'].toString().trim().isNotEmpty) {
+            namaTokoController.text = data['nama_toko'].toString().trim();
+            namaToko = namaTokoController.text;
+          }
+          if (data['alamat'] != null) {
+            alamatToko = data['alamat'].toString();
+          }
+          if (data['ppn_persen'] != null) {
+            final rate = double.tryParse(data['ppn_persen'].toString()) ?? 11;
+            ppnController.text = _formatPercent(rate / 100);
+            ppn = '${ppnController.text}%';
+            TransactionStore.savePpnRate(rate / 100);
+          }
+          if (data['biaya_layanan_persen'] != null) {
+            final svc =
+                double.tryParse(data['biaya_layanan_persen'].toString()) ?? 2;
+            pelayananController.text = svc.toStringAsFixed(0);
+            biayaPelayanan = '${pelayananController.text}%';
+          }
+          if (data['printer_struk'] != null) {
+            strukAktif = data['printer_struk'] == 'aktif';
+            ReceiptSettingsStore.setOption('enabled', strukAktif);
+          }
+          if (data['printer_stiker'] != null) {
+            stikerAktif = data['printer_stiker'] == 'aktif';
+            StickerSettingsStore.setOption('enabled', stikerAktif);
+          }
+          if (data['caption_stiker'] != null) {
+            captionController.text = data['caption_stiker'].toString();
+          }
+          if (data['template_struk'] is String &&
+              data['template_struk'].toString().isNotEmpty) {
+            try {
+              final decoded = jsonDecode(data['template_struk']);
+              if (decoded is Map) {
+                for (final e in decoded.entries) {
+                  if (e.key is String && e.value is bool) {
+                    ReceiptSettingsStore.options.value[e.key as String] =
+                        e.value as bool;
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+          if (data['template_stiker'] is String &&
+              data['template_stiker'].toString().isNotEmpty) {
+            try {
+              final decoded = jsonDecode(data['template_stiker']);
+              if (decoded is Map) {
+                for (final e in decoded.entries) {
+                  if (e.key is String && e.value is bool) {
+                    StickerSettingsStore.options.value[e.key as String] =
+                        e.value as bool;
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Gagal memuat pengaturan toko dari backend: $e');
+    }
+  }
+
+  // ==========================================================
+  // SIMPAN OPSI STRUK & STIKER
   // ==========================================================
 
   Future<void> _simpanOpsiStruk(String key, bool value) async {
@@ -112,17 +216,35 @@ class _PengaturanPageState extends State<PengaturanPage> {
       if (!mounted) return;
 
       setState(() {
-        if (key == 'enabled') {
-          strukAktif = value;
-        }
+        if (key == 'enabled') strukAktif = value;
       });
+
+      await _sinkronTemplateBackend();
     } catch (error) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal menyimpan pengaturan struk: $error'),
-        ),
+        SnackBar(content: Text('Gagal menyimpan pengaturan struk: $error')),
+      );
+    }
+  }
+
+  Future<void> _simpanOpsiStiker(String key, bool value) async {
+    try {
+      await StickerSettingsStore.setOption(key, value);
+
+      if (!mounted) return;
+
+      setState(() {
+        if (key == 'enabled') stikerAktif = value;
+      });
+
+      await _sinkronTemplateBackend();
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menyimpan pengaturan stiker: $error')),
       );
     }
   }
@@ -146,11 +268,9 @@ class _PengaturanPageState extends State<PengaturanPage> {
 
       setState(() => _memuatQris = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal memuat foto QRIS: $error'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memuat foto QRIS: $error')));
     }
   }
 
@@ -174,17 +294,13 @@ class _PengaturanPageState extends State<PengaturanPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Foto QRIS berhasil disimpan'),
-        ),
+        const SnackBar(content: Text('Foto QRIS berhasil disimpan')),
       );
     } catch (error) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal menyimpan foto QRIS: $error'),
-        ),
+        SnackBar(content: Text('Gagal menyimpan foto QRIS: $error')),
       );
     }
   }
@@ -198,6 +314,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
     namaTokoController.dispose();
     ppnController.dispose();
     pelayananController.dispose();
+    captionController.dispose();
     super.dispose();
   }
 
@@ -206,11 +323,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
   // ==========================================================
 
   TextStyle normalStyle(double size) {
-    return TextStyle(
-      color: navy,
-      fontSize: size,
-      fontWeight: FontWeight.w500,
-    );
+    return TextStyle(color: navy, fontSize: size, fontWeight: FontWeight.w500);
   }
 
   // ==========================================================
@@ -237,9 +350,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal menyimpan foto toko: $error'),
-        ),
+        SnackBar(content: Text('Gagal menyimpan foto toko: $error')),
       );
     }
   }
@@ -250,8 +361,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
 
   Future<void> simpanPengaturan() async {
     try {
-      final ppnValue =
-          await SettingsService.saveTaxRate(ppnController.text);
+      final ppnValue = await SettingsService.saveTaxRate(ppnController.text);
 
       if (!mounted) return;
 
@@ -265,24 +375,20 @@ class _PengaturanPageState extends State<PengaturanPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pengaturan berhasil disimpan'),
-        ),
+        const SnackBar(content: Text('Pengaturan berhasil disimpan')),
       );
     } on FormatException catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal menyimpan PPN: $error'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal menyimpan PPN: $error')));
     }
   }
 
@@ -297,10 +403,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
         return AlertDialog(
           title: Text(
             'Edit Nama Toko',
-            style: TextStyle(
-              color: navy,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: navy, fontWeight: FontWeight.bold),
           ),
           content: TextField(
             controller: namaTokoController,
@@ -336,6 +439,487 @@ class _PengaturanPageState extends State<PengaturanPage> {
   }
 
   // ==========================================================
+  // SINKRON KE BACKEND
+  // ==========================================================
+
+  Future<void> _sinkronTemplateBackend() async {
+    try {
+      // SESUAIKAN: nama method & endpoint ApiService milikmu (put/post)
+      await ApiService.put('pengaturan-toko', {
+        'template_struk': jsonEncode(ReceiptSettingsStore.options.value),
+        'template_stiker': jsonEncode(StickerSettingsStore.options.value),
+        'caption_stiker': captionController.text
+            .trim(), // SESUAIKAN: kolom baru di backend
+        'printer_struk': strukAktif ? 'aktif' : 'nonaktif',
+        'printer_stiker': stikerAktif ? 'aktif' : 'nonaktif',
+      });
+    } catch (e) {
+      debugPrint('Gagal sinkron template ke backend: $e');
+    }
+  }
+
+  Future<void> _simpanCaption() async {
+    await _sinkronTemplateBackend();
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Caption stiker disimpan')));
+  }
+
+  Map<String, dynamic> get _contohTransaksi => {
+    'id_transaksi': 0,
+    'kode': 'A201',
+    'nama_pelanggan': 'desi',
+    'tipe_pesanan': 'Dine In',
+    'tanggal': DateTime.now().toIso8601String(),
+    'subtotal': '20000',
+    'ppn': '2200',
+    'biaya_layanan': '400',
+    'diskon': '0',
+    'total': '22600',
+    'pengguna': {'nama': 'Dessy Manurung', 'username': 'CL0101'},
+    'metode_pembayaran': {'nama_metode': 'Qris'},
+    'detail_transaksi': [
+      {
+        'jumlah': 2,
+        'varian': 'ICE, REGULAR',
+        'harga_satuan': '10000',
+        'subtotal': '20000',
+        'produk': {'nama_produk': 'Americano'},
+      },
+    ],
+  };
+
+  Future<void> _tesCetakStikerDapur() async {
+    await _sinkronTemplateBackend(); // pastikan template terbaru sudah di server
+    await PrintService.cetakStikerTransaksi(_contohTransaksi);
+  }
+
+  Future<void> _tesCetakStruk() async {
+    await _sinkronTemplateBackend();
+    await PrintService.cetakStruk(_contohTransaksi);
+  }
+
+  Future<void> _pilihPrinter(String prefKey, String label) async {
+    final nama = await PrintService.pilihPrinter(context, prefKey);
+    if (!mounted || nama == null) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Printer $label: $nama')));
+  }
+  // ==========================================================
+  // EKSPOR BACKUP
+  // ==========================================================
+
+  Future<void> _ekspor({required bool excel}) async {
+    if (_isExporting) return;
+    setState(() => _isExporting = true);
+    try {
+      final path = excel
+          ? await BackupService.exportToExcel()
+          : await BackupService.exportToJson();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Backup berhasil disimpan: $path')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal ekspor backup: $e')));
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  Widget _tombolEkspor({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+    required double size,
+  }) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: size + 2),
+      label: Text(
+        label,
+        style: TextStyle(fontSize: size - 1, fontWeight: FontWeight.w600),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  // ==========================================================
+  // KARTU STIKER (dipakai preview DAN cetak, kirim data pesanan asli)
+  // ==========================================================
+
+  Widget _stikerCard({
+    required Map<String, bool> options,
+    required String nomor,
+    required String namaPelanggan,
+    required String tipe,
+    required String menu,
+    required String varian,
+    required String waktu,
+    required String kode,
+    required String urutan,
+    required String caption,
+    double scale = 1,
+  }) {
+    bool on(String k) => options[k] ?? true;
+    const mono = 'Courier';
+    const ink = Color(0xff222222);
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(16 * scale),
+      decoration: BoxDecoration(
+        color: const Color(0xfffcfbf6),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xffe4e1d6)),
+        boxShadow: [
+          BoxShadow(
+            color: navy.withValues(alpha: 0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              if (on('orderNumber'))
+                Text(
+                  nomor,
+                  style: TextStyle(
+                    fontFamily: mono,
+                    color: ink,
+                    fontSize: 14 * scale,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              const Spacer(),
+              if (on('customerName'))
+                Text(
+                  namaPelanggan,
+                  style: TextStyle(
+                    fontFamily: mono,
+                    color: ink,
+                    fontSize: 14 * scale,
+                  ),
+                ),
+              if (on('customerName') && on('orderType'))
+                const SizedBox(width: 4),
+              if (on('orderType'))
+                Text(
+                  tipe,
+                  style: TextStyle(
+                    fontFamily: mono,
+                    color: ink,
+                    fontSize: 14 * scale,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+            ],
+          ),
+          if (on('productName'))
+            Padding(
+              padding: EdgeInsets.only(top: 4 * scale),
+              child: Text(
+                menu,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: mono,
+                  color: ink,
+                  fontSize: 26 * scale,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          if (on('productVariant'))
+            Padding(
+              padding: EdgeInsets.only(top: 4 * scale),
+              child: Text(
+                varian,
+                style: TextStyle(
+                  fontFamily: mono,
+                  color: ink,
+                  fontSize: 11 * scale,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          if (on('caption') && caption.trim().isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(top: 10 * scale),
+              child: Text(
+                caption,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: mono,
+                  color: const Color(0xff555555),
+                  fontSize: 10 * scale,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          SizedBox(height: 22 * scale),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Text(
+                  [
+                    if (on('orderTime')) waktu,
+                    if (on('cashierCode')) kode,
+                  ].join(' '),
+                  style: TextStyle(
+                    fontFamily: mono,
+                    color: ink,
+                    fontSize: 10 * scale,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              if (on('itemProgress'))
+                Text(
+                  urutan,
+                  style: TextStyle(
+                    fontFamily: mono,
+                    color: ink,
+                    fontSize: 12 * scale,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================
+  // HALAMAN KELOLA STIKER
+  // ==========================================================
+
+  Widget _halamanKelolaStiker({
+    required bool isMobile,
+    required double maxContentWidth,
+  }) {
+    final options = StickerSettingsStore.options.value;
+    final bool besar = !isMobile;
+
+    final items = <(String, String)>[
+      ('orderNumber', 'Nomor Antrian'),
+      ('customerName', 'Nama Pelanggan'),
+      ('orderType', 'Tipe (Dine In / Take Away)'),
+      ('productName', 'Nama Menu'),
+      ('productVariant', 'Varian (Ice, Regular)'),
+      ('orderTime', 'Tanggal & Jam'),
+      ('cashierCode', 'Kode Kasir'),
+      ('itemProgress', 'Urutan Item (2/2)'),
+      ('caption', 'Caption Pelanggan'),
+    ];
+
+    final panel = Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(besar ? 18 : 12),
+      decoration: BoxDecoration(
+        color: _panelNavy,
+        borderRadius: BorderRadius.circular(besar ? 24 : 14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.sell_outlined,
+                color: Colors.white,
+                size: besar ? 24 : 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Elemen Tampilan Stiker',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: besar ? 17 : 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          for (final (key, label) in items)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: (options[key] ?? true) ? _tileNavy : _tileMati,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: SwitchListTile(
+                dense: true,
+                title: Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: besar ? 15 : 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                value: options[key] ?? true,
+                activeThumbColor: Colors.white,
+                activeTrackColor: _biruSwitch,
+                onChanged: (v) => _simpanOpsiStiker(key, v),
+              ),
+            ),
+          const SizedBox(height: 6),
+          Text(
+            'Caption stiker',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: besar ? 14 : 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: captionController,
+            maxLength: 60,
+            maxLines: 2,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.white,
+              hintText: 'Contoh: Kopi enak, hari makin semangat!',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              ElevatedButton.icon(
+                onPressed: _simpanCaption,
+                icon: const Icon(Icons.save_outlined, size: 18),
+                label: const Text('Simpan Caption'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: navy,
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: stikerAktif ? _tesCetakStikerDapur : null,
+                icon: const Icon(Icons.print_outlined, size: 18),
+                label: const Text('Tes Cetak ke Dapur'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _biruSwitch,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () =>
+                    _pilihPrinter(PrintService.kPrinterDapur, 'dapur'),
+                icon: const Icon(Icons.settings_input_hdmi_outlined, size: 18),
+                label: const Text('Pilih Printer Dapur'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: navy,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final preview = _stikerCard(
+      options: options,
+      nomor: 'A201',
+      namaPelanggan: 'desi',
+      tipe: 'Di',
+      menu: 'Americano',
+      varian: 'ICE, REGULAR',
+      waktu: 'OCT 18,17:03',
+      kode: 'CL0101',
+      urutan: '2/2',
+      caption: captionController.text,
+      scale: besar ? 1 : 0.9,
+    );
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: background,
+      child: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(besar ? 28 : 14, 8, besar ? 28 : 14, 28),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxContentWidth),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () =>
+                            setState(() => _showStickerManagement = false),
+                        tooltip: 'Kembali ke Pengaturan',
+                        icon: Icon(Icons.arrow_back_rounded, color: navy),
+                      ),
+                      Expanded(
+                        child: Text(
+                          'Pengaturan Stiker',
+                          style: TextStyle(
+                            color: _judulStruk,
+                            fontSize: besar ? 28 : 19,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (besar)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: panel),
+                        const SizedBox(width: 20),
+                        SizedBox(width: 340, child: preview),
+                      ],
+                    )
+                  else ...[
+                    panel,
+                    const SizedBox(height: 16),
+                    preview,
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ==========================================================
   // BUILD
   // ==========================================================
 
@@ -352,18 +936,17 @@ class _PengaturanPageState extends State<PengaturanPage> {
         final double horizontalPadding = isMobile
             ? 16
             : isTablet
-                ? 29
-                : 45;
+            ? 29
+            : 45;
 
         final double titleSize = isMobile ? 17 : 16;
         final double contentSize = isMobile
             ? 15
             : isTablet
-                ? 16
-                : 14;
+            ? 16
+            : 14;
 
-        final double maxContentWidth =
-            isDesktop ? 1100 : double.infinity;
+        final double maxContentWidth = isDesktop ? 1100 : double.infinity;
 
         _barisKe = 0;
 
@@ -371,6 +954,12 @@ class _PengaturanPageState extends State<PengaturanPage> {
           return _halamanKelolaStruk(
             isMobile: isMobile,
             isTablet: isTablet,
+            maxContentWidth: maxContentWidth,
+          );
+        }
+        if (_showStickerManagement) {
+          return _halamanKelolaStiker(
+            isMobile: isMobile,
             maxContentWidth: maxContentWidth,
           );
         }
@@ -384,13 +973,9 @@ class _PengaturanPageState extends State<PengaturanPage> {
               physics: const BouncingScrollPhysics(),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: maxContentWidth,
-                  ),
+                  constraints: BoxConstraints(maxWidth: maxContentWidth),
                   child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: isMobile ? 25 : 35,
-                    ),
+                    padding: EdgeInsets.only(bottom: isMobile ? 25 : 35),
                     child: Column(
                       children: [
                         profileSection(
@@ -409,8 +994,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                           isMobile: isMobile,
                           child: Wrap(
                             alignment: WrapAlignment.end,
-                            crossAxisAlignment:
-                                WrapCrossAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             spacing: isMobile ? 4 : 18,
                             runSpacing: 2,
                             children: [
@@ -420,21 +1004,15 @@ class _PengaturanPageState extends State<PengaturanPage> {
                                 icon: Icons.print_outlined,
                                 size: contentSize,
                                 onChanged: (value) =>
-                                    _simpanOpsiStruk(
-                                  'enabled',
-                                  value,
-                                ),
+                                    _simpanOpsiStruk('enabled', value),
                               ),
                               deviceSwitch(
                                 label: 'Stiker',
                                 value: stikerAktif,
                                 icon: Icons.print_outlined,
                                 size: contentSize,
-                                onChanged: (value) {
-                                  setState(() {
-                                    stikerAktif = value;
-                                  });
-                                },
+                                onChanged: (value) =>
+                                    _simpanOpsiStiker('enabled', value),
                               ),
                             ],
                           ),
@@ -464,8 +1042,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                             size: contentSize,
                             onPressed: () {
                               setState(() {
-                                biayaPelayanan =
-                                    '${pelayananController.text}%';
+                                biayaPelayanan = '${pelayananController.text}%';
                               });
                             },
                           ),
@@ -478,8 +1055,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                           horizontalPadding: horizontalPadding,
                           isMobile: isMobile,
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.end,
+                            crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               paymentControl(
                                 size: contentSize,
@@ -487,8 +1063,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                               ),
                               // muncul halus hanya setelah foto QRIS ditambahkan (tombol +)
                               AnimatedSize(
-                                duration:
-                                    const Duration(milliseconds: 350),
+                                duration: const Duration(milliseconds: 350),
                                 curve: Curves.easeOutCubic,
                                 alignment: Alignment.topRight,
                                 child: _qrisImageBytes != null
@@ -527,13 +1102,9 @@ class _PengaturanPageState extends State<PengaturanPage> {
                             ),
                             label: Text(
                               'Kelola',
-                              style: TextStyle(
-                                fontSize: contentSize - 1,
-                              ),
+                              style: TextStyle(fontSize: contentSize - 1),
                             ),
-                            style: TextButton.styleFrom(
-                              foregroundColor: navy,
-                            ),
+                            style: TextButton.styleFrom(foregroundColor: navy),
                           ),
                         ),
 
@@ -543,7 +1114,21 @@ class _PengaturanPageState extends State<PengaturanPage> {
                           titleSize: titleSize,
                           horizontalPadding: horizontalPadding,
                           isMobile: isMobile,
-                          child: const SizedBox.shrink(),
+                          onTap: () =>
+                              setState(() => _showStickerManagement = true),
+                          child: TextButton.icon(
+                            onPressed: () =>
+                                setState(() => _showStickerManagement = true),
+                            icon: Icon(
+                              Icons.tune_rounded,
+                              size: contentSize + 2,
+                            ),
+                            label: Text(
+                              'Kelola',
+                              style: TextStyle(fontSize: contentSize - 1),
+                            ),
+                            style: TextButton.styleFrom(foregroundColor: navy),
+                          ),
                         ),
 
                         // BACKUP
@@ -552,7 +1137,33 @@ class _PengaturanPageState extends State<PengaturanPage> {
                           titleSize: titleSize,
                           horizontalPadding: horizontalPadding,
                           isMobile: isMobile,
-                          child: const SizedBox.shrink(),
+                          child: _isExporting
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Wrap(
+                                  spacing: 8,
+                                  runSpacing: 6,
+                                  alignment: WrapAlignment.end,
+                                  children: [
+                                    _tombolEkspor(
+                                      icon: Icons.table_chart_outlined,
+                                      label: 'Excel',
+                                      size: contentSize,
+                                      onPressed: () => _ekspor(excel: true),
+                                    ),
+                                    _tombolEkspor(
+                                      icon: Icons.data_object_rounded,
+                                      label: 'JSON',
+                                      size: contentSize,
+                                      onPressed: () => _ekspor(excel: false),
+                                    ),
+                                  ],
+                                ),
                         ),
 
                         const SizedBox(height: 24),
@@ -571,8 +1182,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                                 foregroundColor: navy,
                                 elevation: 2,
                                 shape: RoundedRectangleBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
                               ),
                               child: Text(
@@ -632,10 +1242,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
         curve: Curves.easeOutCubic,
         builder: (_, v, c) => Opacity(
           opacity: v,
-          child: Transform.translate(
-            offset: Offset(0, 24 * (1 - v)),
-            child: c,
-          ),
+          child: Transform.translate(offset: Offset(0, 24 * (1 - v)), child: c),
         ),
         child: child,
       );
@@ -656,8 +1263,8 @@ class _PengaturanPageState extends State<PengaturanPage> {
                 builder: (context, constraints) {
                   final bool sideBySide = constraints.maxWidth >= 390;
 
-                  final double previewWidth =
-                      (constraints.maxWidth * 0.32).clamp(120.0, 320.0);
+                  final double previewWidth = (constraints.maxWidth * 0.32)
+                      .clamp(120.0, 320.0);
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -730,6 +1337,32 @@ class _PengaturanPageState extends State<PengaturanPage> {
                         ),
                       ),
 
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8, bottom: 14),
+                        child: Wrap(
+                          spacing: 10,
+                          runSpacing: 8,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: () => _pilihPrinter(
+                                PrintService.kPrinterStruk,
+                                'struk',
+                              ),
+                              icon: const Icon(Icons.print_outlined, size: 18),
+                              label: const Text('Pilih Printer Struk'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: _tesCetakStruk,
+                              icon: const Icon(
+                                Icons.receipt_long_outlined,
+                                size: 18,
+                              ),
+                              label: const Text('Tes Cetak Struk'),
+                            ),
+                          ],
+                        ),
+                      ),
+
                       // PANEL DAN PREVIEW
                       if (sideBySide)
                         Row(
@@ -750,8 +1383,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                               width: previewWidth,
                               child: masuk(
                                 AnimatedSize(
-                                  duration:
-                                      const Duration(milliseconds: 300),
+                                  duration: const Duration(milliseconds: 300),
                                   curve: Curves.easeOutCubic,
                                   alignment: Alignment.topCenter,
                                   child: _previewStruk(
@@ -778,14 +1410,10 @@ class _PengaturanPageState extends State<PengaturanPage> {
                             const SizedBox(height: 16),
                             masuk(
                               AnimatedSize(
-                                duration:
-                                    const Duration(milliseconds: 300),
+                                duration: const Duration(milliseconds: 300),
                                 curve: Curves.easeOutCubic,
                                 alignment: Alignment.topCenter,
-                                child: _previewStruk(
-                                  options,
-                                  isMobile: true,
-                                ),
+                                child: _previewStruk(options, isMobile: true),
                               ),
                               1,
                             ),
@@ -844,10 +1472,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
 
           Text(
             'Alamat Cafe',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: besar ? 13 : 9,
-            ),
+            style: TextStyle(color: Colors.white70, fontSize: besar ? 13 : 9),
           ),
 
           SizedBox(height: besar ? 28 : 18),
@@ -891,8 +1516,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final double gap = besar ? 14 : 8;
-                    final double tileWidth =
-                        (constraints.maxWidth - gap) / 2;
+                    final double tileWidth = (constraints.maxWidth - gap) / 2;
 
                     return Wrap(
                       spacing: gap,
@@ -1001,8 +1625,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                     activeTrackColor: _biruSwitch,
                     inactiveThumbColor: Colors.white,
                     inactiveTrackColor: Colors.grey,
-                    materialTapTargetSize:
-                        MaterialTapTargetSize.shrinkWrap,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     onChanged: (value) {
                       _simpanOpsiStruk(key, value);
                     },
@@ -1020,10 +1643,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
   // PREVIEW STRUK
   // ==========================================================
 
-  Widget _previewStruk(
-    Map<String, bool> options, {
-    required bool isMobile,
-  }) {
+  Widget _previewStruk(Map<String, bool> options, {required bool isMobile}) {
     final storeName = namaTokoController.text.trim().isEmpty
         ? 'Celcious Coffee'
         : namaTokoController.text.trim();
@@ -1035,9 +1655,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
 
     Widget detail(String label, String value) {
       return Padding(
-        padding: EdgeInsets.symmetric(
-          vertical: isMobile ? 2 : 4,
-        ),
+        padding: EdgeInsets.symmetric(vertical: isMobile ? 2 : 4),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1083,17 +1701,11 @@ class _PengaturanPageState extends State<PengaturanPage> {
               width: logoSize,
               height: logoSize,
               clipBehavior: Clip.antiAlias,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-              ),
-              child: AppBrandingLogo(
-                fit: BoxFit.cover,
-                height: logoSize,
-              ),
+              decoration: const BoxDecoration(shape: BoxShape.circle),
+              child: AppBrandingLogo(fit: BoxFit.cover, height: logoSize),
             ),
 
-          if (options['storeLogo'] ?? true)
-            SizedBox(height: isMobile ? 4 : 7),
+          if (options['storeLogo'] ?? true) SizedBox(height: isMobile ? 4 : 7),
 
           Text(
             storeName,
@@ -1166,11 +1778,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                 fit: BoxFit.contain,
               )
             else
-              Icon(
-                Icons.qr_code_2_rounded,
-                size: qrSize,
-                color: navy,
-              ),
+              Icon(Icons.qr_code_2_rounded, size: qrSize, color: navy),
           ],
         ],
       ),
@@ -1189,14 +1797,14 @@ class _PengaturanPageState extends State<PengaturanPage> {
     final double logoSize = isMobile
         ? 64
         : isTablet
-            ? 76
-            : 90;
+        ? 76
+        : 90;
 
     final double nameSize = isMobile
         ? 15
         : isTablet
-            ? 18
-            : 21;
+        ? 18
+        : 21;
 
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -1217,10 +1825,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: const Color(0xFF477CA7),
-                    border: Border.all(
-                      color: Colors.white,
-                      width: 2,
-                    ),
+                    border: Border.all(color: Colors.white, width: 2),
                   ),
                   child: ClipOval(
                     child: AppBrandingLogo(
@@ -1297,23 +1902,15 @@ class _PengaturanPageState extends State<PengaturanPage> {
   }) {
     final row = Container(
       width: double.infinity,
-      constraints: const BoxConstraints(
-        minHeight: 48,
-      ),
+      constraints: const BoxConstraints(minHeight: 48),
       padding: EdgeInsets.symmetric(
         horizontal: horizontalPadding,
         vertical: isMobile ? 9 : 10,
       ),
       decoration: BoxDecoration(
         border: Border(
-          top: BorderSide(
-            color: navy.withOpacity(0.20),
-            width: 0.7,
-          ),
-          bottom: BorderSide(
-            color: navy.withOpacity(0.20),
-            width: 0.7,
-          ),
+          top: BorderSide(color: navy.withOpacity(0.20), width: 0.7),
+          bottom: BorderSide(color: navy.withOpacity(0.20), width: 0.7),
         ),
       ),
       child: Row(
@@ -1337,10 +1934,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
 
           Flexible(
             flex: 6,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: child,
-            ),
+            child: Align(alignment: Alignment.centerRight, child: child),
           ),
         ],
       ),
@@ -1366,10 +1960,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
       curve: Curves.easeOutCubic,
       builder: (_, v, c) => Opacity(
         opacity: v,
-        child: Transform.translate(
-          offset: Offset(0, 16 * (1 - v)),
-          child: c,
-        ),
+        child: Transform.translate(offset: Offset(0, 16 * (1 - v)), child: c),
       ),
       child: isi,
     );
@@ -1389,25 +1980,14 @@ class _PengaturanPageState extends State<PengaturanPage> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          label,
-          style: normalStyle(size),
-        ),
+        Text(label, style: normalStyle(size)),
 
         Transform.scale(
           scale: 0.65,
-          child: Switch(
-            value: value,
-            activeColor: navy,
-            onChanged: onChanged,
-          ),
+          child: Switch(value: value, activeColor: navy, onChanged: onChanged),
         ),
 
-        Icon(
-          icon,
-          size: size + 5,
-          color: navy,
-        ),
+        Icon(icon, size: size + 5, color: navy),
       ],
     );
   }
@@ -1468,12 +2048,9 @@ class _PengaturanPageState extends State<PengaturanPage> {
             style: ElevatedButton.styleFrom(
               backgroundColor: navy,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               minimumSize: Size.zero,
-              tapTargetSize:
-                  MaterialTapTargetSize.shrinkWrap,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
@@ -1481,10 +2058,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
             ),
             child: Text(
               'Simpan',
-              style: TextStyle(
-                fontSize: size - 1,
-                fontWeight: FontWeight.w500,
-              ),
+              style: TextStyle(fontSize: size - 1, fontWeight: FontWeight.w500),
             ),
           ),
         ),
@@ -1496,10 +2070,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
   // PAYMENT CONTROL
   // ==========================================================
 
-  Widget paymentControl({
-    required double size,
-    required bool isMobile,
-  }) {
+  Widget paymentControl({required double size, required bool isMobile}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1510,11 +2081,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(
-            Icons.qr_code_2,
-            size: isMobile ? 20 : 25,
-            color: navy,
-          ),
+          child: Icon(Icons.qr_code_2, size: isMobile ? 20 : 25, color: navy),
         ),
 
         const SizedBox(width: 4),
@@ -1525,9 +2092,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
             minWidth: isMobile ? 72 : 100,
             maxWidth: isMobile ? 105 : 150,
           ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: 6,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
@@ -1548,18 +2113,9 @@ class _PengaturanPageState extends State<PengaturanPage> {
                 fontWeight: FontWeight.w600,
               ),
               items: const [
-                DropdownMenuItem(
-                  value: 'Qris',
-                  child: Text('Qris'),
-                ),
-                DropdownMenuItem(
-                  value: 'Cash',
-                  child: Text('Cash'),
-                ),
-                DropdownMenuItem(
-                  value: 'Transfer',
-                  child: Text('Transfer'),
-                ),
+                DropdownMenuItem(value: 'Qris', child: Text('Qris')),
+                DropdownMenuItem(value: 'Cash', child: Text('Cash')),
+                DropdownMenuItem(value: 'Transfer', child: Text('Transfer')),
               ],
               onChanged: (value) {
                 if (value == null) return;
@@ -1585,11 +2141,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
             onPressed: pilihFotoQris,
             tooltip: 'Ganti foto QRIS',
             padding: EdgeInsets.zero,
-            icon: Icon(
-              Icons.add,
-              color: navy,
-              size: isMobile ? 17 : 22,
-            ),
+            icon: Icon(Icons.add, color: navy, size: isMobile ? 17 : 22),
           ),
         ),
       ],
@@ -1600,18 +2152,14 @@ class _PengaturanPageState extends State<PengaturanPage> {
   // PREVIEW QRIS
   // ==========================================================
 
-  Widget previewFotoQris({
-    required bool isMobile,
-  }) {
+  Widget previewFotoQris({required bool isMobile}) {
     return Container(
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xffc8d9e8),
-        ),
+        border: Border.all(color: const Color(0xffc8d9e8)),
       ),
       child: Row(
         children: [
@@ -1627,25 +2175,19 @@ class _PengaturanPageState extends State<PengaturanPage> {
                 ? const SizedBox(
                     width: 22,
                     height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                    ),
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : _qrisImageBytes != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.memory(
-                          _qrisImageBytes!,
-                          fit: BoxFit.contain,
-                          width: isMobile ? 68 : 86,
-                          height: isMobile ? 68 : 86,
-                        ),
-                      )
-                    : Icon(
-                        Icons.qr_code_2,
-                        color: navy,
-                        size: isMobile ? 36 : 46,
-                      ),
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(
+                      _qrisImageBytes!,
+                      fit: BoxFit.contain,
+                      width: isMobile ? 68 : 86,
+                      height: isMobile ? 68 : 86,
+                    ),
+                  )
+                : Icon(Icons.qr_code_2, color: navy, size: isMobile ? 36 : 46),
           ),
 
           const SizedBox(width: 12),
@@ -1656,9 +2198,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
               children: [
                 Text(
                   'Foto QRIS pembayaran',
-                  style: normalStyle(
-                    isMobile ? 12 : 14,
-                  ),
+                  style: normalStyle(isMobile ? 12 : 14),
                 ),
 
                 const SizedBox(height: 4),
@@ -1677,10 +2217,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
 
                 TextButton.icon(
                   onPressed: pilihFotoQris,
-                  icon: const Icon(
-                    Icons.photo_library_outlined,
-                    size: 16,
-                  ),
+                  icon: const Icon(Icons.photo_library_outlined, size: 16),
                   label: const Text('Ganti foto'),
                   style: TextButton.styleFrom(
                     foregroundColor: navy,
@@ -1700,9 +2237,6 @@ class _PengaturanPageState extends State<PengaturanPage> {
   // ==========================================================
 
   Widget divider() {
-    return Container(
-      height: 1,
-      color: navy.withOpacity(0.25),
-    );
+    return Container(height: 1, color: navy.withOpacity(0.25));
   }
 }

@@ -6,6 +6,7 @@ import 'package:kasir_celcious_coffe/data/payment_proof_store.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 import 'package:kasir_celcious_coffe/data/produk_data.dart';
 import 'package:kasir_celcious_coffe/data/api_service.dart';
+import 'package:kasir_celcious_coffe/features/settings/application/print_service.dart';
 
 /// Builds and persists cashier orders and completed transactions.
 class CashierTransactionService {
@@ -72,7 +73,13 @@ class CashierTransactionService {
       'items': _itemsApi(cart),
     });
     final idTransaksi = (res['data'] as Map)['id_transaksi'];
-
+    final data = res['data'];
+    if (data is Map<String, dynamic>) {
+      PrintService.cetakStikerTransaksi(data);
+      if (data['status_bayar'] == 'lunas') {
+        PrintService.cetakStruk(data);
+      }
+    }
     await TransactionStore.addUnfinishedOrder({
       'id': orderCode['id'],
       'kode': orderCode['display'],
@@ -180,7 +187,16 @@ class CashierTransactionService {
           'diskon_input': discountInput,
           'items': _itemsApi(cart),
         });
-        final idTransaksi = (res['data'] as Map)['id_transaksi'];
+
+        final dataTrx = res['data'];
+        final idTransaksi = dataTrx is Map ? dataTrx['id_transaksi'] : null;
+
+        if (dataTrx is Map<String, dynamic>) {
+          PrintService.cetakStikerTransaksi(dataTrx);
+          if (dataTrx['status_bayar'] == 'lunas') {
+            PrintService.cetakStruk(dataTrx);
+          }
+        }
 
         await TransactionStore.addPaidOrder(
           order: {
@@ -201,23 +217,112 @@ class CashierTransactionService {
     }
   }
 
-  static int _idProduk(Map<String, dynamic> item) {
-    final id = item['id_produk'];
-    if (id is num) return id.toInt();
-    final parsedId = int.tryParse(id?.toString() ?? '');
-    if (parsedId != null) return parsedId;
-    final nama = item['name'].toString();
-    for (final p in ProdukData.produk.value) {
-      if (p['name'] == nama) {
-        final productId = p['id_produk'];
-        if (productId is num) return productId.toInt();
-        final parsedProductId = int.tryParse(productId?.toString() ?? '');
-        if (parsedProductId != null) return parsedProductId;
+  static Future<void> saveConfirmedQrisTransaction({
+    required Map<String, String> orderCode,
+    required DateTime time,
+    required String customerName,
+    required String cashierName,
+    required int itemCount,
+    required double subtotal,
+    required double taxRate,
+    required double tax,
+    required double discount,
+    required double discountInput,
+    required String discountType,
+    required double total,
+    required String orderType,
+    required List<Map<String, dynamic>> cart,
+    required dynamic idTransaksi,
+  }) async {
+    final cartItems = cart.map((item) {
+      return <String, dynamic>{
+        'name': item['name'].toString(),
+        'price': (item['price'] as num).toDouble(),
+        'quantity': item['quantity'] as int,
+        'category': item['category']?.toString() ?? '',
+        'catatan': item['catatan']?.toString() ?? '',
+      };
+    }).toList();
+
+    final transaction = <String, dynamic>{
+      'id': orderCode['id'],
+      'kode': orderCode['display'],
+      'tanggal': time.toIso8601String(),
+      'jam':
+          '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
+      'kasir': cashierName.trim().isEmpty ? 'Kasir' : cashierName,
+      'nama': customerName,
+      'jumlah': itemCount.toString(),
+      'pembayaran': 'QRIS',
+      'subtotal': subtotal,
+      'ppnRate': taxRate,
+      'ppn': tax,
+      'diskon': discount,
+      'diskonInput': discountInput,
+      'jenisDiskon': discountType,
+      'total': total,
+    };
+
+    await TransactionStore.addPaidOrder(
+      order: {
+        ...transaction,
+        'jumlah': itemCount,
+        'tipe': orderType,
+        'bayar': 'Lunas',
+        'selesai': false,
+        'cart': cartItems,
+        'idTransaksi': idTransaksi,
+      },
+      transaction: {},
+    );
+  }
+
+  /// Membuat pembayaran QRIS. Data keranjang diformat lewat _itemsApi
+  /// supaya sama persis dengan format pembayaran Cash.
+  static Future<Map<String, dynamic>> createQrisPayment({
+    required String kode,
+    required String customerName,
+    required String orderType,
+    required double discountInput,
+    required String discountType,
+    required List<Map<String, dynamic>> cart,
+  }) {
+    return ApiService.createQrisPayment(
+      namaPelanggan: customerName,
+      kode: kode,
+      tipePesanan: orderType,
+      diskonInput: discountInput,
+      jenisDiskon: discountType,
+      items: _itemsApi(cart),
+    );
+  }
+
+  static int? _idProduk(Map<String, dynamic> item) {
+    final id = item['id_produk'] ?? item['idProduk'];
+
+    if (id is num) {
+      return id.toInt();
+    }
+
+    if (id != null) {
+      return int.tryParse(id.toString());
+    }
+
+    final nama = item['name']?.toString() ?? '';
+
+    for (final produk in ProdukData.produk.value) {
+      if (produk['name']?.toString() == nama) {
+        final idProduk = produk['id_produk'];
+
+        if (idProduk is num) {
+          return idProduk.toInt();
+        }
+
+        return int.tryParse(idProduk?.toString() ?? '');
       }
     }
-    throw StateError(
-      'Produk "$nama" belum sinkron dengan server. Login ulang.',
-    );
+
+    return null;
   }
 
   static List<Map<String, dynamic>> _itemsApi(List<Map<String, dynamic>> cart) {
