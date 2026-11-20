@@ -231,22 +231,18 @@ class _KelolaTransaksiPageState extends State<KelolaTransaksiPage> {
                     ),
                     const SizedBox(height: 18),
 
-                    // Animasi halus saat pindah tab.
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 250),
-                      switchInCurve: Curves.easeOutCubic,
-                      transitionBuilder: (child, animation) =>
-                          FadeTransition(opacity: animation, child: child),
-                      child: KeyedSubtree(
-                        key: ValueKey(tabDipilih),
-                        child: tabDipilih == 0
-                            ? RiwayatTransaksiPanel(
-                                daftar: _transaksiTampil,
-                                onHapus: _konfirmasiHapus,
-                              )
-                            : ModalKeuntunganPanel(rekap: rekap),
+                    // Konten tab ditampilkan langsung agar tinggi panel
+                    // mengikuti isi dan tidak tertahan oleh AnimatedSwitcher.
+                    if (tabDipilih == 0)
+                      RiwayatTransaksiPanel(
+                        daftar: _transaksiTampil,
+                        onHapus: _konfirmasiHapus,
+                      )
+                    else
+                      ModalKeuntunganPanel(
+                        key: const ValueKey('modal-keuntungan'),
+                        rekap: rekap,
                       ),
-                    ),
                   ],
                 ),
               ),

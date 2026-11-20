@@ -50,19 +50,19 @@ class _ProductCardState extends State<ProductCard> {
       builder: (context, constraints) {
         final height = constraints.maxHeight.isFinite
             ? constraints.maxHeight
-            : 151.0;
+            : 120.0;
 
-        final compact = constraints.maxWidth < 250 || height < 105;
+        final compact = constraints.maxWidth < 150 || height < 105;
 
         final imageSize = compact
-            ? (height - 16).clamp(48.0, 72.0)
-            : (height - 18).clamp(70.0, 132.0);
+            ? (height - 16).clamp(38.0, 62.0)
+            : (height - 18).clamp(50.0, 105.0);
 
         final hasQuantity =
             widget.showCartControls && widget.quantity > 0;
 
-        final tabWidth = compact ? 34.0 : 41.0;
-        final buttonSize = compact ? 26.0 : 36.0;
+        final tabWidth = compact ? 34.0 : 50.0;
+        final buttonSize = compact ? 24.0 : 28.0;
 
         return MouseRegion(
           cursor: SystemMouseCursors.click,
@@ -124,7 +124,7 @@ class _ProductCardState extends State<ProductCard> {
                           Expanded(
                             child: Padding(
                               padding: EdgeInsets.fromLTRB(
-                                compact ? 2 : 8,
+                                compact ? 8 : 8,
                                 10,
                                 compact ? 7 : 10,
                                 10,
@@ -180,7 +180,7 @@ class _ProductCardState extends State<ProductCard> {
                                                   width: compact ? 4 : 9,
                                                 ),
                                                 SizedBox(
-                                                  width: compact ? 18 : 28,
+                                                  width: compact ? 12 : 20,
                                                   child: Center(
                                                     child: AnimatedSwitcher(
                                                       duration:
@@ -206,7 +206,7 @@ class _ProductCardState extends State<ProductCard> {
                                                         style: TextStyle(
                                                           color: _navy,
                                                           fontSize:
-                                                              compact ? 12 : 20,
+                                                              compact ? 12 : 18,
                                                           fontWeight:
                                                               FontWeight.w700,
                                                         ),
@@ -255,7 +255,7 @@ class _ProductCardState extends State<ProductCard> {
                               child: Icon(
                                 Icons.delete_outline_rounded,
                                 color: Colors.white,
-                                size: compact ? 18 : 22,
+                                size: compact ? 16 : 19,
                               ),
                             ),
                           ),
@@ -278,7 +278,7 @@ class _QtyButton extends StatefulWidget {
   const _QtyButton({
     required this.icon,
     required this.onTap,
-    this.size = 36,
+    this.size = 25,
   });
 
   final IconData icon;

@@ -42,9 +42,13 @@ dependencies:
   excel: ^4.0.6
   file_saver: ^0.3.1
   http: ^1.6.0
+<<<<<<< HEAD
   url_launcher: ^6.3.3
   pdf: ^3.12.0
   printing: ^5.14.3
+=======
+  open_filex: ^5.0.0
+>>>>>>> f446420e882daa95e7ac649d8dd52901a3ebb6bd
 
 dev_dependencies:
   flutter_test:

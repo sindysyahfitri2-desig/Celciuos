@@ -41,12 +41,19 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-    @override
+  @override
   Widget build(BuildContext context) {
+    final theme = ThemeData(fontFamily: 'Roboto');
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Celcious Coffee',
-      theme: ThemeData(fontFamily: 'Roboto'),
+      theme: theme.copyWith(
+        textTheme: theme.textTheme.apply(fontFamily: 'Roboto'),
+        primaryTextTheme: theme.primaryTextTheme.apply(
+          fontFamily: 'Roboto',
+        ),
+      ),
       home: FutureBuilder<void>(
         future: _initialization,
         builder: (context, snapshot) {

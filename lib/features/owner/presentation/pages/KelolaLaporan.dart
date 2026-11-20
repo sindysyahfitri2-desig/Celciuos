@@ -1,5 +1,12 @@
+import 'dart:typed_data';
+import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Border;
+import 'package:excel/excel.dart';
+import 'package:file_saver/file_saver.dart';
+import 'package:open_filex/open_filex.dart' show OpenFilex;
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter/material.dart' as m;
 
 const Color _navy = Color(0xFF082640);
 const Color _navy2 = Color(0xFF103657);
@@ -30,6 +37,7 @@ class LaporanPreviewData {
     this.totalNonTunai,
     this.totalTransaksi,
     this.rows = const [],
+    this.namaKasir = 'Kasir',
   });
 
   // Dipertahankan agar pemanggilan lama tidak menyebabkan error.
@@ -40,6 +48,7 @@ class LaporanPreviewData {
   final int? totalTransaksi;
 
   final List<LaporanPreviewRow> rows;
+  final String namaKasir;
 }
 
 class KelolaLaporanContent extends StatefulWidget {
@@ -59,14 +68,11 @@ class KelolaLaporanContent extends StatefulWidget {
   final String tanggalLaporan;
 
   @override
-  State<KelolaLaporanContent> createState() =>
-      _KelolaLaporanContentState();
+  State<KelolaLaporanContent> createState() => _KelolaLaporanContentState();
 }
 
-class _KelolaLaporanContentState
-    extends State<KelolaLaporanContent> {
-  final TextEditingController _searchController =
-      TextEditingController();
+class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
+  final TextEditingController _searchController = TextEditingController();
 
   bool get _isMatch {
     final keyword = _searchController.text.trim().toLowerCase();
@@ -83,27 +89,267 @@ class _KelolaLaporanContentState
     super.dispose();
   }
 
-  String _rupiah(num value) {
-    final formatted = value.round().toString().replaceAllMapped(
-      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-      (match) => '${match[1]}.',
+  Uint8List _createExcelBytes() {
+    final reportData = widget.previewData;
+    final rows = reportData?.rows ?? const <LaporanPreviewRow>[];
+
+    final excel = Excel.createExcel();
+    final sheet = excel['Laporan'];
+
+    // Identitas usaha dan informasi laporan.
+    sheet.merge(CellIndex.indexByString('A1'), CellIndex.indexByString('E1'));
+    final brandCell = sheet.cell(CellIndex.indexByString('A1'));
+    brandCell.value = TextCellValue('CELCIOUS COFFE');
+    brandCell.cellStyle = CellStyle(
+      bold: true,
+      fontSize: 18,
+      fontColorHex: ExcelColor.fromHexString('#082640'),
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
     );
 
-    return 'Rp $formatted';
+    sheet.merge(CellIndex.indexByString('A2'), CellIndex.indexByString('E2'));
+    final addressCell = sheet.cell(CellIndex.indexByString('A2'));
+    addressCell.value = TextCellValue(
+      'Dusun vak111 kampun, Mekar Sawit, Kec. Sawit Seberang, '
+      'Kabupaten Langkat, Sumatera Utara 20852',
+    );
+    addressCell.cellStyle = CellStyle(
+      fontSize: 10,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+      textWrapping: TextWrapping.WrapText,
+    );
+
+    sheet.merge(CellIndex.indexByString('A3'), CellIndex.indexByString('E3'));
+    final titleCell = sheet.cell(CellIndex.indexByString('A3'));
+    titleCell.value = TextCellValue(widget.judulLaporan.toUpperCase());
+    titleCell.cellStyle = CellStyle(
+      bold: true,
+      fontSize: 14,
+      fontColorHex: ExcelColor.fromHexString('#082640'),
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+    );
+
+    sheet.merge(CellIndex.indexByString('A4'), CellIndex.indexByString('E4'));
+    final periodCell = sheet.cell(CellIndex.indexByString('A4'));
+    periodCell.value = TextCellValue('Periode: ${widget.tanggalLaporan}');
+    periodCell.cellStyle = CellStyle(
+      italic: true,
+      fontSize: 10,
+      horizontalAlign: HorizontalAlign.Center,
+      verticalAlign: VerticalAlign.Center,
+    );
+
+    // Kolom laporan dimulai pada baris kelima lembar kerja Excel.
+    final headers = <String>[
+      'No.',
+      'Tanggal',
+      'Keterangan',
+      'Metode Pembayaran',
+      'Nominal',
+    ];
+
+    for (var column = 0; column < headers.length; column++) {
+      final cell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: column, rowIndex: 4),
+      );
+      cell.value = TextCellValue(headers[column]);
+      cell.cellStyle = CellStyle(
+        bold: true,
+        fontColorHex: ExcelColor.fromHexString('#FFFFFF'),
+        backgroundColorHex: ExcelColor.fromHexString('#082640'),
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+      );
+    }
+
+    if (rows.isEmpty) {
+      sheet.merge(CellIndex.indexByString('B6'), CellIndex.indexByString('D6'));
+      sheet.cell(CellIndex.indexByString('A6')).value = IntCellValue(1);
+      sheet.cell(CellIndex.indexByString('B6')).value = TextCellValue(
+        'Belum ada transaksi',
+      );
+      sheet.cell(CellIndex.indexByString('E6')).value = TextCellValue('-');
+    } else {
+      for (var index = 0; index < rows.length; index++) {
+        final row = rows[index];
+        final excelRow = index + 5;
+
+        sheet
+            .cell(
+              CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: excelRow),
+            )
+            .value = IntCellValue(
+          index + 1,
+        );
+
+        sheet
+            .cell(
+              CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: excelRow),
+            )
+            .value = TextCellValue(
+          row.tanggal,
+        );
+
+        sheet
+            .cell(
+              CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: excelRow),
+            )
+            .value = TextCellValue(
+          row.keterangan,
+        );
+
+        sheet
+            .cell(
+              CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: excelRow),
+            )
+            .value = TextCellValue(
+          row.metode,
+        );
+
+        sheet
+            .cell(
+              CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: excelRow),
+            )
+            .value = DoubleCellValue(
+          row.nominal.toDouble(),
+        );
+      }
+    }
+
+    // Area tanda tangan kasir pada bagian bawah laporan.
+    final signatureRow = rows.length + 8;
+    final now = DateTime.now();
+    final tanggalCetak =
+        '${now.day.toString().padLeft(2, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-${now.year}';
+
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: signatureRow),
+      CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: signatureRow),
+    );
+    final dateSignature = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: signatureRow),
+    );
+    dateSignature.value = TextCellValue('Langkat, $tanggalCetak');
+    dateSignature.cellStyle = CellStyle(
+      horizontalAlign: HorizontalAlign.Center,
+    );
+
+    final kasirRow = signatureRow + 1;
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: kasirRow),
+      CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: kasirRow),
+    );
+    final kasirCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: kasirRow),
+    );
+    kasirCell.value = TextCellValue('Kasir,');
+    kasirCell.cellStyle = CellStyle(horizontalAlign: HorizontalAlign.Center);
+
+    final digitalRow = signatureRow + 3;
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: digitalRow),
+      CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: digitalRow),
+    );
+    final digitalCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: digitalRow),
+    );
+    digitalCell.value = TextCellValue('Tanda tangan digital');
+    digitalCell.cellStyle = CellStyle(
+      italic: true,
+      fontColorHex: ExcelColor.fromHexString('#239653'),
+      horizontalAlign: HorizontalAlign.Center,
+    );
+
+    final namaRow = signatureRow + 5;
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: namaRow),
+      CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: namaRow),
+    );
+    final namaCell = sheet.cell(
+      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: namaRow),
+    );
+    namaCell.value = TextCellValue('/${reportData?.namaKasir ?? 'Kasir'}/');
+    namaCell.cellStyle = CellStyle(
+      bold: true,
+      horizontalAlign: HorizontalAlign.Center,
+    );
+
+    sheet.setColumnWidth(0, 8);
+    sheet.setColumnWidth(1, 18);
+    sheet.setColumnWidth(2, 32);
+    sheet.setColumnWidth(3, 24);
+    sheet.setColumnWidth(4, 20);
+    sheet.setRowHeight(0, 30);
+    sheet.setRowHeight(1, 30);
+    sheet.setRowHeight(2, 25);
+    sheet.setRowHeight(4, 25);
+
+    final bytes = excel.encode();
+    if (bytes == null) {
+      throw Exception('File Excel gagal dibuat.');
+    }
+    return Uint8List.fromList(bytes);
+  }
+
+  String get _safeFileName {
+    final safeName = widget.judulLaporan
+        .replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_');
+    return safeName.isEmpty ? 'Laporan_Transaksi' : safeName;
+  }
+
+  Future<void> _downloadExcel() async {
+    try {
+      await FileSaver.instance.saveAs(
+        name: _safeFileName,
+        bytes: _createExcelBytes(),
+        fileExtension: 'xlsx',
+        mimeType: MimeType.microsoftExcel,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Laporan Excel berhasil disiapkan.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal mengunduh laporan Excel: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openExcelPreview() async {
+    try {
+      final directory = await getTemporaryDirectory();
+      final file = File('${directory.path}/$_safeFileName.xlsx');
+      await file.writeAsBytes(_createExcelBytes(), flush: true);
+
+      // Membuka file melalui aplikasi spreadsheet default pada perangkat.
+      await OpenFilex.open(file.path);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal membuka pratinjau Excel: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _openPreview() {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) => _LaporanPreviewDialog(
-        title: widget.judulLaporan,
-        date: widget.tanggalLaporan,
-        data: widget.previewData,
-        onDownload: widget.onDownload,
-        rupiah: _rupiah,
-      ),
-    );
+    _openExcelPreview();
   }
 
   @override
@@ -114,7 +360,7 @@ class _KelolaLaporanContentState
       color: _pageBg,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isMobile = constraints.maxWidth < 600;
+          final isMobile = constraints.maxWidth < 760;
 
           return SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
@@ -140,10 +386,7 @@ class _KelolaLaporanContentState
                     children: [
                       _buildTitle(),
                       const Spacer(),
-                      SizedBox(
-                        width: 250,
-                        child: _buildSearchField(),
-                      ),
+                      SizedBox(width: 250, child: _buildSearchField()),
                     ],
                   ),
                 SizedBox(height: isMobile ? 30 : 54),
@@ -189,11 +432,7 @@ class _KelolaLaporanContentState
         fontWeight: FontWeight.w900,
         letterSpacing: .1,
         shadows: [
-          Shadow(
-            color: Color(0x5589A7B8),
-            offset: Offset(2, 3),
-            blurRadius: 4,
-          ),
+          Shadow(color: Color(0x5589A7B8), offset: Offset(2, 3), blurRadius: 4),
         ],
       ),
     );
@@ -216,21 +455,11 @@ class _KelolaLaporanContentState
       child: TextField(
         controller: _searchController,
         onChanged: (_) => setState(() {}),
-        style: const TextStyle(
-          fontSize: 12,
-          color: _navy,
-        ),
+        style: const TextStyle(fontSize: 12, color: _navy),
         decoration: InputDecoration(
           hintText: 'Cari laporan',
-          hintStyle: const TextStyle(
-            fontSize: 12,
-            color: _muted,
-          ),
-          prefixIcon: const Icon(
-            Icons.search_rounded,
-            size: 18,
-            color: _muted,
-          ),
+          hintStyle: const TextStyle(fontSize: 12, color: _muted),
+          prefixIcon: const Icon(Icons.search_rounded, size: 18, color: _muted),
           suffixIcon: _searchController.text.isEmpty
               ? null
               : IconButton(
@@ -239,16 +468,40 @@ class _KelolaLaporanContentState
                     _searchController.clear();
                     setState(() {});
                   },
-                  icon: const Icon(
-                    Icons.close_rounded,
-                    size: 16,
-                  ),
+                  icon: const Icon(Icons.close_rounded, size: 16),
                 ),
-          contentPadding:
-              const EdgeInsets.symmetric(vertical: 10),
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
+        ),
+      ),
+    );
+  }
+}
+
+class _ExcelLogo extends StatelessWidget {
+  const _ExcelLogo({this.size = 34, super.key});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size + 10,
+      height: size + 10,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: const Color(0xFF168447),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        'X',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * .72,
+          fontWeight: FontWeight.w900,
+          height: 1,
         ),
       ),
     );
@@ -284,24 +537,16 @@ class _ReportCardState extends State<_ReportCard> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOut,
-        transform: Matrix4.translationValues(
-          0,
-          _hovered ? -3 : 0,
-          0,
-        ),
+        transform: Matrix4.translationValues(0, _hovered ? -3 : 0, 0),
         width: isMobile ? double.infinity : 330,
         constraints: const BoxConstraints(minHeight: 112),
         decoration: BoxDecoration(
           color: _navy,
           borderRadius: BorderRadius.circular(11),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: .75),
-          ),
+          border: m.Border.all(color: Colors.white.withOpacity(0.75)),
           boxShadow: [
             BoxShadow(
-              color: _navy.withValues(
-                alpha: _hovered ? .28 : .18,
-              ),
+              color: _navy.withValues(alpha: _hovered ? .28 : .18),
               blurRadius: _hovered ? 20 : 13,
               offset: Offset(0, _hovered ? 9 : 5),
             ),
@@ -329,18 +574,13 @@ class _ReportCardState extends State<_ReportCard> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(7),
                     ),
-                    child: const Icon(
-                      Icons.grid_on_rounded,
-                      size: 43,
-                      color: _green,
-                    ),
+                    child: const _ExcelLogo(size: 43),
                   ),
                   const SizedBox(width: 11),
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           widget.title,
@@ -364,9 +604,7 @@ class _ReportCardState extends State<_ReportCard> {
                         const SizedBox(height: 9),
                         Container(
                           height: 27,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 9),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(6),
@@ -409,361 +647,3 @@ class _ReportCardState extends State<_ReportCard> {
   }
 }
 
-class _LaporanPreviewDialog extends StatelessWidget {
-  const _LaporanPreviewDialog({
-    required this.title,
-    required this.date,
-    required this.data,
-    required this.onDownload,
-    required this.rupiah,
-  });
-
-  final String title;
-  final String date;
-  final LaporanPreviewData? data;
-  final VoidCallback? onDownload;
-  final String Function(num) rupiah;
-
-  @override
-  Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    final isPhone = width < 600;
-    final rows = data?.rows ?? const <LaporanPreviewRow>[];
-
-    return Dialog(
-      insetPadding: EdgeInsets.symmetric(
-        horizontal: isPhone ? 12 : 36,
-        vertical: isPhone ? 18 : 30,
-      ),
-      backgroundColor: Colors.transparent,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: 900,
-          maxHeight: MediaQuery.sizeOf(context).height * .92,
-        ),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF7FAFD),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: _navy.withValues(alpha: .30),
-              blurRadius: 30,
-              offset: const Offset(0, 15),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _previewHeader(context),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(isPhone ? 14 : 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _spreadsheetHeading(),
-                    const SizedBox(height: 18),
-                    _transactionTable(rows),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Jumlah data transaksi: ${rows.length}',
-                      style: const TextStyle(
-                        color: _muted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            _previewFooter(context),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _previewHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 15, 12, 15),
-      decoration: const BoxDecoration(
-        color: _navy,
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(14),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 39,
-            height: 39,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.table_view_rounded,
-              color: _green,
-              size: 25,
-            ),
-          ),
-          const SizedBox(width: 11),
-          const Expanded(
-            child: Text(
-              'Pratinjau Laporan',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Tutup pratinjau',
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(
-              Icons.close_rounded,
-              color: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Bagian judul seperti lembar kerja Excel.
-  Widget _spreadsheetHeading() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        vertical: 18,
-        horizontal: 12,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(
-          color: const Color(0xFFDCE6EF),
-        ),
-      ),
-      child: Column(
-        children: [
-          Text(
-            title.toUpperCase(),
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: _navy,
-              fontSize: 19,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Container(
-            width: 65,
-            height: 2,
-            color: _green,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Periode: $date',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: _navy2,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Tabel transaksi tanpa ringkasan keuangan.
-  Widget _transactionTable(List<LaporanPreviewRow> rows) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(
-          color: const Color(0xFFBFCFDC),
-        ),
-      ),
-      child: ClipRRect(
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            headingRowColor: const WidgetStatePropertyAll(
-              Color(0xFFDCE9F4),
-            ),
-            dataRowColor: const WidgetStatePropertyAll(
-              Colors.white,
-            ),
-            headingRowHeight: 45,
-            dataRowMinHeight: 43,
-            dataRowMaxHeight: 55,
-            columnSpacing: 25,
-            horizontalMargin: 14,
-            border: TableBorder.all(
-              color: const Color(0xFFD5E0E9),
-              width: .7,
-            ),
-            headingTextStyle: const TextStyle(
-              color: _navy,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-            ),
-            dataTextStyle: const TextStyle(
-              color: _navy2,
-              fontSize: 11,
-            ),
-            columns: const [
-              DataColumn(
-                label: SizedBox(
-                  width: 35,
-                  child: Text('No.'),
-                ),
-              ),
-              DataColumn(
-                label: SizedBox(
-                  width: 100,
-                  child: Text('Tanggal'),
-                ),
-              ),
-              DataColumn(
-                label: SizedBox(
-                  width: 160,
-                  child: Text('Keterangan'),
-                ),
-              ),
-              DataColumn(
-                label: SizedBox(
-                  width: 125,
-                  child: Text('Metode Pembayaran'),
-                ),
-              ),
-              DataColumn(
-                numeric: true,
-                label: SizedBox(
-                  width: 100,
-                  child: Text('Nominal'),
-                ),
-              ),
-            ],
-            rows: rows.isEmpty
-                ? [
-                    const DataRow(
-                      cells: [
-                        DataCell(Text('-')),
-                        DataCell(
-                          Text(
-                            'Belum ada transaksi',
-                            style: TextStyle(color: _muted),
-                          ),
-                        ),
-                        DataCell(Text('-')),
-                        DataCell(Text('-')),
-                        DataCell(Text('-')),
-                      ],
-                    ),
-                  ]
-                : List.generate(
-                    rows.length,
-                    (index) {
-                      final row = rows[index];
-
-                      return DataRow(
-                        cells: [
-                          DataCell(Text('${index + 1}')),
-                          DataCell(Text(row.tanggal)),
-                          DataCell(Text(row.keterangan)),
-                          DataCell(Text(row.metode)),
-                          DataCell(
-                            Text(
-                              rupiah(row.nominal),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _previewFooter(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(
-          bottom: Radius.circular(14),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: _navy.withValues(alpha: .07),
-            blurRadius: 10,
-            offset: const Offset(0, -3),
-          ),
-        ],
-      ),
-      child: Wrap(
-        alignment: WrapAlignment.end,
-        spacing: 9,
-        runSpacing: 9,
-        children: [
-          OutlinedButton(
-            onPressed: () => Navigator.pop(context),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _navy,
-              side: const BorderSide(
-                color: Color(0xFFB8C9D8),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
-            ),
-            child: const Text('Tutup'),
-          ),
-          ElevatedButton.icon(
-            onPressed: onDownload == null
-                ? null
-                : () {
-                    Navigator.pop(context);
-                    onDownload!.call();
-                  },
-            icon: const Icon(
-              Icons.download_rounded,
-              size: 17,
-            ),
-            label: const Text('Unduh Laporan'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _navy,
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: const Color(0xFFB8C5D0),
-              disabledForegroundColor: Colors.white,
-              elevation: 3,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 17,
-                vertical: 12,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

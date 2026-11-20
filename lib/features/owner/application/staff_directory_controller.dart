@@ -1,3 +1,4 @@
+
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:kasir_celcious_coffe/data/api_service.dart';
@@ -27,14 +28,16 @@ class Staff {
       name: json['nama']?.toString() ?? '',
       username: json['username']?.toString(),
       photoUrl: json['foto_url']?.toString(),
-      aktif: json['aktif'] == true || json['aktif'] == 1,
+      aktif: json['aktif'] == true ||
+          json['aktif'] == 1 ||
+          json['aktif']?.toString() == '1',
     );
   }
 }
 
-/// Holds staff directory state and search/edit rules for the Owner screen.
 class StaffDirectoryController extends ChangeNotifier {
   List<Staff> staff = [];
+
   String searchQuery = '';
   bool isLoading = false;
   String? errorMessage;
@@ -42,14 +45,12 @@ class StaffDirectoryController extends ChangeNotifier {
   bool showInactive = false;
 
   List<Staff> get filteredStaff {
-    final query = searchQuery.toLowerCase();
-    return staff
-        .where(
-          (member) =>
-              member.name.toLowerCase().contains(query) ||
-              (member.username?.toLowerCase().contains(query) ?? false),
-        )
-        .toList();
+    final query = searchQuery.toLowerCase().trim();
+
+    return staff.where((member) {
+      return member.name.toLowerCase().contains(query) ||
+          (member.username?.toLowerCase().contains(query) ?? false);
+    }).toList();
   }
 
   void setSearchQuery(String value) {
@@ -59,14 +60,16 @@ class StaffDirectoryController extends ChangeNotifier {
 
   void setShowInactive(bool value) {
     if (showInactive == value) return;
+
     showInactive = value;
-    staff = []; // kosongkan dulu supaya data tab lama tidak tampil
+    staff = [];
     notifyListeners();
     fetchStaff();
   }
 
   Future<void> fetchStaff() async {
     final requestedInactive = showInactive;
+
     isLoading = true;
     errorMessage = null;
     notifyListeners();
@@ -79,12 +82,15 @@ class StaffDirectoryController extends ChangeNotifier {
           'status': requestedInactive ? 'nonaktif' : 'aktif',
         },
       );
-      if (requestedInactive != showInactive)
-        return; // tab sudah berganti, abaikan
+
+      if (requestedInactive != showInactive) return;
+
       if (res['data'] is List) {
         staff = (res['data'] as List)
             .map(
-              (item) => Staff.fromJson(Map<String, dynamic>.from(item as Map)),
+              (item) => Staff.fromJson(
+                Map<String, dynamic>.from(item as Map),
+              ),
             )
             .toList();
       }
@@ -92,8 +98,10 @@ class StaffDirectoryController extends ChangeNotifier {
       errorMessage = e.toString().replaceAll('Exception: ', '');
       debugPrint('Gagal fetch staf: $e');
     } finally {
-      isLoading = false;
-      notifyListeners();
+      if (requestedInactive == showInactive) {
+        isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -114,25 +122,35 @@ class StaffDirectoryController extends ChangeNotifier {
     String? photoPath,
     Uint8List? photoBytes,
   }) async {
+    errorMessage = null;
+
     try {
       var cleanUsername = (username != null && username.trim().isNotEmpty)
           ? username.trim().toLowerCase()
-          : name.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+          : name.trim().toLowerCase().replaceAll(
+                RegExp(r'[^a-z0-9]'),
+                '',
+              );
 
       if (cleanUsername.length < 4) {
         cleanUsername = '${cleanUsername}1234';
       }
 
-      final cleanPassword = (password != null && password.trim().isNotEmpty)
-          ? password.trim()
-          : '123456';
+      final cleanPassword =
+          (password != null && password.trim().isNotEmpty)
+              ? password.trim()
+              : '123456';
 
-      await ApiService.postMultipart('pengguna', {
-        'nama': name.trim(),
-        'username': cleanUsername,
-        'password': cleanPassword,
-        'role': 'kasir',
-      }, fileBytes: photoBytes);
+      await ApiService.postMultipart(
+        'pengguna',
+        {
+          'nama': name.trim(),
+          'username': cleanUsername,
+          'password': cleanPassword,
+          'role': 'kasir',
+        },
+        fileBytes: photoBytes,
+      );
 
       await fetchStaff();
       return true;
@@ -145,21 +163,26 @@ class StaffDirectoryController extends ChangeNotifier {
   }
 
   Future<bool> rename(int index, String newName) async {
-    if (index < 0 || index >= staff.length || newName.trim().isEmpty) {
+    if (index < 0 ||
+        index >= staff.length ||
+        newName.trim().isEmpty) {
       return false;
     }
 
     final target = staff[index];
-    if (target.id == null) {
-      target.name = newName.trim();
-      notifyListeners();
-      return true;
-    }
+
+    if (target.id == null) return false;
+
+    errorMessage = null;
 
     try {
-      await ApiService.put('pengguna/${target.id}', {'nama': newName.trim()});
+      await ApiService.put(
+        'pengguna/${target.id}',
+        {'nama': newName.trim()},
+      );
 
       target.name = newName.trim();
+      infoMessage = 'Nama staf berhasil diperbarui.';
       notifyListeners();
       return true;
     } catch (e) {
@@ -170,48 +193,112 @@ class StaffDirectoryController extends ChangeNotifier {
     }
   }
 
-  /// Hapus permanen, atau dinonaktifkan oleh backend bila staf punya riwayat.
-  Future<bool> delete(int index) async {
-    if (index < 0 || index >= staff.length) return false;
-
-    final target = staff[index];
-    infoMessage = null;
-    errorMessage = null;
-
-    if (target.id == null) {
-      staff.removeAt(index);
-      notifyListeners();
-      return true;
+  // Memperbarui nama dan foto staf.
+  // Foto dikirim menggunakan multipart dengan method spoofing PUT Laravel.
+  Future<bool> updateStaff(
+    int index, {
+    required String newName,
+    Uint8List? photoBytes,
+    String photoFileName = 'foto.jpg',
+  }) async {
+    if (index < 0 ||
+        index >= staff.length ||
+        newName.trim().isEmpty) {
+      return false;
     }
 
+    final target = staff[index];
+
+    if (target.id == null) return false;
+
+    errorMessage = null;
+    infoMessage = null;
+
     try {
-      final res = await ApiService.delete('pengguna/${target.id}');
-      infoMessage = res['message']?.toString();
-      staff.removeAt(index);
-      notifyListeners();
+      if (photoBytes != null) {
+        await ApiService.postMultipart(
+          'pengguna/${target.id}',
+          {
+            '_method': 'PUT',
+            'nama': newName.trim(),
+          },
+          fileBytes: photoBytes,
+          fileName: photoFileName,
+          fileField: 'foto',
+        );
+      } else {
+        await ApiService.put(
+          'pengguna/${target.id}',
+          {'nama': newName.trim()},
+        );
+      }
+
+      target.name = newName.trim();
+
+      infoMessage = 'Data staf berhasil diperbarui.';
+      await fetchStaff();
+
       return true;
     } catch (e) {
       errorMessage = e.toString().replaceAll('Exception: ', '');
-      debugPrint('Gagal hapus staf: $e');
+      debugPrint('Gagal memperbarui staf: $e');
       notifyListeners();
       return false;
     }
   }
 
-  /// Mengaktifkan kembali staf dari tab Nonaktif.
+  // Menonaktifkan staf, bukan menghapus permanen.
+  Future<bool> deactivate(int index) async {
+    if (index < 0 || index >= staff.length) return false;
+
+    final target = staff[index];
+
+    if (target.id == null) return false;
+
+    errorMessage = null;
+    infoMessage = null;
+
+    try {
+      await ApiService.put(
+        'pengguna/${target.id}',
+        {'aktif': false},
+      );
+
+      infoMessage = 'Staf berhasil dinonaktifkan.';
+      staff.removeAt(index);
+
+      notifyListeners();
+      return true;
+    } catch (e) {
+      errorMessage = e.toString().replaceAll('Exception: ', '');
+      debugPrint('Gagal menonaktifkan staf: $e');
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> activate(int index) async {
     if (index < 0 || index >= staff.length) return false;
 
     final target = staff[index];
+
     if (target.id == null) return false;
-    infoMessage = null;
+
     errorMessage = null;
+    infoMessage = null;
 
     try {
-      final res = await ApiService.put('pengguna/${target.id}/aktifkan', {});
-      infoMessage = res['message']?.toString();
+      final res = await ApiService.put(
+        'pengguna/${target.id}/aktifkan',
+        {},
+      );
+
+      infoMessage = res['message']?.toString() ??
+          'Staf berhasil diaktifkan kembali.';
+
       staff.removeAt(index);
       notifyListeners();
+
       return true;
     } catch (e) {
       errorMessage = e.toString().replaceAll('Exception: ', '');
