@@ -20,7 +20,12 @@ const _destinations = <_OwnerDestination>[
   _OwnerDestination('Kelola Laporan', 'Laporan', Icons.bar_chart_rounded),
   _OwnerDestination('Kelola Produk', 'Produk', Icons.inventory_2_outlined),
   _OwnerDestination('Transaksi', 'Transaksi', Icons.receipt_long_outlined),
-  _OwnerDestination('Kelola Staf', 'Kelola Staf', Icons.person_outline_rounded),
+  _OwnerDestination('Kelola Staf', 'Staf', Icons.person_outline_rounded),
+  _OwnerDestination(
+    'Modal & Keuntungan',
+    'Modal',
+    Icons.account_balance_wallet_outlined,
+  ),
   _OwnerDestination('Pengaturan', 'Atur', Icons.settings_outlined),
 ];
 
@@ -52,10 +57,7 @@ class OwnerTopBar extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF0A2E4D),
-            Color(0xFF103456),
-          ],
+          colors: [Color(0xFF0A2E4D), Color(0xFF103456)],
         ),
         borderRadius: const BorderRadius.vertical(
           bottom: Radius.circular(20),
@@ -76,17 +78,13 @@ class OwnerTopBar extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFF3979AD),
               shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white24,
-              ),
+              border: Border.all(color: Colors.white24),
             ),
             child: const ClipOval(
               child: AppBrandingLogo(fallbackIconSize: 24),
             ),
           ),
-
           const SizedBox(width: 10),
-
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -124,7 +122,6 @@ class OwnerTopBar extends StatelessWidget {
               ],
             ),
           ),
-
           if (onNotifikasi != null)
             IconButton(
               tooltip: 'Notifikasi',
@@ -135,17 +132,13 @@ class OwnerTopBar extends StatelessWidget {
                 size: 23,
               ),
             ),
-
           Container(
             width: 38,
             height: 38,
             decoration: BoxDecoration(
               color: const Color(0xFFE6EEF6),
               shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white,
-                width: 2,
-              ),
+              border: Border.all(color: Colors.white, width: 2),
             ),
             child: const Icon(
               Icons.person,
@@ -153,7 +146,6 @@ class OwnerTopBar extends StatelessWidget {
               size: 23,
             ),
           ),
-
           if (onLogout != null)
             IconButton(
               tooltip: 'Logout',
@@ -191,9 +183,9 @@ class OwnerNavigation extends StatelessWidget {
 
   final int selectedIndex;
   final String ownerName;
-
   final ValueChanged<int> onDestinationSelected;
 
+  // Callback dipertahankan agar pemanggilan lama tidak rusak.
   final VoidCallback onDashboard;
   final VoidCallback onLaporan;
   final VoidCallback onProduk;
@@ -202,29 +194,9 @@ class OwnerNavigation extends StatelessWidget {
   final VoidCallback onPengaturan;
   final VoidCallback? onLogout;
 
+  // Navigasi hanya dijalankan satu kali.
   void _navigateTo(int index) {
     onDestinationSelected(index);
-
-    switch (index) {
-      case 0:
-        onDashboard();
-        break;
-      case 1:
-        onLaporan();
-        break;
-      case 2:
-        onProduk();
-        break;
-      case 3:
-        onTransaksi();
-        break;
-      case 4:
-        onKelolaStaf();
-        break;
-      case 5:
-        onPengaturan();
-        break;
-    }
   }
 
   @override
@@ -249,7 +221,6 @@ class OwnerNavigation extends StatelessWidget {
                 },
               ),
             ),
-
             Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: 14,
@@ -258,10 +229,7 @@ class OwnerNavigation extends StatelessWidget {
               decoration: const BoxDecoration(
                 color: _ownerNavyLight,
                 border: Border(
-                  top: BorderSide(
-                    color: Colors.white12,
-                    width: 1,
-                  ),
+                  top: BorderSide(color: Colors.white12, width: 1),
                 ),
               ),
               child: Row(
@@ -275,9 +243,7 @@ class OwnerNavigation extends StatelessWidget {
                       size: 20,
                     ),
                   ),
-
                   const SizedBox(width: 10),
-
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -303,7 +269,6 @@ class OwnerNavigation extends StatelessWidget {
                       ],
                     ),
                   ),
-
                   if (onLogout != null)
                     IconButton(
                       tooltip: 'Logout',
@@ -355,12 +320,8 @@ class _SidebarItemState extends State<_SidebarItem> {
       width: double.infinity,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
-        onEnter: (_) {
-          setState(() => _hovered = true);
-        },
-        onExit: (_) {
-          setState(() => _hovered = false);
-        },
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: widget.onTap,
@@ -379,14 +340,8 @@ class _SidebarItemState extends State<_SidebarItem> {
             padding: const EdgeInsets.symmetric(horizontal: 17),
             child: Row(
               children: [
-                Icon(
-                  widget.destination.icon,
-                  color: fg,
-                  size: 21,
-                ),
-
+                Icon(widget.destination.icon, color: fg, size: 21),
                 const SizedBox(width: 13),
-
                 Expanded(
                   child: AnimatedDefaultTextStyle(
                     duration: const Duration(milliseconds: 200),
@@ -438,9 +393,7 @@ class OwnerBottomNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final inset =
-        bottomInset ?? MediaQuery.of(context).padding.bottom;
-
+    final inset = bottomInset ?? MediaQuery.of(context).padding.bottom;
     final totalHeight = overhang + barHeight + inset;
 
     return SizedBox(
@@ -451,19 +404,13 @@ class OwnerBottomNavigation extends StatelessWidget {
           final itemWidth = box.maxWidth / _destinations.length;
 
           return TweenAnimationBuilder<double>(
-            tween: Tween<double>(
-              end: selectedIndex.toDouble(),
-            ),
+            tween: Tween<double>(end: selectedIndex.toDouble()),
             duration: const Duration(milliseconds: 420),
             curve: Curves.easeOutCubic,
             builder: (context, pos, _) {
               final centerX = (pos + 0.5) * itemWidth;
-
               final shown = _destinations[
-                pos.round().clamp(
-                  0,
-                  _destinations.length - 1,
-                )
+                pos.round().clamp(0, _destinations.length - 1)
               ];
 
               return Stack(
@@ -477,7 +424,6 @@ class OwnerBottomNavigation extends StatelessWidget {
                       ),
                     ),
                   ),
-
                   Positioned(
                     left: 0,
                     right: 0,
@@ -485,34 +431,25 @@ class OwnerBottomNavigation extends StatelessWidget {
                     height: barHeight,
                     child: Row(
                       children: [
-                        for (var i = 0;
-                            i < _destinations.length;
-                            i++)
+                        for (var i = 0; i < _destinations.length; i++)
                           Expanded(
                             child: _BottomItem(
                               destination: _destinations[i],
                               selected: selectedIndex == i,
-                              visibility: (pos - i)
-                                  .abs()
-                                  .clamp(0.0, 1.0),
-                              onTap: () {
-                                onDestinationSelected(i);
-                              },
+                              visibility: (pos - i).abs().clamp(0.0, 1.0),
+                              onTap: () => onDestinationSelected(i),
                             ),
                           ),
                       ],
                     ),
                   ),
-
                   Positioned(
                     left: centerX - 30,
                     top: 0,
                     width: 60,
                     height: 60,
                     child: IgnorePointer(
-                      child: _Bubble(
-                        destination: shown,
-                      ),
+                      child: _Bubble(destination: shown),
                     ),
                   ),
                 ],
@@ -578,10 +515,7 @@ class _NotchPainter extends CustomPainter {
         ),
     );
 
-    canvas.drawPath(
-      path,
-      Paint()..color = _ownerNavy,
-    );
+    canvas.drawPath(path, Paint()..color = _ownerNavy);
   }
 
   @override
@@ -595,9 +529,7 @@ class _NotchPainter extends CustomPainter {
 // ============================================================
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({
-    required this.destination,
-  });
+  const _Bubble({required this.destination});
 
   final _OwnerDestination destination;
 
@@ -608,10 +540,7 @@ class _Bubble extends StatelessWidget {
       decoration: BoxDecoration(
         color: _ownerBlue,
         shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.white24,
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white24, width: 1),
         boxShadow: [
           BoxShadow(
             color: _ownerBlue.withValues(alpha: 0.30),
@@ -623,14 +552,8 @@ class _Bubble extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            destination.icon,
-            color: Colors.white,
-            size: 25,
-          ),
-
+          Icon(destination.icon, color: Colors.white, size: 25),
           const SizedBox(height: 2),
-
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
@@ -685,9 +608,7 @@ class _BottomItem extends StatelessWidget {
                 size: 24,
                 color: Colors.white,
               ),
-
               const SizedBox(height: 3),
-
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),
                 child: Text(

@@ -24,7 +24,6 @@ class KtWarna {
 class KtGaya {
   KtGaya._();
 
-  // Shadow kartu utama: tegas di kanan-bawah seperti screenshot.
   static List<BoxShadow> get bayangan => [
         BoxShadow(
           color: KtWarna.navy.withOpacity(0.20),
@@ -39,7 +38,6 @@ class KtGaya {
         ),
       ];
 
-  // Shadow ringan untuk kartu kecil dan tombol.
   static List<BoxShadow> get bayanganRingan => [
         BoxShadow(
           color: KtWarna.navy.withOpacity(0.16),
@@ -48,7 +46,6 @@ class KtGaya {
         ),
       ];
 
-  // Shadow untuk panel besar.
   static List<BoxShadow> get bayanganPanel => [
         BoxShadow(
           color: KtWarna.navy.withOpacity(0.24),
@@ -58,7 +55,6 @@ class KtGaya {
         ),
       ];
 
-  // Shadow tipis pada judul kartu.
   static List<Shadow> get bayanganTeks => [
         Shadow(
           color: KtWarna.navy.withOpacity(0.22),
@@ -67,7 +63,6 @@ class KtGaya {
         ),
       ];
 
-  // Shadow angka besar.
   static List<Shadow> get bayanganAngka => [
         Shadow(
           color: KtWarna.navy.withOpacity(0.28),
@@ -76,13 +71,11 @@ class KtGaya {
         ),
       ];
 
-  // Border tipis untuk kartu putih.
   static Border get borderKartu => Border.all(
         color: const Color(0xffb6c9d9),
         width: 1,
       );
 
-  // Gradasi hijau untuk status pembayaran.
   static const LinearGradient gradasiHijau = LinearGradient(
     colors: [
       Color(0xff25a844),
@@ -92,7 +85,6 @@ class KtGaya {
     end: Alignment.bottomCenter,
   );
 
-  // Gradasi merah untuk tombol aksi.
   static const LinearGradient gradasiMerah = LinearGradient(
     colors: [
       KtWarna.merah,
@@ -102,7 +94,6 @@ class KtGaya {
     end: Alignment.bottomCenter,
   );
 
-  // Gradasi navy untuk header atau kartu kasir.
   static const LinearGradient gradasiNavy = LinearGradient(
     colors: [
       Color(0xff123d60),
@@ -214,6 +205,13 @@ class RekapShift {
 
   final List<TransaksiKasir> transaksi;
 
+  // Data tambahan untuk panel Modal & Keuntungan.
+  // Key adalah jam transaksi 0 sampai 23.
+  final Map<int, double> penjualanPerJam;
+
+  // HPP hanya terisi jika data HPP transaksi tersedia.
+  final double? totalHpp;
+
   const RekapShift({
     required this.tanggal,
     required this.namaShift,
@@ -228,6 +226,8 @@ class RekapShift {
     required this.jumlahTransaksiQr,
     required this.transaksi,
     this.fotoKasirAsset,
+    this.penjualanPerJam = const {},
+    this.totalHpp,
   });
 
   String get labelShift => '$namaShift ($rentangJam)';

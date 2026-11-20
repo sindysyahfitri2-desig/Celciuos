@@ -1,3 +1,4 @@
+
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -9,6 +10,10 @@ import 'package:kasir_celcious_coffe/data/produk_data.dart';
 import 'package:kasir_celcious_coffe/features/owner/application/product_management_service.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/product_image.dart';
 
+// ============================================================
+// WARNA
+// ============================================================
+
 const _navy = Color(0xFF082640);
 const _navy2 = Color(0xFF103657);
 const _background = Color(0xFFDCE9F4);
@@ -16,17 +21,22 @@ const _lightBlue = Color(0xFFA8CBE9);
 const _muted = Color(0xFF667B8D);
 const _imageColor = Color(0xFFD5D0E5);
 const _danger = Color(0xFFE05A5A);
+const _border = Color(0xFFD0D9E3);
+
+// ============================================================
+// SHADOW
+// ============================================================
 
 List<BoxShadow> _shadow() => [
   BoxShadow(
-    color: _navy.withValues(alpha: 0.13),
+    color: _navy.withValues(alpha: 0.12),
     blurRadius: 8,
     offset: const Offset(0, 3),
   ),
 ];
 
 // ============================================================
-// HALAMAN KELOLA PRODUK
+// HALAMAN PRODUK
 // ============================================================
 
 class ProdukPage extends StatefulWidget {
@@ -39,8 +49,10 @@ class ProdukPage extends StatefulWidget {
 class _ProdukPageState extends State<ProdukPage> {
   final TextEditingController _searchController =
       TextEditingController();
+
   final TextEditingController _nameController =
       TextEditingController();
+
   final TextEditingController _priceController =
       TextEditingController();
 
@@ -51,13 +63,14 @@ class _ProdukPageState extends State<ProdukPage> {
 
   String _search = '';
   String? _selectedCategory;
+
   Uint8List? _pickedImage;
 
   bool _saving = false;
   bool _loadingCategories = false;
 
   final List<String> _categories = List<String>.from(
-    ProductManagementService.defaultCategories,
+    ProductManagementService.kategoriProduk,
   );
 
   Timer? _timer;
@@ -75,16 +88,6 @@ class _ProdukPageState extends State<ProdukPage> {
     );
   }
 
-  Future<void> _loadProducts({bool showError = true}) async {
-    try {
-      await ProdukData.loadFromApi();
-    } catch (error) {
-      if (mounted && showError) {
-        _snack('Gagal memuat produk: $error');
-      }
-    }
-  }
-
   @override
   void dispose() {
     _timer?.cancel();
@@ -97,42 +100,45 @@ class _ProdukPageState extends State<ProdukPage> {
   }
 
   // ============================================================
-  // KATEGORI
+  // LOAD DATA
   // ============================================================
 
-  Future<void> _loadCategories() async {
-    if (_loadingCategories) return;
-
-    _loadingCategories = true;
-
+  Future<void> _loadProducts({bool showError = true}) async {
     try {
-      final saved =
-          await ProductManagementService.loadCategories();
-
-      if (!mounted || saved == null || saved.isEmpty) return;
-
-      setState(() {
-        _categories
-          ..clear()
-          ..addAll(saved);
-      });
+      await ProdukData.loadFromApi();
     } catch (error) {
-      if (mounted) {
-        _snack('Gagal memuat kategori: $error');
+      if (mounted && showError) {
+        _snack('Gagal memuat produk: $error');
       }
-    } finally {
-      _loadingCategories = false;
     }
   }
 
-  Future<void> _saveCategories() async {
-    try {
-      await ProductManagementService.saveCategories(_categories);
-    } catch (error) {
-      if (mounted) {
-        _snack('Gagal menyimpan kategori: $error');
-      }
+  Future<void> _loadCategories() async {
+  if (_loadingCategories) return;
+
+  _loadingCategories = true;
+
+  try {
+    await ProductManagementService.loadCategories();
+
+    if (!mounted) return;
+
+    setState(() {
+      _categories
+        ..clear()
+        ..addAll(ProdukData.kategoriProduk);
+    });
+  } catch (error) {
+    if (mounted) {
+      _snack('Gagal memuat kategori: $error');
     }
+  } finally {
+    _loadingCategories = false;
+  }
+}
+
+  Future<void> _saveCategories() async {
+    await ProductManagementService.saveCategories(_categories);
   }
 
   int _usageCount(String category) {
@@ -169,6 +175,9 @@ class _ProdukPageState extends State<ProdukPage> {
           content: Text(message),
           behavior: SnackBarBehavior.floating,
           backgroundColor: _navy,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
   }
@@ -206,6 +215,13 @@ class _ProdukPageState extends State<ProdukPage> {
 
   Future<void> _saveNewProduct() async {
     if (_saving) return;
+
+    if (_nameController.text.trim().isEmpty ||
+        _priceController.text.trim().isEmpty ||
+        _selectedCategory == null) {
+      _snack('Lengkapi nama, harga, dan kategori produk.');
+      return;
+    }
 
     setState(() => _saving = true);
 
@@ -299,12 +315,18 @@ class _ProdukPageState extends State<ProdukPage> {
           borderRadius: BorderRadius.circular(18),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              const Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.white,
+                size: 42,
+              ),
+              const SizedBox(height: 12),
               const Text(
-                'Hapus produk?',
+                'Hapus Produk?',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 20,
@@ -320,7 +342,7 @@ class _ProdukPageState extends State<ProdukPage> {
                   fontSize: 13,
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -413,7 +435,7 @@ class _ProdukPageState extends State<ProdukPage> {
   }
 
   // ============================================================
-  // DIALOG KATEGORI
+  // KATEGORI
   // ============================================================
 
   Future<void> _openCategoryDialog() async {
@@ -439,7 +461,7 @@ class _ProdukPageState extends State<ProdukPage> {
   }
 
   // ============================================================
-  // HALAMAN UTAMA
+  // BUILD UTAMA
   // ============================================================
 
   @override
@@ -447,8 +469,7 @@ class _ProdukPageState extends State<ProdukPage> {
     return ColoredBox(
       color: _background,
       child: SafeArea(
-        child: ValueListenableBuilder<
-            List<Map<String, dynamic>>>(
+        child: ValueListenableBuilder<List<Map<String, dynamic>>>(
           valueListenable: ProdukData.produk,
           builder: (context, products, child) {
             for (final product in products) {
@@ -477,13 +498,21 @@ class _ProdukPageState extends State<ProdukPage> {
 
             return LayoutBuilder(
               builder: (context, constraints) {
-                final isPhone = constraints.maxWidth < 600;
-                final pad = isPhone ? 14.0 : 24.0;
+                final width = constraints.maxWidth;
+
+                final isPhone = width < 600;
+                final isTablet = width >= 600 && width < 1100;
+
+                final pad = isPhone
+                    ? 14.0
+                    : isTablet
+                        ? 22.0
+                        : 26.0;
 
                 return SingleChildScrollView(
                   padding: EdgeInsets.fromLTRB(
                     pad,
-                    isPhone ? 18 : 24,
+                    isPhone ? 16 : 24,
                     pad,
                     28,
                   ),
@@ -491,13 +520,17 @@ class _ProdukPageState extends State<ProdukPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _header(isPhone),
-                      SizedBox(height: isPhone ? 20 : 30),
+                      SizedBox(height: isPhone ? 20 : 26),
                       _formSection(isPhone),
-                      SizedBox(height: isPhone ? 16 : 20),
+                      SizedBox(height: isPhone ? 18 : 22),
                       if (visibleProducts.isEmpty)
                         _emptyState()
                       else
-                        _productGrid(visibleProducts),
+                        _productGrid(
+                          visibleProducts,
+                          isPhone: isPhone,
+                          isTablet: isTablet,
+                        ),
                     ],
                   ),
                 );
@@ -526,7 +559,7 @@ class _ProdukPageState extends State<ProdukPage> {
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 13),
           _searchField(),
         ],
       );
@@ -534,16 +567,16 @@ class _ProdukPageState extends State<ProdukPage> {
 
     return Row(
       children: [
-        const Expanded(
+        Expanded(
           child: Text(
             'Kontrol Product',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: _navy,
-              fontSize: 34,
+              fontSize: isPhone ? 25 : 32,
               fontWeight: FontWeight.w900,
-              shadows: [
+              shadows: const [
                 Shadow(
                   color: Colors.black26,
                   blurRadius: 4,
@@ -555,7 +588,7 @@ class _ProdukPageState extends State<ProdukPage> {
         ),
         const SizedBox(width: 24),
         SizedBox(
-          width: 340,
+          width: 300,
           child: _searchField(),
         ),
       ],
@@ -567,8 +600,17 @@ class _ProdukPageState extends State<ProdukPage> {
   // ============================================================
 
   Widget _searchField() {
-    return SizedBox(
-      height: 44,
+    return Container(
+      height: 43,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(
+          color: const Color(0xFFE0E8F0),
+          width: 1,
+        ),
+        boxShadow: _shadow(),
+      ),
       child: TextField(
         controller: _searchController,
         onChanged: (value) {
@@ -582,15 +624,12 @@ class _ProdukPageState extends State<ProdukPage> {
           hintText: 'Cari produk...',
           hintStyle: const TextStyle(
             color: Color(0xFF91A9BD),
-            fontSize: 13,
+            fontSize: 12,
           ),
           prefixIcon: const Icon(
             Icons.search_rounded,
             color: Color(0xFF7896AE),
             size: 19,
-          ),
-          prefixIconConstraints: const BoxConstraints(
-            minWidth: 42,
           ),
           suffixIcon: _search.isEmpty
               ? null
@@ -602,23 +641,9 @@ class _ProdukPageState extends State<ProdukPage> {
                   icon: const Icon(Icons.close, size: 17),
                 ),
           contentPadding: const EdgeInsets.symmetric(vertical: 10),
-          filled: true,
-          fillColor: const Color(0xFFF8FBFF),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(25),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(25),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(25),
-            borderSide: const BorderSide(
-              color: _lightBlue,
-              width: 1.5,
-            ),
-          ),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
         ),
       ),
     );
@@ -636,13 +661,13 @@ class _ProdukPageState extends State<ProdukPage> {
             height: 104,
             child: _formCard(true),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 11),
           Row(
             children: [
               Expanded(
                 flex: 3,
                 child: SizedBox(
-                  height: 42,
+                  height: 40,
                   child: _categoryPill(),
                 ),
               ),
@@ -650,14 +675,14 @@ class _ProdukPageState extends State<ProdukPage> {
               Expanded(
                 flex: 2,
                 child: SizedBox(
-                  height: 42,
+                  height: 40,
                   child: _saveButton(),
                 ),
               ),
               const SizedBox(width: 8),
               SizedBox(
-                width: 76,
-                height: 60,
+                width: 78,
+                height: 58,
                 child: _addCategoryCard(true),
               ),
             ],
@@ -671,8 +696,10 @@ class _ProdukPageState extends State<ProdukPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(child: _formCard(false)),
-          const SizedBox(width: 16),
+          Expanded(
+            child: _formCard(false),
+          ),
+          const SizedBox(width: 14),
           SizedBox(
             width: 100,
             child: _addCategoryCard(false),
@@ -687,17 +714,17 @@ class _ProdukPageState extends State<ProdukPage> {
       padding: EdgeInsets.all(narrow ? 9 : 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: const Color(0xFFD0D9E3),
-          width: 1.5,
+          color: _border,
+          width: 1.3,
         ),
         boxShadow: _shadow(),
       ),
       child: Row(
         children: [
           _imagePickerBox(narrow ? 76 : 88),
-          SizedBox(width: narrow ? 10 : 16),
+          SizedBox(width: narrow ? 10 : 15),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -710,19 +737,20 @@ class _ProdukPageState extends State<ProdukPage> {
             ),
           ),
           if (!narrow) ...[
-            const SizedBox(width: 18),
+            const SizedBox(width: 15),
             SizedBox(
               width: 135,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   SizedBox(
-                    height: 36,
+                    height: 35,
                     child: _categoryPill(),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 7),
                   SizedBox(
                     height: 32,
+                    width: double.infinity,
                     child: _saveButton(),
                   ),
                 ],
@@ -734,19 +762,27 @@ class _ProdukPageState extends State<ProdukPage> {
     );
   }
 
+  // ============================================================
+  // IMAGE PICKER
+  // ============================================================
+
   Widget _imagePickerBox(double size) {
     return Tooltip(
       message: 'Pilih gambar produk',
       child: InkWell(
         onTap: _pickImage,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(13),
         child: Container(
           width: size,
           height: size,
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: _imageColor,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: const Color(0xFFE0DBEA),
+              width: 1,
+            ),
           ),
           child: _pickedImage == null
               ? Icon(
@@ -763,6 +799,10 @@ class _ProdukPageState extends State<ProdukPage> {
     );
   }
 
+  // ============================================================
+  // NAMA PRODUK
+  // ============================================================
+
   Widget _nameField() {
     return SizedBox(
       height: 32,
@@ -775,14 +815,14 @@ class _ProdukPageState extends State<ProdukPage> {
               textCapitalization: TextCapitalization.words,
               style: const TextStyle(
                 color: _navy,
-                fontSize: 15,
+                fontSize: 14,
                 fontWeight: FontWeight.w800,
               ),
               decoration: const InputDecoration(
                 hintText: 'Nama Produk',
                 hintStyle: TextStyle(
                   color: _navy,
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: FontWeight.w800,
                 ),
                 isDense: true,
@@ -796,6 +836,10 @@ class _ProdukPageState extends State<ProdukPage> {
       ),
     );
   }
+
+  // ============================================================
+  // HARGA
+  // ============================================================
 
   Widget _priceField() {
     return SizedBox(
@@ -848,12 +892,16 @@ class _ProdukPageState extends State<ProdukPage> {
         padding: EdgeInsets.only(left: 5),
         child: Icon(
           Icons.edit_square,
-          size: 17,
+          size: 16,
           color: _navy,
         ),
       ),
     );
   }
+
+  // ============================================================
+  // DROPDOWN KATEGORI
+  // ============================================================
 
   Widget _categoryPill() {
     final value = _categories.contains(_selectedCategory)
@@ -862,10 +910,14 @@ class _ProdukPageState extends State<ProdukPage> {
 
     return Container(
       height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: _lightBlue,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFFB7CBE0),
+          width: 1,
+        ),
         boxShadow: _shadow(),
       ),
       child: DropdownButtonHideUnderline(
@@ -911,6 +963,10 @@ class _ProdukPageState extends State<ProdukPage> {
     );
   }
 
+  // ============================================================
+  // BUTTON SIMPAN
+  // ============================================================
+
   Widget _saveButton() {
     return ElevatedButton(
       onPressed: _saving ? null : _saveNewProduct,
@@ -919,7 +975,7 @@ class _ProdukPageState extends State<ProdukPage> {
         foregroundColor: Colors.white,
         disabledBackgroundColor: _navy.withValues(alpha: 0.5),
         elevation: 3,
-        padding: EdgeInsets.zero,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
@@ -943,17 +999,17 @@ class _ProdukPageState extends State<ProdukPage> {
   Widget _addCategoryCard(bool narrow) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(17),
+      borderRadius: BorderRadius.circular(15),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: _openCategoryDialog,
         child: Container(
           decoration: BoxDecoration(
             border: Border.all(
-              color: const Color(0xFFD0D9E3),
-              width: 1.4,
+              color: _border,
+              width: 1.3,
             ),
-            borderRadius: BorderRadius.circular(17),
+            borderRadius: BorderRadius.circular(15),
             boxShadow: _shadow(),
           ),
           child: Column(
@@ -964,15 +1020,15 @@ class _ProdukPageState extends State<ProdukPage> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: _navy,
-                  fontSize: narrow ? 10 : 12,
+                  fontSize: narrow ? 10 : 11,
                   height: 1.15,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               Icon(
                 Icons.add_rounded,
                 color: _navy,
-                size: narrow ? 27 : 34,
+                size: narrow ? 27 : 32,
               ),
             ],
           ),
@@ -982,30 +1038,36 @@ class _ProdukPageState extends State<ProdukPage> {
   }
 
   // ============================================================
-  // GRID PRODUK
+  // GRID PRODUK RESPONSIF
   // ============================================================
 
   Widget _productGrid(
-    List<Map<String, dynamic>> products,
-  ) {
-    return LayoutBuilder(
-      builder: (context, box) {
-        final columns = box.maxWidth >= 650 ? 2 : 1;
-        final isPhone = box.maxWidth < 600;
+    List<Map<String, dynamic>> products, {
+    required bool isPhone,
+    required bool isTablet,
+  }) {
+    final columns = isPhone
+        ? 1
+        : isTablet
+            ? 2
+            : 3;
 
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: products.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 14,
-            mainAxisExtent: isPhone ? 108 : 104,
-          ),
-          itemBuilder: (context, index) {
-            return _productCard(products[index]);
-          },
+    final spacing = isPhone ? 12.0 : 15.0;
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: products.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
+        crossAxisSpacing: spacing,
+        mainAxisSpacing: spacing,
+        mainAxisExtent: isPhone ? 112 : 112,
+      ),
+      itemBuilder: (context, index) {
+        return _productCard(
+          products[index],
+          isPhone: isPhone,
         );
       },
     );
@@ -1015,24 +1077,32 @@ class _ProdukPageState extends State<ProdukPage> {
   // KARTU PRODUK
   // ============================================================
 
-  Widget _productCard(Map<String, dynamic> product) {
+  Widget _productCard(
+    Map<String, dynamic> product, {
+    required bool isPhone,
+  }) {
     final name = product['name']?.toString() ?? 'Produk';
     final aktif = product['is_active'] == true;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 350;
-        final imageSize = compact ? 66.0 : 78.0;
+        final compact = constraints.maxWidth < 260;
+
+        final imageSize = isPhone
+            ? 82.0
+            : compact
+                ? 62.0
+                : 76.0;
 
         return Opacity(
           opacity: aktif ? 1 : 0.55,
           child: Container(
             decoration: BoxDecoration(
               color: _lightBlue,
-              borderRadius: BorderRadius.circular(19),
+              borderRadius: BorderRadius.circular(17),
               border: Border.all(
-                color: const Color(0xFFCAD7E3),
-                width: 1.4,
+                color: const Color(0xFFC5D4E1),
+                width: 1.2,
               ),
               boxShadow: _shadow(),
             ),
@@ -1045,20 +1115,23 @@ class _ProdukPageState extends State<ProdukPage> {
                     padding: const EdgeInsets.all(7),
                     child: Row(
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: SizedBox(
-                            width: imageSize,
-                            height: imageSize,
-                            child: ColoredBox(
-                              color: _imageColor,
-                              child: ProductImage(
-                                image: product['image'],
-                              ),
+                        Container(
+                          width: imageSize,
+                          height: imageSize,
+                          decoration: BoxDecoration(
+                            color: _imageColor,
+                            borderRadius: BorderRadius.circular(11),
+                            border: Border.all(
+                              color: const Color(0xFFE3DFEB),
+                              width: 1,
                             ),
                           ),
+                          clipBehavior: Clip.antiAlias,
+                          child: ProductImage(
+                            image: product['image'],
+                          ),
                         ),
-                        const SizedBox(width: 11),
+                        const SizedBox(width: 9),
                         Expanded(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -1070,8 +1143,9 @@ class _ProdukPageState extends State<ProdukPage> {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: _navy,
-                                  fontSize: compact ? 11 : 13,
+                                  fontSize: compact ? 10 : 12,
                                   fontWeight: FontWeight.w800,
+                                  height: 1.2,
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -1079,20 +1153,20 @@ class _ProdukPageState extends State<ProdukPage> {
                                 _rupiah(product['price']),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: _navy,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
+                                  fontSize: compact ? 9 : 10,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                               const SizedBox(height: 5),
                               Row(
                                 children: [
                                   SizedBox(
-                                    width: 43,
-                                    height: 26,
+                                    width: 42,
+                                    height: 24,
                                     child: Transform.scale(
-                                      scale: 0.82,
+                                      scale: 0.78,
                                       alignment: Alignment.centerLeft,
                                       child: Switch(
                                         value: aktif,
@@ -1112,7 +1186,7 @@ class _ProdukPageState extends State<ProdukPage> {
                                           }
                                         },
                                         activeThumbColor: Colors.white,
-                                        activeTrackColor: _lightBlue,
+                                        activeTrackColor: _navy,
                                         inactiveThumbColor: Colors.white,
                                         inactiveTrackColor:
                                             Colors.grey.shade400,
@@ -1121,10 +1195,10 @@ class _ProdukPageState extends State<ProdukPage> {
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 5),
+                                  const SizedBox(width: 4),
                                   SizedBox(
-                                    width: 30,
-                                    height: 26,
+                                    width: 25,
+                                    height: 23,
                                     child: _AnimatedDeleteButton(
                                       tooltip: 'Hapus $name',
                                       onPressed: () =>
@@ -1141,20 +1215,20 @@ class _ProdukPageState extends State<ProdukPage> {
                   ),
                 ),
                 SizedBox(
-                  width: 38,
+                  width: 32,
                   child: Center(
                     child: IconButton(
                       tooltip: 'Edit $name',
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(
-                        minWidth: 35,
+                        minWidth: 30,
                         minHeight: 35,
                       ),
                       onPressed: () => _editProduct(product),
                       icon: const Icon(
                         Icons.edit_square,
                         color: _navy,
-                        size: 19,
+                        size: 17,
                       ),
                     ),
                   ),
@@ -1180,7 +1254,11 @@ class _ProdukPageState extends State<ProdukPage> {
       ),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(19),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: _border,
+          width: 1,
+        ),
         boxShadow: _shadow(),
       ),
       child: Column(

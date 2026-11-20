@@ -8,22 +8,26 @@ import '../../../data/produk_data.dart';
 class ProductManagementService {
   ProductManagementService._();
 
-  static const defaultCategories = [
-    'Coffee',
-    'Non-Coffee',
-    'Food',
-    'Snack',
-  ];
+  // ============================================================
+  // KATEGORI UTAMA
+  // ============================================================
+
+  /// Satu sumber kategori untuk Kasir, Produk, dan Owner.
+  static List<String> get kategoriProduk =>
+      List<String>.from(ProdukData.kategoriProduk);
+
+  static List<String> get defaultCategories =>
+      List<String>.from(ProdukData.kategoriProduk);
 
   static List<Map<String, dynamic>> _categoryRecords = [];
 
   static bool _categoriesLoaded = false;
 
   // ============================================================
-  // KATEGORI
+  // LOAD KATEGORI
   // ============================================================
 
-  static Future<List<String>?> loadCategories() async {
+  static Future<List<Map<String, dynamic>>> _fetchCategories() async {
     final response = await ApiService.get('kategori');
     final data = response['data'];
 
@@ -38,17 +42,45 @@ class ProductManagementService {
 
     _categoriesLoaded = true;
 
-    return _categoryRecords
-        .map((item) => item['nama_kategori']?.toString() ?? '')
-        .where((name) => name.isNotEmpty)
-        .toList();
+    return _categoryRecords;
+  }
+
+  /// Memastikan tujuh kategori utama tersedia di database.
+  /// Kategori lama tidak dihapus.
+  static Future<void> _ensureCanonicalCategories() async {
+    await _fetchCategories();
+
+    for (final category in ProdukData.kategoriProduk) {
+      final exists = _categoryRecords.any((record) {
+        final name = record['nama_kategori']?.toString() ?? '';
+        return name.toLowerCase() == category.toLowerCase();
+      });
+
+      if (!exists) {
+        await ApiService.post('kategori', {
+          'nama_kategori': category,
+        });
+
+        await _fetchCategories();
+      }
+    }
+  }
+
+  static Future<List<String>?> loadCategories() async {
+    await _ensureCanonicalCategories();
+
+    return List<String>.from(ProdukData.kategoriProduk);
   }
 
   static Future<void> _ensureCategoriesLoaded() async {
     if (!_categoriesLoaded) {
-      await loadCategories();
+      await _ensureCanonicalCategories();
     }
   }
+
+  // ============================================================
+  // JUMLAH PRODUK PER KATEGORI
+  // ============================================================
 
   static int usageCount(String category) {
     return ProdukData.produk.value.where((product) {
@@ -57,57 +89,43 @@ class ProductManagementService {
     }).length;
   }
 
+  // ============================================================
+  // SIMPAN KATEGORI
+  // ============================================================
+
+  /// Kategori utama bersifat tetap.
+  /// Kategori lama di database tidak dihapus.
   static Future<void> saveCategories(List<String> categories) async {
-    await _ensureCategoriesLoaded();
-
-    final desired = categories
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .toList();
-
-    final removed = _categoryRecords.where((record) {
-      final name = record['nama_kategori']?.toString() ?? '';
-      return !desired.any(
-        (item) => item.toLowerCase() == name.toLowerCase(),
-      );
-    }).toList();
-
-    for (final category in removed) {
-      final id = category['id_kategori'];
-
-      if (id == null) {
-        throw Exception('ID kategori tidak ditemukan.');
-      }
-
-      await ApiService.delete('kategori/$id');
-    }
-
-    for (final name in desired) {
-      final exists = _categoryRecords.any((record) {
-        final oldName = record['nama_kategori']?.toString() ?? '';
-        return oldName.toLowerCase() == name.toLowerCase();
-      });
-
-      if (!exists) {
-        await ApiService.post('kategori', {
-          'nama_kategori': name,
-        });
-      }
-    }
-
-    await loadCategories();
+    await _ensureCanonicalCategories();
   }
 
+  // ============================================================
+  // AMBIL ID KATEGORI
+  // ============================================================
+
   static Future<int> _getCategoryId(String category) async {
-    await _ensureCategoriesLoaded();
+    await _ensureCanonicalCategories();
+
+    final normalizedCategory = ProdukData.kategoriProduk.firstWhere(
+      (item) => item.toLowerCase() == category.trim().toLowerCase(),
+      orElse: () => '',
+    );
+
+    if (normalizedCategory.isEmpty) {
+      throw Exception(
+        'Kategori "$category" tidak termasuk kategori utama.',
+      );
+    }
 
     final selected = _categoryRecords.where((item) {
       final name = item['nama_kategori']?.toString() ?? '';
-      return name.toLowerCase() == category.trim().toLowerCase();
+      return name.toLowerCase() == normalizedCategory.toLowerCase();
     });
 
     if (selected.isEmpty) {
-      throw Exception('Kategori "$category" tidak ditemukan di server.');
+      throw Exception(
+        'Kategori "$normalizedCategory" tidak ditemukan di server.',
+      );
     }
 
     final id = selected.first['id_kategori'];
@@ -120,7 +138,7 @@ class ProductManagementService {
   }
 
   // ============================================================
-  // PRODUK
+  // TAMBAH PRODUK
   // ============================================================
 
   static Future<void> addProduct({
@@ -130,7 +148,10 @@ class ProductManagementService {
     required Uint8List? image,
   }) async {
     final cleanName = name.trim();
-    final price = int.tryParse(priceText.replaceAll('.', '').trim());
+
+    final price = int.tryParse(
+      priceText.replaceAll('.', '').trim(),
+    );
 
     if (cleanName.isEmpty ||
         price == null ||
@@ -152,6 +173,7 @@ class ProductManagementService {
     });
 
     final created = response['data'];
+
     if (created is! Map || created['id_produk'] == null) {
       throw const FormatException(
         'Produk sudah dikirim, tetapi ID produk dari server tidak valid.',
@@ -159,12 +181,20 @@ class ProductManagementService {
     }
 
     final createdProduct = Map<String, dynamic>.from(created);
+
     final id = createdProduct['id_produk'];
-    final savedName = createdProduct['nama_produk']?.toString() ?? cleanName;
+
+    final savedName =
+        createdProduct['nama_produk']?.toString() ?? cleanName;
+
     final savedCategory = createdProduct['kategori'];
+
     final savedPrice =
-        double.tryParse(createdProduct['harga']?.toString() ?? '') ??
+        double.tryParse(
+          createdProduct['harga']?.toString() ?? '',
+        ) ??
         price.toDouble();
+
     final products = ProdukData.produk.value
         .where(
           (product) =>
@@ -178,17 +208,23 @@ class ProductManagementService {
       'name': savedName,
       'price': savedPrice,
       'category': savedCategory is Map
-          ? savedCategory['nama_kategori']?.toString() ?? category.trim()
+          ? savedCategory['nama_kategori']?.toString() ??
+              category.trim()
           : category.trim(),
       'image': image ?? '',
       'is_active':
           createdProduct['status']?.toString().trim().toLowerCase() !=
-          'nonaktif',
+              'nonaktif',
     });
+
     await ProdukData.saveProducts(products);
 
     await ProdukData.loadFromApi();
   }
+
+  // ============================================================
+  // EDIT PRODUK
+  // ============================================================
 
   static Future<void> updateProduct({
     required Map<String, dynamic> product,
@@ -223,6 +259,10 @@ class ProductManagementService {
     await ProdukData.loadFromApi();
   }
 
+  // ============================================================
+  // HAPUS PRODUK
+  // ============================================================
+
   static Future<void> deleteProduct(
     Map<String, dynamic> product,
   ) async {
@@ -237,10 +277,17 @@ class ProductManagementService {
     await ProdukData.loadFromApi();
   }
 
- static Future<void> setProductActive(
-  Map<String, dynamic> product, {
-  required bool isActive,
-}) async {
-  await ProdukData.setProductActive(product, isActive: isActive);
-}
+  // ============================================================
+  // AKTIF / NONAKTIF PRODUK
+  // ============================================================
+
+  static Future<void> setProductActive(
+    Map<String, dynamic> product, {
+    required bool isActive,
+  }) async {
+    await ProdukData.setProductActive(
+      product,
+      isActive: isActive,
+    );
+  }
 }

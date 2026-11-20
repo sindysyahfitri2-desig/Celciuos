@@ -158,14 +158,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
         child: LayoutBuilder(
           builder: (context, box) {
             final width = box.maxWidth;
-            final isMobile = width < 600;
-            final isTablet = width >= 600 && width < 1000;
-            final isDesktop = width >= 1000;
+            final isMobile = width < 3450;
+            final isTablet = width >= 650 && width < 800;
+            final isDesktop = width >= 800;
 
             final double sidePad = isMobile
                 ? 12
                 : isTablet
-                ? 24
+                ? 20
                 : 35;
 
             return Column(
