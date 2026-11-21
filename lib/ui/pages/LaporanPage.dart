@@ -641,7 +641,7 @@ class _LaporanPageState extends State<LaporanPage> {
 
         const SizedBox(width: 10),
 
-        Expanded(child: _dropdown("Tahun", tahun, ["2025", "2026", "2027"])),
+        Expanded(child: _dropdown("Tahun", tahun, ["2026", "2027"])),
 
         const SizedBox(width: 10),
 

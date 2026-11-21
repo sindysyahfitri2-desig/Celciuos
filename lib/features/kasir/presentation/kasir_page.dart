@@ -1,4 +1,6 @@
+
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:kasir_celcious_coffe/data/produk_data.dart';
@@ -15,7 +17,6 @@ import 'widgets/cash_drawer_panel.dart';
 import 'package:kasir_celcious_coffe/data/api_service.dart';
 import 'package:kasir_celcious_coffe/features/kasir/presentation/ganti_shift_dialog.dart';
 
-// Layar dan alur Kasir; penyimpanan bersama tetap berada di lib/data.
 class kasirPage extends StatefulWidget {
   const kasirPage({super.key, this.onLogout});
 
@@ -32,7 +33,6 @@ class _kasirPageState extends State<kasirPage> {
 
   final Color navy = const Color(0xff082640);
   final Color textColor = const Color(0xff102b40);
-  final Color modalColor = const Color(0xffa8cbe9);
 
   // ==========================================================
   // DATA KASIR
@@ -42,27 +42,30 @@ class _kasirPageState extends State<kasirPage> {
   int shiftKe = 1;
   int? _idKasir;
   String? _fotoUrl;
+
   double kasAwal = 0;
+
   bool _showCashDrawerPanel = false;
+
   DateTime _today = DateTime.now();
   Timer? _dateRefreshTimer;
 
   bool showWelcome = true;
   bool showJenisPesanan = false;
-
-  String? jenisPesanan;
-
   bool showCheckout = false;
   bool showPembayaran = false;
+
+  String? jenisPesanan;
 
   final namaController = TextEditingController();
   final kasController = TextEditingController();
 
   // ==========================================================
-  // DATA KERANJANG
+  // KERANJANG
   // ==========================================================
 
-  final CashierCartController _cartController = CashierCartController();
+  final CashierCartController _cartController =
+      CashierCartController();
 
   List<Map<String, dynamic>> get cart => _cartController.items;
 
@@ -71,7 +74,125 @@ class _kasirPageState extends State<kasirPage> {
     _popupCatatan(product);
   }
 
+  // ==========================================================
+  // HELPER PRODUK
+  // ==========================================================
+
+  String _normalisasiKategori(dynamic value) {
+    return (value ?? '')
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[\s_-]+'), ' ');
+  }
+
+  String _namaAsli(Map<String, dynamic> product) {
+    return (
+      product['name'] ??
+      product['nama_produk'] ??
+      ''
+    ).toString().trim();
+  }
+
+  String _namaTampilan(Map<String, dynamic> product) {
+    final nama = _namaAsli(product);
+
+    if (nama.isEmpty) return 'Produk';
+
+    if (nama.toLowerCase().startsWith('celcious ')) {
+      return nama;
+    }
+
+    return 'Celcious $nama';
+  }
+
+  double _hargaProduk(Map<String, dynamic> product) {
+    final value = product['price'] ?? product['harga'] ?? 0;
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(
+          value.toString().replaceAll(',', '.'),
+        ) ??
+        0;
+  }
+
+  int _jumlahProduk(dynamic value) {
+    if (value is num) return value.toInt();
+
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  bool _produkAktif(Map<String, dynamic> product) {
+    final status = product['is_active'];
+
+    if (status == false ||
+        status == 0 ||
+        status == '0' ||
+        status == 'false' ||
+        status == 'nonaktif') {
+      return false;
+    }
+
+    return true;
+  }
+
+  dynamic _gambarProdukData(Map<String, dynamic> product) {
+    return product['image'] ??
+        product['gambar'] ??
+        product['foto'] ??
+        product['gambar_produk'];
+  }
+
+  Widget _gambarProduk(dynamic image) {
+    if (image is Uint8List) {
+      return Image.memory(
+        image,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholderGambar(),
+      );
+    }
+
+    final path = image?.toString().trim() ?? '';
+
+    if (path.isEmpty) return _placeholderGambar();
+
+    if (path.startsWith('http://') ||
+        path.startsWith('https://')) {
+      return Image.network(
+        path,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholderGambar(),
+      );
+    }
+
+    return Image.asset(
+      path,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => _placeholderGambar(),
+    );
+  }
+
+  Widget _placeholderGambar() {
+    return const Center(
+      child: Icon(
+        Icons.local_cafe,
+        color: Colors.white,
+        size: 28,
+      ),
+    );
+  }
+
+  // ==========================================================
+  // POPUP CATATAN
+  // ==========================================================
+
   void _popupCatatan(Map<String, dynamic> product) {
+    final nama = _namaTampilan(product);
+    final harga = _hargaProduk(product);
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -98,41 +219,25 @@ class _kasirPageState extends State<kasirPage> {
                         color: const Color(0xffd6d3e6),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.asset(
-                          product['image'] ?? '',
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(
-                              Icons.local_cafe,
-                              color: Colors.white,
-                              size: 28,
-                            );
-                          },
-                        ),
-                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: _gambarProduk(_gambarProdukData(product)),
                     ),
-
                     const SizedBox(width: 10),
-
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Celcious ${product['name']}',
+                            nama,
                             style: const TextStyle(
                               color: Color(0xff102b40),
                               fontSize: 17,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-
                           const SizedBox(height: 2),
-
                           Text(
-                            rupiah((product['price'] as num).toDouble()),
+                            rupiah(harga),
                             style: const TextStyle(
                               color: Color(0xff31566e),
                               fontSize: 12,
@@ -143,9 +248,7 @@ class _kasirPageState extends State<kasirPage> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 10),
-
                 const Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
@@ -157,16 +260,12 @@ class _kasirPageState extends State<kasirPage> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 3),
-
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
+                      onPressed: () => Navigator.pop(context),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 7),
                         minimumSize: Size.zero,
@@ -180,9 +279,7 @@ class _kasirPageState extends State<kasirPage> {
                         ),
                       ),
                     ),
-
                     const SizedBox(width: 3),
-
                     SizedBox(
                       width: 45,
                       height: 23,
@@ -220,7 +317,8 @@ class _kasirPageState extends State<kasirPage> {
   }
 
   void _popupInputCatatan(Map<String, dynamic> product) {
-    final TextEditingController catatanController = TextEditingController();
+    final TextEditingController catatanController =
+        TextEditingController();
 
     showDialog(
       context: context,
@@ -248,41 +346,25 @@ class _kasirPageState extends State<kasirPage> {
                         color: const Color(0xffd6d3e6),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.asset(
-                          product['image'] ?? '',
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(
-                              Icons.local_cafe,
-                              color: Colors.white,
-                              size: 28,
-                            );
-                          },
-                        ),
-                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: _gambarProduk(_gambarProdukData(product)),
                     ),
-
                     const SizedBox(width: 10),
-
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Celcious ${product['name']}',
+                            _namaTampilan(product),
                             style: const TextStyle(
                               color: Color(0xff102b40),
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-
                           const SizedBox(height: 2),
-
                           Text(
-                            rupiah((product['price'] as num).toDouble()),
+                            rupiah(_hargaProduk(product)),
                             style: const TextStyle(
                               color: Color(0xff31566e),
                               fontSize: 12,
@@ -293,15 +375,15 @@ class _kasirPageState extends State<kasirPage> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 7),
-
                 Container(
                   height: 100,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xffdddddd)),
+                    border: Border.all(
+                      color: const Color(0xffdddddd),
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(.08),
@@ -316,7 +398,10 @@ class _kasirPageState extends State<kasirPage> {
                     textAlignVertical: TextAlignVertical.top,
                     decoration: const InputDecoration(
                       hintText: 'Tambahkan catatan...',
-                      hintStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                      hintStyle: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.all(8),
                     ),
@@ -326,16 +411,12 @@ class _kasirPageState extends State<kasirPage> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 5),
-
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
+                      onPressed: () => Navigator.pop(context),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 7),
                         minimumSize: Size.zero,
@@ -343,26 +424,31 @@ class _kasirPageState extends State<kasirPage> {
                       ),
                       child: const Text(
                         'Skip',
-                        style: TextStyle(color: Colors.grey, fontSize: 10),
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 10,
+                        ),
                       ),
                     ),
-
                     const SizedBox(width: 3),
-
                     SizedBox(
                       width: 55,
                       height: 23,
                       child: ElevatedButton(
                         onPressed: () {
-                          final catatan = catatanController.text.trim();
+                          final catatan =
+                              catatanController.text.trim();
 
                           if (catatan.isNotEmpty) {
-                            final index = cart.indexWhere(
-                              (item) => item['name'] == product['name'],
-                            );
+                            final namaProduk = _namaAsli(product);
 
-                            if (index >= 0)
+                            final index = cart.indexWhere((item) {
+                              return _namaAsli(item) == namaProduk;
+                            });
+
+                            if (index >= 0) {
                               _cartController.setNote(index, catatan);
+                            }
                           }
 
                           Navigator.pop(context);
@@ -392,77 +478,131 @@ class _kasirPageState extends State<kasirPage> {
           ),
         );
       },
-    );
+    ).then((_) {
+      catatanController.dispose();
+    });
   }
+
   // ==========================================================
-  // TAMBAH / KURANG JUMLAH
+  // JUMLAH DAN TOTAL
   // ==========================================================
 
   void ubahJumlah(int index, int perubahan) {
     _cartController.changeQuantity(index, perubahan);
   }
 
-  // ==========================================================
-  // TOTAL PESANAN
-  // ==========================================================
-
-  double get totalPesanan {
-    return _cartController.total;
-  }
+  double get totalPesanan => _cartController.total;
 
   // ==========================================================
-  // SEARCH
+  // SEARCH DAN KATEGORI
   // ==========================================================
 
   String searchQuery = '';
 
-  // ==========================================================
-  // CATEGORY
-  // ==========================================================
-
   String selectedCategory = 'Semua Menu';
+
+  List<String> get _categoryLabels => [
+        'Semua Menu',
+        ...ProdukData.kategoriProduk,
+      ];
+
+  // ==========================================================
+  // INIT STATE
+  // ==========================================================
 
   @override
   void initState() {
     super.initState();
+
     _scheduleDateRefresh();
+
     _cartController.addListener(_onCartChanged);
+
     TransactionStore.cashDrawerEntries.addListener(_onCashDrawerChanged);
     TransactionStore.transactions.addListener(_onCashDrawerChanged);
     TransactionStore.unfinishedOrders.addListener(_onCashDrawerChanged);
+
     final shift = CashierShiftService.activeShift();
+
     if (shift != null) {
       namaKasir = shift.cashier;
       kasAwal = shift.openingCash;
       namaController.text = shift.cashier;
       kasController.text = shift.openingCash.toInt().toString();
+
       showWelcome = false;
       showJenisPesanan = true;
     }
+
     ApiService.getUser().then((u) {
       if (!mounted || u == null) return;
+
       setState(() {
-        _idKasir = u['id_pengguna'] as int?;
+        _idKasir = u['id_pengguna'] is num
+            ? (u['id_pengguna'] as num).toInt()
+            : int.tryParse(
+                u['id_pengguna']?.toString() ?? '',
+              );
+
         _fotoUrl = u['foto_url']?.toString();
         namaKasir = u['nama']?.toString() ?? namaKasir;
       });
     });
+
+    _muatProdukKasir();
+  }
+
+  Future<void> _muatProdukKasir() async {
+    try {
+      await ProdukData.initialize();
+
+      if (!mounted) return;
+
+      await ProdukData.loadFromApi();
+
+      if (!mounted) return;
+
+      setState(() {});
+    } catch (error) {
+      debugPrint('Gagal memuat produk kasir: $error');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Gagal memuat produk. Periksa koneksi internet.'),
+        ),
+      );
+    }
   }
 
   void _onCartChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _onCashDrawerChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
+
+  // ==========================================================
+  // TANGGAL
+  // ==========================================================
 
   void _scheduleDateRefresh() {
     final now = DateTime.now();
     final nextDay = DateTime(now.year, now.month, now.day + 1);
+
     _dateRefreshTimer = Timer(nextDay.difference(now), () {
       if (!mounted) return;
-      setState(() => _today = DateTime.now());
+
+      setState(() {
+        _today = DateTime.now();
+      });
+
       _scheduleDateRefresh();
     });
   }
@@ -482,15 +622,24 @@ class _kasirPageState extends State<kasirPage> {
       'November',
       'Desember',
     ];
+
     return '${date.day.toString().padLeft(2, '0')} '
         '${months[date.month - 1]} ${date.year}';
   }
 
   double get _cashDrawerBalance {
     final shift = TransactionStore.activeShift.value;
+
     if (shift?['status'] != 'open') return kasAwal;
-    return (TransactionStore.activeShiftSummary()['expectedCash'] as num)
-        .toDouble();
+
+    final expectedCash =
+        TransactionStore.activeShiftSummary()['expectedCash'];
+
+    if (expectedCash is num) {
+      return expectedCash.toDouble();
+    }
+
+    return kasAwal;
   }
 
   // ==========================================================
@@ -500,14 +649,26 @@ class _kasirPageState extends State<kasirPage> {
   @override
   void dispose() {
     _dateRefreshTimer?.cancel();
+
     _cartController
       ..removeListener(_onCartChanged)
       ..dispose();
-    TransactionStore.cashDrawerEntries.removeListener(_onCashDrawerChanged);
-    TransactionStore.transactions.removeListener(_onCashDrawerChanged);
-    TransactionStore.unfinishedOrders.removeListener(_onCashDrawerChanged);
+
+    TransactionStore.cashDrawerEntries.removeListener(
+      _onCashDrawerChanged,
+    );
+
+    TransactionStore.transactions.removeListener(
+      _onCashDrawerChanged,
+    );
+
+    TransactionStore.unfinishedOrders.removeListener(
+      _onCashDrawerChanged,
+    );
+
     namaController.dispose();
     kasController.dispose();
+
     super.dispose();
   }
 
@@ -521,7 +682,9 @@ class _kasirPageState extends State<kasirPage> {
         cashier: namaController.text,
         openingCashText: kasController.text,
       );
+
       if (!mounted) return;
+
       setState(() {
         namaKasir = shift.cashier;
         kasAwal = shift.openingCash;
@@ -531,6 +694,7 @@ class _kasirPageState extends State<kasirPage> {
       });
     } catch (error) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -543,26 +707,50 @@ class _kasirPageState extends State<kasirPage> {
     }
   }
 
+  // ==========================================================
+  // GANTI SHIFT
+  // ==========================================================
+
   Future<void> _gantiShift() async {
-    final user = await showGantiShiftDialog(context, idKasirSaatIni: _idKasir);
+    final user = await showGantiShiftDialog(
+      context,
+      idKasirSaatIni: _idKasir,
+    );
+
     if (user == null || !mounted) return;
+
     setState(() {
       shiftKe = 2;
       namaKasir = user['nama'].toString();
-      _idKasir = user['id_pengguna'] as int?;
+
+      _idKasir = user['id_pengguna'] is num
+          ? (user['id_pengguna'] as num).toInt()
+          : int.tryParse(
+              user['id_pengguna']?.toString() ?? '',
+            );
+
       _fotoUrl = user['foto_url']?.toString();
     });
   }
+
+  // ==========================================================
+  // LOGOUT
+  // ==========================================================
 
   Future<void> _konfirmasiLogout() async {
     final ya = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: navy,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
         title: const Text(
           'Apakah anda yakin shift sudah berakhir semua?',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         actionsAlignment: MainAxisAlignment.spaceEvenly,
         actions: [
@@ -585,22 +773,30 @@ class _kasirPageState extends State<kasirPage> {
         ],
       ),
     );
+
     if (ya == true) {
       try {
         await CashierShiftService.closeShift();
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal menutup shift: $e')));
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menutup shift: $e'),
+          ),
+        );
+
         return;
       }
+
       widget.onLogout?.call();
     }
   }
 
   void _toggleCashDrawerPanel() {
-    setState(() => _showCashDrawerPanel = !_showCashDrawerPanel);
+    setState(() {
+      _showCashDrawerPanel = !_showCashDrawerPanel;
+    });
   }
 
   // ==========================================================
@@ -638,7 +834,9 @@ class _kasirPageState extends State<kasirPage> {
         namaKasir: namaKasir,
         shiftKe: shiftKe,
         fotoUrl: _fotoUrl,
-        onAksiShift: shiftKe == 1 ? _gantiShift : _konfirmasiLogout,
+        onAksiShift: shiftKe == 1
+            ? _gantiShift
+            : _konfirmasiLogout,
         headerBuilder: (_) => _header(),
         cashierBuilder: (_) => _cashierContent(),
         onLogout: widget.onLogout,
@@ -654,21 +852,26 @@ class _kasirPageState extends State<kasirPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 600;
+
         final isTablet =
-            constraints.maxWidth >= 600 && constraints.maxWidth < 950;
+            constraints.maxWidth >= 600 &&
+            constraints.maxWidth < 950;
+
         final logoSize = isMobile
             ? 34.0
             : isTablet
-            ? 40.0
-            : 46.0;
+                ? 40.0
+                : 46.0;
 
         return Container(
           height: isMobile
               ? 64
               : isTablet
-              ? 70
-              : 75,
-          padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 16),
+                  ? 70
+                  : 75,
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 10 : 16,
+          ),
           color: navy,
           child: Row(
             children: [
@@ -680,11 +883,11 @@ class _kasirPageState extends State<kasirPage> {
                   color: Colors.white,
                   border: Border.all(color: Colors.white54),
                 ),
-                child: ClipOval(child: AppBrandingLogo(height: logoSize)),
+                child: ClipOval(
+                  child: AppBrandingLogo(height: logoSize),
+                ),
               ),
-
               SizedBox(width: isMobile ? 7 : 9),
-
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -697,8 +900,8 @@ class _kasirPageState extends State<kasirPage> {
                       fontSize: isMobile
                           ? 14
                           : isTablet
-                          ? 16
-                          : 17,
+                              ? 16
+                              : 17,
                     ),
                   ),
                   Text(
@@ -710,10 +913,8 @@ class _kasirPageState extends State<kasirPage> {
                   ),
                 ],
               ),
-
               const Spacer(),
-
-              if (namaKasir.isNotEmpty) ...[
+              if (namaKasir.isNotEmpty)
                 Material(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(18),
@@ -765,14 +966,18 @@ class _kasirPageState extends State<kasirPage> {
                     ),
                   ),
                 ),
-              ],
               if (isMobile || isTablet) ...[
                 const SizedBox(width: 4),
                 Builder(
                   builder: (context) => IconButton(
                     tooltip: 'Buka menu',
-                    onPressed: () => Scaffold.of(context).openDrawer(),
-                    icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                    onPressed: () {
+                      Scaffold.of(context).openDrawer();
+                    },
+                    icon: const Icon(
+                      Icons.menu_rounded,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ],
@@ -783,24 +988,27 @@ class _kasirPageState extends State<kasirPage> {
     );
   }
 
+  // ==========================================================
+  // CASHIER CONTENT
+  // ==========================================================
+
   Widget _cashierContent() {
     return Stack(
       clipBehavior: Clip.hardEdge,
       children: [
-        // HALAMAN KASIR TETAP DI POSISI SEMULA
-        Positioned.fill(child: _cashierBody()),
-
-        // LAPISAN BELAKANG PANEL
+        Positioned.fill(
+          child: _cashierBody(),
+        ),
         if (_showCashDrawerPanel && !showWelcome) ...[
           Positioned.fill(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: _toggleCashDrawerPanel,
-              child: ColoredBox(color: Colors.black.withOpacity(0.08)),
+              child: ColoredBox(
+                color: Colors.black.withOpacity(0.08),
+              ),
             ),
           ),
-
-          // PANEL KAS LACI MENGAMBANG
           Positioned(
             top: 10,
             right: 12,
@@ -847,10 +1055,14 @@ class _kasirPageState extends State<kasirPage> {
       return HomePage(
         selectedOrderType: jenisPesanan,
         onOrderTypeSelected: (value) {
-          setState(() => jenisPesanan = value);
+          setState(() {
+            jenisPesanan = value;
+          });
         },
         onContinue: () {
-          setState(() => showJenisPesanan = false);
+          setState(() {
+            showJenisPesanan = false;
+          });
         },
       );
     }
@@ -884,7 +1096,10 @@ class _kasirPageState extends State<kasirPage> {
 
     return Container(
       height: 65,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 10,
+      ),
       decoration: BoxDecoration(
         color: const Color(0xffa8cbe9),
         boxShadow: [
@@ -907,7 +1122,6 @@ class _kasirPageState extends State<kasirPage> {
               ),
             ),
           ),
-
           SizedBox(
             width: 170,
             height: 65,
@@ -926,8 +1140,10 @@ class _kasirPageState extends State<kasirPage> {
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
+
                           return;
                         }
+
                         setState(() {
                           showCheckout = true;
                         });
@@ -949,7 +1165,10 @@ class _kasirPageState extends State<kasirPage> {
                 ),
                 child: const Text(
                   'Check Out',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -958,6 +1177,7 @@ class _kasirPageState extends State<kasirPage> {
       ),
     );
   }
+
   // ==========================================================
   // SEARCH
   // ==========================================================
@@ -971,7 +1191,9 @@ class _kasirPageState extends State<kasirPage> {
       ),
       child: TextField(
         onChanged: (value) {
-          setState(() => searchQuery = value.toLowerCase().trim());
+          setState(() {
+            searchQuery = value.toLowerCase().trim();
+          });
         },
         style: const TextStyle(
           fontFamily: 'Roboto',
@@ -990,17 +1212,25 @@ class _kasirPageState extends State<kasirPage> {
             size: 14,
             color: Color(0xff31566e),
           ),
-          prefixIconConstraints: const BoxConstraints(minWidth: 30),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 30,
+          ),
           suffixIcon: searchQuery.isNotEmpty
               ? IconButton(
                   padding: EdgeInsets.zero,
                   icon: const Icon(Icons.close, size: 14),
                   color: navy,
-                  onPressed: () => setState(() => searchQuery = ''),
+                  onPressed: () {
+                    setState(() {
+                      searchQuery = '';
+                    });
+                  },
                 )
               : null,
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 7),
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 7,
+          ),
         ),
       ),
     );
@@ -1034,15 +1264,22 @@ class _kasirPageState extends State<kasirPage> {
                         height: 32,
                         child: ElevatedButton.icon(
                           onPressed: () {
-                            setState(() => showJenisPesanan = true);
+                            setState(() {
+                              showJenisPesanan = true;
+                            });
                           },
-                          icon: const Icon(Icons.arrow_back, size: 14),
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            size: 14,
+                          ),
                           label: const Text('Kembali'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xffa8cbe9),
                             foregroundColor: Colors.white,
                             elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
                             ),
@@ -1073,7 +1310,9 @@ class _kasirPageState extends State<kasirPage> {
                 ),
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1160),
+                    constraints: const BoxConstraints(
+                      maxWidth: 1160,
+                    ),
                     child: _productGrid(),
                   ),
                 ),
@@ -1087,63 +1326,97 @@ class _kasirPageState extends State<kasirPage> {
   }
 
   // ==========================================================
-  // CATEGORIES
+  // KATEGORI
   // ==========================================================
 
   Widget _categories() {
     return SizedBox(
-      height: 25,
+      height: 32,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
-          _category(Icons.grid_view_rounded, 'Semua Menu'),
-          _category(Icons.local_drink_rounded, 'Non-Coffee'),
-          _category(Icons.coffee_rounded, 'Coffee'),
-          _category(Icons.lunch_dining_rounded, 'Food'),
-          _category(Icons.icecream_rounded, 'Snack'),
+          for (final title in _categoryLabels)
+            _category(_iconForCategory(title), title),
         ],
       ),
     );
   }
 
-  // ==========================================================
-  // CATEGORY
-  // ==========================================================
+  IconData _iconForCategory(String title) {
+    switch (_normalisasiKategori(title)) {
+      case 'semua menu':
+        return Icons.grid_view_rounded;
+      case 'americano':
+        return Icons.coffee_rounded;
+      case 'sanger':
+        return Icons.coffee_maker_rounded;
+      case 'refresh':
+        return Icons.local_drink_rounded;
+      case 'best selling':
+        return Icons.local_fire_department_rounded;
+      case 'latte':
+        return Icons.local_cafe_rounded;
+      case 'non coffee':
+        return Icons.emoji_food_beverage_rounded;
+      case 'food':
+        return Icons.lunch_dining_rounded;
+      default:
+        return Icons.category_rounded;
+    }
+  }
 
   Widget _category(IconData icon, String title) {
-    final bool active = selectedCategory == title;
+    final active =
+        _normalisasiKategori(selectedCategory) ==
+        _normalisasiKategori(title);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       margin: const EdgeInsets.only(right: 6),
       child: Material(
-        color: active ? Colors.white : const Color(0xffa8c8e5),
+        color: active
+            ? Colors.white
+            : const Color(0xffa8cbe9),
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
-          onTap: () => setState(() => selectedCategory = title),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          onTap: () {
+            setState(() {
+              selectedCategory = title;
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 6,
+            ),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: active ? navy : const Color(0xffa8c8e5),
+                color: active
+                    ? navy
+                    : const Color(0xffa8cbe9),
                 width: active ? 1.2 : 1,
               ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 10, color: active ? navy : Colors.white),
-                const SizedBox(width: 4),
+                Icon(
+                  icon,
+                  size: 12,
+                  color: navy,
+                ),
+                const SizedBox(width: 5),
                 Text(
                   title,
                   style: TextStyle(
                     fontFamily: 'Roboto',
-                    fontSize: 9,
-                    color: active ? navy : Colors.white,
-                    fontWeight: active ? FontWeight.bold : FontWeight.w500,
+                    fontSize: 10,
+                    color: navy,
+                    fontWeight: active
+                        ? FontWeight.bold
+                        : FontWeight.w500,
                   ),
                 ),
               ],
@@ -1155,7 +1428,7 @@ class _kasirPageState extends State<kasirPage> {
   }
 
   // ==========================================================
-  // PRODUCT GRID
+  // GRID PRODUK
   // ==========================================================
 
   Widget _productGrid() {
@@ -1167,30 +1440,36 @@ class _kasirPageState extends State<kasirPage> {
             final columns = box.maxWidth < 520 ? 1 : 2;
 
             final filteredProducts = products.where((product) {
-              if (product['is_active'] == false) return false;
+              if (!_produkAktif(product)) return false;
 
-              final nama = product['name'].toString().toLowerCase();
-              final category = product['category']
-                  .toString()
-                  .trim()
-                  .toLowerCase();
+              final nama = _namaAsli(product).toLowerCase();
 
-              if (searchQuery.isNotEmpty && !nama.contains(searchQuery)) {
+              final category = _normalisasiKategori(
+                product['category'] ?? product['kategori'],
+              );
+
+              if (searchQuery.isNotEmpty &&
+                  !nama.contains(searchQuery)) {
                 return false;
               }
-              if (selectedCategory == 'Semua Menu') return true;
-              if (selectedCategory == 'Coffee') return category == 'coffee';
-              if (selectedCategory == 'Non-Coffee')
-                return category == 'non-coffee';
-              if (selectedCategory == 'Food') return category == 'food';
-              if (selectedCategory == 'Snack') return category == 'snack';
+
+              final selected =
+                  _normalisasiKategori(selectedCategory);
+
+              if (selected != 'semua menu' &&
+                  category != selected) {
+                return false;
+              }
+
               return true;
             }).toList();
 
             if (filteredProducts.isEmpty) {
               return Center(
                 child: Text(
-                  'Menu tidak ditemukan',
+                  products.isEmpty
+                      ? 'Belum ada produk tersedia'
+                      : 'Menu tidak ditemukan',
                   style: TextStyle(
                     fontFamily: 'Roboto',
                     color: navy.withOpacity(.65),
@@ -1204,7 +1483,8 @@ class _kasirPageState extends State<kasirPage> {
               physics: const AlwaysScrollableScrollPhysics(),
               itemCount: filteredProducts.length,
               padding: EdgeInsets.zero,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate:
+                  SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: columns,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
@@ -1212,27 +1492,43 @@ class _kasirPageState extends State<kasirPage> {
               ),
               itemBuilder: (context, index) {
                 final product = filteredProducts[index];
-                final cartIndex = cart.indexWhere(
-                  (item) => item['name'] == product['name'],
-                );
+
+                final namaProduk = _namaAsli(product);
+
+                final cartIndex = cart.indexWhere((item) {
+                  return _namaAsli(item) == namaProduk;
+                });
+
                 final jumlah = cartIndex >= 0
-                    ? cart[cartIndex]['quantity'] as int
+                    ? _jumlahProduk(
+                        cart[cartIndex]['quantity'],
+                      )
                     : 0;
 
                 return _AnimatedTouch(
                   scale: 0.98,
                   child: ProductCard(
-                    name: 'Celcious ${product['name']}',
-                    price: (product['price'] as num).toDouble(),
-                    image: product['image'],
-                    category: product['category']?.toString() ?? '',
+                    name: _namaTampilan(product),
+                    price: _hargaProduk(product),
+                    image: _gambarProdukData(product),
+                    category: (
+                      product['category'] ??
+                      product['kategori'] ??
+                      ''
+                    ).toString(),
                     quantity: jumlah,
-                    onAdd: () => tambahKeKeranjang(product),
+                    onAdd: () {
+                      tambahKeKeranjang(product);
+                    },
                     onMinus: () {
-                      if (cartIndex >= 0) ubahJumlah(cartIndex, -1);
+                      if (cartIndex >= 0) {
+                        ubahJumlah(cartIndex, -1);
+                      }
                     },
                     onDelete: () {
-                      if (cartIndex >= 0) _cartController.removeAt(cartIndex);
+                      if (cartIndex >= 0) {
+                        _cartController.removeAt(cartIndex);
+                      }
                     },
                   ),
                 );
@@ -1256,42 +1552,35 @@ class _kasirPageState extends State<kasirPage> {
           builder: (context, box) {
             final width = box.maxWidth;
 
-            final double modalWidth;
+            final double modalWidth =
+                width < 500 ? width - 40 : 500;
 
-            if (width < 500) {
-              modalWidth = width - 40;
-            } else {
-              modalWidth = 500;
-            }
+            final double titleSize = width < 500
+                ? 28
+                : width < 900
+                    ? 34
+                    : 38;
 
-            final double titleSize;
+            final double horizontalPadding =
+                width < 500 ? 16 : 22;
 
-            if (width < 500) {
-              titleSize = 28;
-            } else if (width < 900) {
-              titleSize = 34;
-            } else {
-              titleSize = 38;
-            }
+            final double verticalPadding =
+                width < 500 ? 16 : 20;
 
-            final double horizontalPadding = width < 500 ? 16 : 22;
+            final double buttonWidth = width < 500
+                ? 190
+                : width < 900
+                    ? 220
+                    : 250;
 
-            final double verticalPadding = width < 500 ? 16 : 20;
-
-            final double buttonWidth;
-
-            if (width < 500) {
-              buttonWidth = 190;
-            } else if (width < 900) {
-              buttonWidth = 220;
-            } else {
-              buttonWidth = 250;
-            }
-
-            final double buttonHeight = width < 500 ? 40 : 43;
+            final double buttonHeight =
+                width < 500 ? 40 : 43;
 
             return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+              padding: const EdgeInsets.symmetric(
+                vertical: 12,
+                horizontal: 10,
+              ),
               child: SizedBox(
                 width: modalWidth,
                 child: Column(
@@ -1305,9 +1594,7 @@ class _kasirPageState extends State<kasirPage> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
-                    SizedBox(height: width < 250 ? 10 : 14),
-
+                    const SizedBox(height: 14),
                     Container(
                       padding: EdgeInsets.fromLTRB(
                         horizontalPadding,
@@ -1320,32 +1607,25 @@ class _kasirPageState extends State<kasirPage> {
                         borderRadius: BorderRadius.circular(17),
                       ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
                         children: [
                           _inputLabel('Masukkan Nama Kasir :'),
-
                           const SizedBox(height: 3),
-
                           _input(
                             controller: namaController,
                             hint: 'Ketik disini...',
                             keyboardType: TextInputType.text,
                           ),
-
-                          SizedBox(height: width < 500 ? 12 : 15),
-
+                          const SizedBox(height: 15),
                           _inputLabel('Masukkan Kas Kasir :'),
-
                           const SizedBox(height: 3),
-
                           _input(
                             controller: kasController,
                             hint: 'Ketik disini...',
                             keyboardType: TextInputType.number,
                           ),
-
-                          SizedBox(height: width < 500 ? 13 : 15),
-
+                          const SizedBox(height: 15),
                           Center(
                             child: SizedBox(
                               width: buttonWidth,
@@ -1358,13 +1638,15 @@ class _kasirPageState extends State<kasirPage> {
                                   elevation: 10,
                                   padding: EdgeInsets.zero,
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(22),
+                                    borderRadius:
+                                        BorderRadius.circular(22),
                                   ),
                                 ),
                                 child: Text(
                                   'Simpan',
                                   style: TextStyle(
-                                    fontSize: width < 500 ? 15 : 18,
+                                    fontSize:
+                                        width < 500 ? 15 : 18,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -1426,7 +1708,10 @@ class _kasirPageState extends State<kasirPage> {
         keyboardType: keyboardType,
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: Color(0xffb5b5b5), fontSize: 14),
+          hintStyle: const TextStyle(
+            color: Color(0xffb5b5b5),
+            fontSize: 14,
+          ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 18,
@@ -1438,11 +1723,18 @@ class _kasirPageState extends State<kasirPage> {
   }
 }
 
+// ==========================================================
+// ANIMASI SENTUH
+// ==========================================================
+
 class _AnimatedTouch extends StatefulWidget {
   final Widget child;
   final double scale;
 
-  const _AnimatedTouch({required this.child, this.scale = 0.97});
+  const _AnimatedTouch({
+    required this.child,
+    this.scale = 0.97,
+  });
 
   @override
   State<_AnimatedTouch> createState() => _AnimatedTouchState();
@@ -1453,7 +1745,10 @@ class _AnimatedTouchState extends State<_AnimatedTouch> {
 
   void _setPressed(bool value) {
     if (_pressed == value || !mounted) return;
-    setState(() => _pressed = value);
+
+    setState(() {
+      _pressed = value;
+    });
   }
 
   @override

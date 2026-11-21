@@ -209,7 +209,7 @@ class _DashboardOwnerState extends State<DashboardOwner> {
           0 => _DashboardBody(namaOwner: widget.namaOwner),
           1 => _buildLaporan(),
           2 => const owner_products.ProdukPage(),
-          3 => const KelolaTransaksiPage(pakaiDataContoh: false),
+          3 => KelolaTransaksiPage(pakaiDataContoh: false, onNavigasiLaporan: () => selectMenu(1)),
           4 => const KontrolStafPage(),
           5 => const PengaturanPage(),
           _ => _DashboardBody(namaOwner: widget.namaOwner),
@@ -218,109 +218,97 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     );
   }
 
-  Widget _topBar({required bool isDesktop}) {
-    return Container(
-      height: 56,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: ownerNavy,
-        boxShadow: [
-          BoxShadow(
-            color: ownerNavy.withValues(alpha: 0.22),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          if (!isDesktop)
-            Builder(
-              builder: (context) => IconButton(
-                tooltip: 'Buka menu',
-                onPressed: () => Scaffold.of(context).openDrawer(),
-                icon: const Icon(Icons.menu_rounded, color: Colors.white),
-              ),
-            ),
-          Container(
-            width: 32,
-            height: 32,
-            decoration: const BoxDecoration(
-              color: Color(0xFF3979AD),
-              shape: BoxShape.circle,
-            ),
-            child: const ClipOval(child: AppBrandingLogo(fallbackIconSize: 18)),
-          ),
-          const SizedBox(width: 9),
-          const Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Celcious Coffee',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Text(
-                  'Dashboard Owner',
-                  style: TextStyle(color: Colors.white70, fontSize: 9),
-                ),
-              ],
-            ),
-          ),
-          if (isDesktop)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Row(
-                children: [
-                  const CircleAvatar(
-                    radius: 11,
-                    backgroundColor: Colors.white70,
-                    child: Icon(Icons.person, color: ownerNavy, size: 14),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    widget.namaOwner,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          IconButton(
-            tooltip: 'Notifikasi',
-            visualDensity: VisualDensity.compact,
-            onPressed: () => _showMessage('Belum ada notifikasi baru.'),
-            icon: const Icon(
-              Icons.notifications_none_rounded,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-          if (widget.onLogout != null)
-            IconButton(
-              tooltip: 'Logout',
-              visualDensity: VisualDensity.compact,
-              onPressed: widget.onLogout,
+  
+Widget _topBar({required bool isDesktop}) {
+  return Container(
+    height: 56,
+    padding: const EdgeInsets.symmetric(horizontal: 12),
+    decoration: BoxDecoration(
+      color: ownerNavy,
+      boxShadow: [
+        BoxShadow(
+          color: ownerNavy.withValues(alpha: 0.22),
+          blurRadius: 10,
+          offset: const Offset(0, 3),
+        ),
+      ],
+    ),
+    child: Row(
+      children: [
+        // Tombol menu HP dan tablet
+        if (!isDesktop)
+          Builder(
+            builder: (context) => IconButton(
+              tooltip: 'Buka menu',
+              onPressed: () => Scaffold.of(context).openDrawer(),
               icon: const Icon(
-                Icons.logout_rounded,
-                color: Colors.white70,
-                size: 18,
+                Icons.menu_rounded,
+                color: Colors.white,
               ),
             ),
-        ],
-      ),
-    );
-  }
+          ),
+
+        // Logo Celcious Coffee
+        Container(
+          width: 32,
+          height: 32,
+          decoration: const BoxDecoration(
+            color: Color(0xFF3979AD),
+            shape: BoxShape.circle,
+          ),
+          child: const ClipOval(
+            child: AppBrandingLogo(
+              fallbackIconSize: 18,
+            ),
+          ),
+        ),
+
+        const SizedBox(width: 9),
+
+        // Nama aplikasi dan dashboard
+        const Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Celcious Coffee',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                'Dashboard Owner',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 9,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Notifikasi saja di sebelah kanan
+        IconButton(
+          tooltip: 'Notifikasi',
+          visualDensity: VisualDensity.compact,
+          onPressed: () {
+            _showMessage('Belum ada notifikasi baru.');
+          },
+          icon: const Icon(
+            Icons.notifications_none_rounded,
+            color: Colors.white,
+            size: 20,
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(

@@ -38,6 +38,7 @@ class _ProductCardState extends State<ProductCard> {
 
   String _rupiah(double value) {
     final digits = value.toInt().toString();
+
     return 'Rp ${digits.replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
       (_) => '.',
@@ -52,7 +53,8 @@ class _ProductCardState extends State<ProductCard> {
             ? constraints.maxHeight
             : 120.0;
 
-        final compact = constraints.maxWidth < 150 || height < 105;
+        final compact =
+            constraints.maxWidth < 150 || height < 105;
 
         final imageSize = compact
             ? (height - 16).clamp(38.0, 62.0)
@@ -93,7 +95,6 @@ class _ProductCardState extends State<ProductCard> {
               borderRadius: BorderRadius.circular(20),
               child: Row(
                 children: [
-                  // BAGIAN PUTIH CARD
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
@@ -102,7 +103,6 @@ class _ProductCardState extends State<ProductCard> {
                       ),
                       child: Row(
                         children: [
-                          // GAMBAR PRODUK
                           Padding(
                             padding: const EdgeInsets.all(8),
                             child: Container(
@@ -119,12 +119,10 @@ class _ProductCardState extends State<ProductCard> {
                               ),
                             ),
                           ),
-
-                          // INFORMASI PRODUK
                           Expanded(
                             child: Padding(
                               padding: EdgeInsets.fromLTRB(
-                                compact ? 8 : 8,
+                                8,
                                 10,
                                 compact ? 7 : 10,
                                 10,
@@ -161,8 +159,6 @@ class _ProductCardState extends State<ProductCard> {
                                       ),
                                     ],
                                   ),
-
-                                  // TOMBOL JUMLAH
                                   if (widget.showCartControls)
                                     Align(
                                       alignment: Alignment.centerRight,
@@ -191,8 +187,7 @@ class _ProductCardState extends State<ProductCard> {
                                                           (child, animation) {
                                                         return ScaleTransition(
                                                           scale: animation,
-                                                          child:
-                                                              FadeTransition(
+                                                          child: FadeTransition(
                                                             opacity: animation,
                                                             child: child,
                                                           ),
@@ -238,8 +233,6 @@ class _ProductCardState extends State<ProductCard> {
                       ),
                     ),
                   ),
-
-                  // TAB MERAH HAPUS
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 240),
                     curve: Curves.easeOutCubic,
@@ -273,7 +266,6 @@ class _ProductCardState extends State<ProductCard> {
   }
 }
 
-// TOMBOL PLUS DAN MINUS
 class _QtyButton extends StatefulWidget {
   const _QtyButton({
     required this.icon,

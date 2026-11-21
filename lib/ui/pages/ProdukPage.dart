@@ -5,10 +5,13 @@ import '../../data/produk_data.dart';
 import '../widgets/product_image.dart';
 
 const _navy = Color(0xff082640);
+const _border = Color(0xffd0d9e3);
+const _chipActive = Color(0xff64748b);
+const _chipInactiveBg = Color(0xffe2e8f0);
+const _chipInactiveText = Color(0xff64748b);
 const _pageBackground = Color(0xffdce9f4);
 const _mutedText = Color(0xff667b8d);
 const _priceBlue = Color(0xff24547b);
-const _chipBlue = Color(0xffa9cce6);
 const _imageBackground = Color(0xffd3cee5);
 
 // Ukuran kartu mengikuti desain awal.
@@ -29,12 +32,8 @@ class _ProdukPageState extends State<ProdukPage> {
 
   String? _selectedCategory;
 
-  static const List<_CategoryItem> _categories = [
-    _CategoryItem('Coffee', Icons.local_cafe_outlined),
-    _CategoryItem('Non-Coffee', Icons.local_drink_outlined),
-    _CategoryItem('Food', Icons.ramen_dining_outlined),
-    _CategoryItem('Snack', Icons.cookie_outlined),
-  ];
+  // Menggunakan daftar kategori yang sama dengan halaman Kasir agar sinkron.
+  List<String> get _categories => ProdukData.kategoriProduk;
 
   @override
   void dispose() {
@@ -184,95 +183,65 @@ class _ProdukPageState extends State<ProdukPage> {
     final allSelected = _selectedCategory == null;
 
     return SizedBox(
-      height: 28,
+      height: 32,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () {
-              setState(() => _selectedCategory = null);
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.storefront_rounded,
-                    color: _navy,
-                    size: 13,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Semua Menu',
-                    style: TextStyle(
-                      color: _navy,
-                      fontSize: 10,
-                      fontWeight: allSelected
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
+          _categoryChip('Semua Menu', selected: allSelected),
           for (final category in _categories) ...[
-            _categoryChip(category),
             const SizedBox(width: 8),
+            _categoryChip(category, selected: _selectedCategory == category),
           ],
         ],
       ),
     );
   }
 
-  Widget _categoryChip(_CategoryItem category) {
-    final selected = _selectedCategory == category.name;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedCategory =
-              selected ? null : category.name;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: 28,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? Colors.white : _chipBlue,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? _navy : Colors.transparent,
-            width: 1.2,
+ 
+Widget _categoryChip(String category, {required bool selected}) {
+  return AnimatedContainer(
+    duration: const Duration(milliseconds: 200),
+    child: Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          setState(() {
+            _selectedCategory = selected ? null : category;
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 7,
+          ),
+          decoration: BoxDecoration(
+            color: selected
+                ? Colors.white
+                : const Color(0xffa8cbe9),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected
+                  ? _navy
+                  : const Color(0xffa8cbe9),
+              width: selected ? 1.2 : 1,
+            ),
+          ),
+          child: Text(
+            category,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: _navy,
+            ),
           ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              category.icon,
-              size: 12,
-              color: selected ? _navy : Colors.white,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              category.name,
-              style: TextStyle(
-                color: selected ? _navy : Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
       ),
-    );
-  }
+    ),
+  );
+}
+
 
   // ============================================================
   // GRID PRODUK
@@ -517,13 +486,7 @@ class _ProductToggle extends StatelessWidget {
   }
 }
 
-// ============================================================
-// MODEL KATEGORI
-// ============================================================
 
-class _CategoryItem {
-  const _CategoryItem(this.name, this.icon);
-
-  final String name;
-  final IconData icon;
-}
+// ============================================================
+// (class _CategoryItem dihapus; kategori sekarang diambil dari ProdukData)
+// ============================================================
