@@ -213,16 +213,13 @@ class _DashboardOwnerState extends State<DashboardOwner> {
           0 => _DashboardBody(namaOwner: widget.namaOwner),
           1 => _buildLaporan(),
           2 => const owner_products.ProdukPage(),
-<<<<<<< HEAD
           3 => KelolaTransaksiPage(pakaiDataContoh: false, onNavigasiLaporan: () => selectMenu(1)),
           4 => const KontrolStafPage(),
           5 => const PengaturanPage(),
-=======
           3 => const ManajemenStokPage(),
           4 => const KelolaTransaksiPage(pakaiDataContoh: false),
           5 => const KontrolStafPage(),
           6 => const PengaturanPage(),
->>>>>>> a97fae2 (memperbaiki kelola laporan (biar bisa di klik dan di liht), pengaturan full, perbaiki transaksi di kasir(midtrans) dan membuat manajemen stok)
           _ => _DashboardBody(namaOwner: widget.namaOwner),
         },
       ),

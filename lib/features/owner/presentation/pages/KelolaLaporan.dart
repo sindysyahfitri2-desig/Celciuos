@@ -1,25 +1,24 @@
 import 'dart:typed_data';
 
-<<<<<<< HEAD
 import 'package:excel/excel.dart' as xl;
 import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
 
 // ============================================================
 // KONSTANTA DESAIN
-// ============================================================
-=======
+// ============================================================\
+
+
 import 'package:flutter/material.dart' hide Border;
 import 'package:flutter/material.dart' as m;
 import 'package:excel/excel.dart';
 
 import 'excel_saver.dart';
->>>>>>> a97fae2 (memperbaiki kelola laporan (biar bisa di klik dan di liht), pengaturan full, perbaiki transaksi di kasir(midtrans) dan membuat manajemen stok)
+
 
 const Color _navy = Color(0xFF082640);
 const Color _pageBg = Color(0xFFDCE9F4);
 const Color _muted = Color(0xFF71869A);
-<<<<<<< HEAD
 const Color _xlGreen = Color(0xFF217346);
 const Color _xlGreenDark = Color(0xFF185C37);
 const Color _gridLine = Color(0xFFD4D4D4);
@@ -32,8 +31,6 @@ const List<BoxShadow> _kShadow = [
 // ============================================================
 // MODEL DATA (tetap kompatibel dengan pemanggilan lama)
 // ============================================================
-=======
->>>>>>> a97fae2 (memperbaiki kelola laporan (biar bisa di klik dan di liht), pengaturan full, perbaiki transaksi di kasir(midtrans) dan membuat manajemen stok)
 
 class LaporanPreviewRow {
   const LaporanPreviewRow({
@@ -59,10 +56,7 @@ class LaporanPreviewData {
     this.namaKasir = 'Kasir',
   });
 
-<<<<<<< HEAD
   // Dipertahankan agar pemanggilan lama tidak error.
-=======
->>>>>>> a97fae2 (memperbaiki kelola laporan (biar bisa di klik dan di liht), pengaturan full, perbaiki transaksi di kasir(midtrans) dan membuat manajemen stok)
   final num? totalOmzet;
   final num? totalTunai;
   final num? totalNonTunai;
@@ -712,9 +706,7 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-<<<<<<< HEAD
         boxShadow: _kShadow,
-=======
         boxShadow: [
           BoxShadow(
             color: _navy.withOpacity(0.10),
@@ -722,7 +714,6 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
             offset: const Offset(0, 4),
           ),
         ],
->>>>>>> a97fae2 (memperbaiki kelola laporan (biar bisa di klik dan di liht), pengaturan full, perbaiki transaksi di kasir(midtrans) dan membuat manajemen stok)
       ),
       child: TextField(
         controller: _searchController,
@@ -754,14 +745,11 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
   }
 }
 
-<<<<<<< HEAD
 // ============================================================
 // LOGO EXCEL
 // ============================================================
-=======
 class _ExcelLogo extends StatelessWidget {
   const _ExcelLogo({this.size = 34});
->>>>>>> a97fae2 (memperbaiki kelola laporan (biar bisa di klik dan di liht), pengaturan full, perbaiki transaksi di kasir(midtrans) dan membuat manajemen stok)
 
 class _ExcelLogo extends StatelessWidget {
   const _ExcelLogo({this.size = 40});
@@ -830,11 +818,9 @@ class _ReportCardState extends State<_ReportCard> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-<<<<<<< HEAD
               color: Colors.black.withValues(alpha: _hovered ? .38 : .28),
               blurRadius: _hovered ? 9 : 5,
               offset: Offset(2, _hovered ? 5 : 3),
-=======
               color: _navy.withOpacity(_hovered ? .28 : .18),
               blurRadius: _hovered ? 20 : 13,
               offset: Offset(0, _hovered ? 9 : 5),
@@ -843,7 +829,6 @@ class _ReportCardState extends State<_ReportCard> {
               color: Color(0x1AFFFFFF),
               blurRadius: 1,
               offset: Offset(0, 1),
->>>>>>> a97fae2 (memperbaiki kelola laporan (biar bisa di klik dan di liht), pengaturan full, perbaiki transaksi di kasir(midtrans) dan membuat manajemen stok)
             ),
           ],
         ),
@@ -945,7 +930,6 @@ class _ReportCardState extends State<_ReportCard> {
   }
 }
 
-<<<<<<< HEAD
 // ============================================================
 // HALAMAN PRATINJAU EXCEL (di dalam aplikasi)
 // ============================================================
@@ -1433,7 +1417,6 @@ class _LaporanExcelPreviewPageState extends State<LaporanExcelPreviewPage> {
               ),
             ),
         ],
-=======
 /// Dialog pratinjau laporan sebelum unduhan / pembuka file.
 class _ReportPreviewDialog extends StatelessWidget {
   const _ReportPreviewDialog({
@@ -1584,12 +1567,10 @@ class _ReportPreviewDialog extends StatelessWidget {
             ],
           ),
         ),
->>>>>>> a97fae2 (memperbaiki kelola laporan (biar bisa di klik dan di liht), pengaturan full, perbaiki transaksi di kasir(midtrans) dan membuat manajemen stok)
       ),
     );
   }
 
-<<<<<<< HEAD
   Widget _gridRow(int r, List<double> widths) {
     final row = r < widget.rows.length ? widget.rows[r] : null;
     final h = row?.height ?? _defaultRowH;
@@ -1641,7 +1622,6 @@ class _ReportPreviewDialog extends StatelessWidget {
           ),
         ),
         ...cells,
-=======
   Widget _barisLebar(LaporanPreviewRow row) {
     return Row(
       children: [
@@ -1681,12 +1661,10 @@ class _ReportPreviewDialog extends StatelessWidget {
             ),
           ),
         ),
->>>>>>> a97fae2 (memperbaiki kelola laporan (biar bisa di klik dan di liht), pengaturan full, perbaiki transaksi di kasir(midtrans) dan membuat manajemen stok)
       ],
     );
   }
 
-<<<<<<< HEAD
   Widget _cellBox(int r, int c, double w, double h, _SCell? cell) {
     final selected = r == _selRow && c == _selCol;
 
@@ -1783,7 +1761,6 @@ class _ReportPreviewDialog extends StatelessWidget {
             child: Text(
               'Siap',
               style: TextStyle(fontSize: 11, color: Colors.black54),
-=======
   Widget _barisKompak(LaporanPreviewRow row) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1861,15 +1838,12 @@ class _ReportPreviewDialog extends StatelessWidget {
                 fontSize: 15,
                 fontWeight: FontWeight.w900,
               ),
->>>>>>> a97fae2 (memperbaiki kelola laporan (biar bisa di klik dan di liht), pengaturan full, perbaiki transaksi di kasir(midtrans) dan membuat manajemen stok)
             ),
           ),
         ],
       ),
     );
   }
-<<<<<<< HEAD
-=======
 }
 
 /// Format rupiah sederhana untuk dialog pratinjau.
@@ -1879,5 +1853,4 @@ String formatRupiah(double value) {
         (mt) => '${mt[1]}.',
       );
   return 'Rp. $angka';
->>>>>>> a97fae2 (memperbaiki kelola laporan (biar bisa di klik dan di liht), pengaturan full, perbaiki transaksi di kasir(midtrans) dan membuat manajemen stok)
 }
