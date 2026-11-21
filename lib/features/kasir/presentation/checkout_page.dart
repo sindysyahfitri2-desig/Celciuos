@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -161,9 +161,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
         child: LayoutBuilder(
           builder: (context, box) {
             final width = box.maxWidth;
-            final isMobile = width < 600;
-            final isTablet = width >= 600 && width < 1000;
-            final isDesktop = width >= 1000;
+            final isMobile = width < 3450;
+            final isTablet = width >= 650 && width < 800;
+            final isDesktop = width >= 800;
 
             final double sidePad = isMobile
                 ? 12
@@ -308,15 +308,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final subtotal = harga * jumlah;
     final catatan = item['catatan']?.toString().trim() ?? '';
     final terkunci = widget.existingOrder != null;
-
     final cardHeight = isMobile
         ? (catatan.isEmpty ? 96.0 : 112.0)
         : (catatan.isEmpty ? 112.0 : 128.0);
     final imageSize = cardHeight - 16;
-
-    // Lebar tab merah dan bagian yang tertimpa card putih.
-    final double tabWidth = isMobile ? 44 : 50;
-    const double overlap = 14;
 
     Widget iconCoffee() =>
         const Icon(Icons.coffee_rounded, color: _navy, size: 28);
@@ -335,72 +330,27 @@ class _CheckoutPageState extends State<CheckoutPage> {
       child: Container(
         height: cardHeight,
         margin: const EdgeInsets.only(bottom: 12),
-        child: Stack(
-          children: [
-            // TAB MERAH DI BELAKANG
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: terkunci ? Colors.grey : _merah,
-                  borderRadius: BorderRadius.circular(26),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _navy.withValues(alpha: 0.10),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: const BorderRadius.horizontal(
-                        right: Radius.circular(20),
-                      ),
-                      onTap: terkunci
-                          ? null
-                          : () => setState(() => widget.cart.removeAt(index)),
-                      child: SizedBox(
-                        width: tabWidth,
-                        height: double.infinity,
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: overlap),
-                          child: Center(
-                            child: Icon(
-                              terkunci ? Icons.lock_outline : Icons.close,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+        decoration: BoxDecoration(
+          color: terkunci ? Colors.grey : _merah,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: _navy.withValues(alpha: 0.10),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-
-            // CARD PUTIH MENIMPA SEBAGIAN TAB MERAH
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              right: tabWidth - overlap,
-              child: IgnorePointer(
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Row(
+            children: [
+              Expanded(
                 child: Container(
-                  padding: const EdgeInsets.all(22),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _navy.withValues(alpha: 0.12),
-                        blurRadius: 8,
-                        offset: const Offset(2, 0),
-                      ),
-                    ],
                   ),
                   child: Row(
                     children: [
@@ -473,8 +423,27 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   ),
                 ),
               ),
-            ),
-          ],
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: terkunci
+                      ? null
+                      : () => setState(() => widget.cart.removeAt(index)),
+                  child: SizedBox(
+                    width: isMobile ? 40 : 46,
+                    height: double.infinity,
+                    child: Center(
+                      child: Icon(
+                        terkunci ? Icons.lock_outline : Icons.close,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -949,32 +918,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       );
 
       if (!mounted) return;
-      // Tampilkan struk setelah pesanan berhasil disimpan (Bayar Nanti)
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) => TransaksiBerhasilPage(
-            receiptData: {
-              'orderId': kodePesanan['id'] ?? '',
-              'customerName': nama,
-              'cashierName': widget.namaKasir,
-              'orderType': widget.jenisPesanan,
-              'paymentMethod': 'Belum Dibayar',
-              'orderedAt': waktu,
-              'items': widget.cart
-                  .map((item) => Map<String, dynamic>.from(item))
-                  .toList(),
-              'subtotal': total,
-              'tax': biayaLainnya,
-              'discount': nominalDiskon,
-              'total': totalAkhir,
-            },
-            onSelesai: () {
-              Navigator.of(context).pop();
-              widget.onBayarNanti?.call();
-            },
-          ),
-        ),
-      );
+      widget.onBayarNanti?.call();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2251,4 +2195,3 @@ class _RibuanFormatter extends TextInputFormatter {
     );
   }
 }
-
