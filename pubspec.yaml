@@ -46,6 +46,10 @@ dependencies:
   pdf: ^3.12.0
   printing: ^5.14.3
   open_filex: ^5.0.0
+<<<<<<< HEAD
+=======
+  qr_flutter: ^4.1.0
+>>>>>>> a97fae2 (memperbaiki kelola laporan (biar bisa di klik dan di liht), pengaturan full, perbaiki transaksi di kasir(midtrans) dan membuat manajemen stok)
 
 dev_dependencies:
   flutter_test:

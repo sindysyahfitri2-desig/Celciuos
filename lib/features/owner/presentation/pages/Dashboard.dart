@@ -4,6 +4,7 @@ import 'package:kasir_celcious_coffe/features/owner/presentation/pages/KelolaPro
     as owner_products;
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/KelolaStaf.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/Transaksi/Kelola_Transaksi.dart';
+import 'package:kasir_celcious_coffe/features/owner/presentation/pages/stok/manajemen_stok_page.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/widgets/Navigation.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/PengaturanPage.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
@@ -59,6 +60,7 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     'Dashboard',
     'Kelola Laporan',
     'Kelola Produk',
+    'Manajemen Stok',
     'Transaksi',
     'Kelola Staf',
     'Pengaturan',
@@ -148,9 +150,10 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                       onDashboard: () => _pilihMenuDariDrawer(0),
                       onLaporan: () => _pilihMenuDariDrawer(1),
                       onProduk: () => _pilihMenuDariDrawer(2),
-                      onTransaksi: () => _pilihMenuDariDrawer(3),
-                      onKelolaStaf: () => _pilihMenuDariDrawer(4),
-                      onPengaturan: () => _pilihMenuDariDrawer(5),
+                      onStok: () => _pilihMenuDariDrawer(3),
+                      onTransaksi: () => _pilihMenuDariDrawer(4),
+                      onKelolaStaf: () => _pilihMenuDariDrawer(5),
+                      onPengaturan: () => _pilihMenuDariDrawer(6),
                       onLogout: widget.onLogout,
                     ),
                   ),
@@ -170,9 +173,10 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                           onDashboard: () => selectMenu(0),
                           onLaporan: () => selectMenu(1),
                           onProduk: () => selectMenu(2),
-                          onTransaksi: () => selectMenu(3),
-                          onKelolaStaf: () => selectMenu(4),
-                          onPengaturan: () => selectMenu(5),
+                          onStok: () => selectMenu(3),
+                          onTransaksi: () => selectMenu(4),
+                          onKelolaStaf: () => selectMenu(5),
+                          onPengaturan: () => selectMenu(6),
                           onLogout: widget.onLogout,
                         ),
                       Expanded(child: _content()),
@@ -209,9 +213,16 @@ class _DashboardOwnerState extends State<DashboardOwner> {
           0 => _DashboardBody(namaOwner: widget.namaOwner),
           1 => _buildLaporan(),
           2 => const owner_products.ProdukPage(),
+<<<<<<< HEAD
           3 => KelolaTransaksiPage(pakaiDataContoh: false, onNavigasiLaporan: () => selectMenu(1)),
           4 => const KontrolStafPage(),
           5 => const PengaturanPage(),
+=======
+          3 => const ManajemenStokPage(),
+          4 => const KelolaTransaksiPage(pakaiDataContoh: false),
+          5 => const KontrolStafPage(),
+          6 => const PengaturanPage(),
+>>>>>>> a97fae2 (memperbaiki kelola laporan (biar bisa di klik dan di liht), pengaturan full, perbaiki transaksi di kasir(midtrans) dan membuat manajemen stok)
           _ => _DashboardBody(namaOwner: widget.namaOwner),
         },
       ),
