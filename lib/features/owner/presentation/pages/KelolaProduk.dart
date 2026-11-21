@@ -917,85 +917,99 @@ class _ProdukPageState extends State<ProdukPage> {
   // BARIS KATEGORI (Semua + 7 kategori utama)
   // ============================================================
 
-  Widget _categoryFilter(bool isPhone) {
-    if (_categories.isEmpty) {
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: _loadCategories,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: _shadow(),
-            ),
-            child: const Text(
-              'Kategori belum termuat. Ketuk untuk muat ulang.',
-              style: TextStyle(
-                color: _navy,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
+ 
+Widget _categoryFilter(bool isPhone) {
+  if (_categories.isEmpty) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: _loadCategories,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 8,
+          ),
+          decoration: BoxDecoration(
+            color: _lightBlue,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: _shadow(),
+          ),
+          child: const Text(
+            'Kategori belum termuat. Ketuk untuk muat ulang.',
+            style: TextStyle(
+              color: _navy,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    final items = ['Semua', ..._categories];
+  final items = ['Semua', ..._categories];
 
-    return SizedBox(
-      height: 42,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.only(bottom: 8, right: 6),
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (context, index) {
-          final label = items[index];
+  return SizedBox(
+    height: 42,
+    child: ListView.separated(
+      scrollDirection: Axis.horizontal,
+      physics: const ClampingScrollPhysics(),
+      padding: const EdgeInsets.only(bottom: 8, right: 6),
+      itemCount: items.length,
+      separatorBuilder: (_, __) => const SizedBox(width: 10),
+      itemBuilder: (context, index) {
+        final label = items[index];
 
-          final selected = index == 0
-              ? _activeCategory == null
-              : _activeCategory?.toLowerCase() == label.toLowerCase();
+        final selected = index == 0
+            ? _activeCategory == null
+            : _activeCategory?.toLowerCase() ==
+                label.toLowerCase();
 
-          return Container(
-            decoration: BoxDecoration(
-              color: selected ? _navy : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: _shadow(),
-            ),
-            child: Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
-              child: InkWell(
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () {
+              if (selected) return;
+
+              setState(() {
+                _activeCategory =
+                    index == 0 ? null : label;
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              curve: Curves.easeOut,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+              ),
+              decoration: BoxDecoration(
+                color: selected ? Colors.white : _lightBlue,
                 borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  setState(() {
-                    _activeCategory = index == 0 ? null : label;
-                  });
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Center(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        color: selected ? Colors.white : _navy,
-                        fontSize: isPhone ? 11 : 12,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
+                border: Border.all(
+                  color: selected ? _navy : Colors.transparent,
+                  width: 1.5,
+                ),
+                boxShadow: _shadow(),
+              ),
+              child: Center(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: _navy,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
             ),
-          );
-        },
-      ),
-    );
-  }
+          ),
+        );
+      },
+    ),
+  );
+}
 
   // ============================================================
   // GRID PRODUK RESPONSIF
