@@ -6,12 +6,25 @@ class CashierOrderService {
     List<Map<String, dynamic>> current,
     List<Map<String, dynamic>> saved,
   ) {
-    final existingIds = current.map((item) => item['id']).toSet();
-    return saved.where((order) => !existingIds.contains(order['id'])).map((
+    final existingIds = current.map((item) => item['id']?.toString()).toSet();
+    final existingTrxIds = current
+        .where((item) => item['idTransaksi'] != null)
+        .map((item) => item['idTransaksi'].toString())
+        .toSet();
+    return saved.where((order) {
+      final id = order['id']?.toString();
+      final trxId = order['idTransaksi']?.toString();
+      if (id != null && existingIds.contains(id)) return false;
+      if (trxId != null && existingTrxIds.contains(trxId)) return false;
+      return true;
+    }).map((
       order,
     ) {
       final quantity = _toInt(order['jumlah']);
-      final total = (order['total'] as num?)?.toDouble() ?? 0;
+      final totalRaw = order['total'];
+      final total = totalRaw is num
+          ? totalRaw.toDouble()
+          : (double.tryParse(totalRaw?.toString() ?? '') ?? 0.0);
       return <String, dynamic>{
         ...order,
         'kode': order['kode']?.toString() ?? order['id'].toString(),
@@ -35,6 +48,8 @@ class CashierOrderService {
         return false;
 
       switch (activeFilter) {
+        case 'Order Meja':
+          return item['isSelfOrder'] == true;
         case 'Belum Bayar':
           return item['bayar'] == 'Pending';
         case 'Take Away':

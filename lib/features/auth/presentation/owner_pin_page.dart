@@ -1,6 +1,10 @@
+import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:kasir_celcious_coffe/data/api_service.dart';
 import 'package:kasir_celcious_coffe/data/produk_data.dart';
@@ -17,14 +21,187 @@ class OwnerPinPage extends StatefulWidget {
 }
 
 class _OwnerPinPageState extends State<OwnerPinPage> {
+  static const _bioTokenKey = 'owner_biometric_token';
+  static const _bioUserKey = 'owner_biometric_user';
+
   final TextEditingController _pin = TextEditingController();
   final FocusNode _focusNode = FocusNode();
+  final LocalAuthentication _localAuth = LocalAuthentication();
 
   bool _loading = false;
   bool _pinInvalid = false;
+  bool _biometricSupported = false;
+  bool _biometricEnrolledOnApp = false;
+  String _biometricLabel = 'Face ID / Biometrik';
+
+  @override
+  void initState() {
+    super.initState();
+    _cekBiometrik();
+  }
+
+  Future<void> _cekBiometrik() async {
+    if (kIsWeb) return;
+    try {
+      final supported = await _localAuth.isDeviceSupported();
+      final canCheck = await _localAuth.canCheckBiometrics;
+      final types = await _localAuth.getAvailableBiometrics();
+      final prefs = await SharedPreferences.getInstance();
+      final hasSavedOwner =
+          (prefs.getString(_bioTokenKey)?.isNotEmpty ?? false) &&
+          (prefs.getString(_bioUserKey)?.isNotEmpty ?? false);
+
+      String label = 'Face ID / Biometrik';
+      if (types.contains(BiometricType.face)) {
+        label = 'Masuk dengan Face ID';
+      } else if (types.contains(BiometricType.fingerprint) ||
+          types.contains(BiometricType.strong)) {
+        label = 'Masuk dengan Biometrik';
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _biometricSupported = supported || canCheck;
+        _biometricEnrolledOnApp = hasSavedOwner;
+        _biometricLabel = label;
+      });
+    } catch (_) {
+      // Abaikan jika perangkat tidak mendukung biometrik
+    }
+  }
+
+  Future<void> _resetBiometrik() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_bioTokenKey);
+    await prefs.remove(_bioUserKey);
+    if (!mounted) return;
+    setState(() {
+      _biometricEnrolledOnApp = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Biometrik di perangkat ini berhasil di-reset.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _simpanSesiBiometrik({
+    required String token,
+    required Map<String, dynamic> user,
+  }) async {
+    if (kIsWeb) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_bioTokenKey, token);
+    await prefs.setString(_bioUserKey, jsonEncode(user));
+  }
+
+  void _bukaDashboardOwner(Map<String, dynamic> user) {
+    final nav = Navigator.of(context);
+    nav.pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => DashboardOwner(
+          namaOwner: user['nama']?.toString() ?? 'Owner',
+          onLogout: () async {
+            await ApiService.clearAuth();
+
+            nav.pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (_) => const PilihPeranPage(),
+              ),
+              (route) => false,
+            );
+          },
+        ),
+      ),
+      (route) => false,
+    );
+  }
 
   // ============================================================
-  // LOGIN OWNER
+  // LOGIN OWNER VIA FACE ID / BIOMETRIK
+  // ============================================================
+
+  Future<void> _masukDenganBiometrik() async {
+    if (_loading) return;
+
+    if (!_biometricEnrolledOnApp) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Silakan login dengan PIN Owner 1× terlebih dahulu untuk mengaktifkan Face ID di perangkat ini.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _pinInvalid = false;
+    });
+
+    try {
+      final authenticated = await _localAuth.authenticate(
+        localizedReason: 'Verifikasi Face ID / Biometrik untuk masuk sebagai Owner Celcious Coffee',
+        biometricOnly: false,
+        sensitiveTransaction: true,
+        persistAcrossBackgrounding: true,
+      );
+
+      if (!authenticated) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Verifikasi biometrik dibatalkan.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final savedToken = prefs.getString(_bioTokenKey);
+      final savedUserStr = prefs.getString(_bioUserKey);
+
+      if (savedToken == null || savedUserStr == null) {
+        throw Exception('Sesi biometrik belum aktif. Masuk dengan PIN terlebih dahulu.');
+      }
+
+      final user = Map<String, dynamic>.from(jsonDecode(savedUserStr) as Map);
+      await ApiService.saveAuth(token: savedToken, user: user);
+
+      // Verifikasi ke backend bahwa token Owner masih valid & memiliki hak akses owner
+      await ApiService.get('owner-test');
+      await ProdukData.loadFromApi();
+
+      if (!mounted) return;
+      _bukaDashboardOwner(user);
+    } catch (e) {
+      await ApiService.clearAuth();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Verifikasi Face ID gagal atau sesi kedaluwarsa. Silakan masukkan PIN Owner.',
+            ),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        _focusNode.requestFocus();
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  // ============================================================
+  // LOGIN OWNER VIA PIN 6 DIGIT
   // ============================================================
 
   Future<void> _masuk() async {
@@ -44,36 +221,20 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
       final user = Map<String, dynamic>.from(
         res['pengguna'] as Map,
       );
+      final token = res['token'].toString();
 
       await ApiService.saveAuth(
-        token: res['token'].toString(),
+        token: token,
         user: user,
       );
+
+      // Aktifkan sesi biometrik pada perangkat Owner untuk login Face ID berikutnya
+      await _simpanSesiBiometrik(token: token, user: user);
 
       await ProdukData.loadFromApi();
 
       if (!mounted) return;
-
-      final nav = Navigator.of(context);
-
-      nav.pushAndRemoveUntil(
-        MaterialPageRoute(
-          builder: (_) => DashboardOwner(
-            namaOwner: user['nama']?.toString() ?? 'Owner',
-            onLogout: () async {
-              await ApiService.clearAuth();
-
-              nav.pushAndRemoveUntil(
-                MaterialPageRoute(
-                  builder: (_) => const PilihPeranPage(),
-                ),
-                (route) => false,
-              );
-            },
-          ),
-        ),
-        (route) => false,
-      );
+      _bukaDashboardOwner(user);
     } catch (e) {
       _pin.clear();
 
@@ -127,7 +288,7 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
         children: [
           // BACKGROUND FOTO KOPI
           Image.asset(
-            'assets/images/bg_pilih_peran.jpg',
+            'assets/images/bg_pilih_peran.jpeg',
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
               return Container(
@@ -139,6 +300,25 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
           // OVERLAY NAVY GELAP
           Container(
             color: const Color(0xFF082640).withValues(alpha: 0.82),
+          ),
+
+          // TOMBOL KEMBALI
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: IconButton(
+                  onPressed: _loading ? null : () => Navigator.of(context).pop(),
+                  icon: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                  tooltip: 'Kembali',
+                ),
+              ),
+            ),
           ),
 
           // KONTEN PIN OWNER
@@ -156,10 +336,7 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // ==================================================
                       // IKON OWNER
-                      // ==================================================
-
                       Stack(
                         alignment: Alignment.center,
                         children: [
@@ -168,7 +345,6 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
                             color: Colors.white,
                             size: 76,
                           ),
-
                           Positioned(
                             bottom: 7,
                             right: 5,
@@ -190,10 +366,7 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
 
                       const SizedBox(height: 12),
 
-                      // ==================================================
                       // JUDUL
-                      // ==================================================
-
                       const Text(
                         'PIN OWNER',
                         style: TextStyle(
@@ -206,10 +379,7 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
 
                       const SizedBox(height: 16),
 
-                      // ==================================================
                       // INPUT PIN
-                      // ==================================================
-
                       TextField(
                         controller: _pin,
                         focusNode: _focusNode,
@@ -225,9 +395,7 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
                           LengthLimitingTextInputFormatter(6),
                         ],
                         style: TextStyle(
-                          color: _pinInvalid
-                              ? Colors.red
-                              : navy,
+                          color: _pinInvalid ? Colors.red : navy,
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 9,
@@ -268,10 +436,7 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
                         onSubmitted: (_) => _masuk(),
                       ),
 
-                      // ==================================================
                       // PESAN PIN SALAH
-                      // ==================================================
-
                       if (_pinInvalid) ...[
                         const SizedBox(height: 10),
                         const Text(
@@ -285,10 +450,99 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
                         ),
                       ],
 
-                      // ==================================================
-                      // LOADING
-                      // ==================================================
+                      // TOMBOL FACE ID / BIOMETRIK (ANDROID / iOS / WINDOWS)
+                      if (_biometricSupported) ...[
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 44,
+                          child: OutlinedButton.icon(
+                            onPressed: _loading ? null : _masukDenganBiometrik,
+                            icon: const Icon(
+                              Icons.face_retouching_natural_rounded,
+                              size: 20,
+                            ),
+                            label: Text(
+                              _biometricLabel,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              side: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.75),
+                                width: 1.3,
+                              ),
+                              backgroundColor: Colors.white.withValues(
+                                alpha: 0.12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(40),
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (!_biometricEnrolledOnApp) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            'Login PIN 1× untuk mengaktifkan Face ID di perangkat ini',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.72),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ] else ...[
+                          const SizedBox(height: 4),
+                          TextButton(
+                            onPressed: _loading ? null : _resetBiometrik,
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.white70,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text(
+                              'Reset Biometrik di perangkat ini',
+                              style: TextStyle(
+                                fontSize: 11,
+                                decoration: TextDecoration.underline,
+                                decorationColor: Colors.white70,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ] else if (kIsWeb) ...[
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.verified_user_outlined,
+                              color: Colors.white.withValues(alpha: 0.72),
+                              size: 15,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                'Dilindungi PIN 6 Digit (Face ID aktif di HP/Desktop Owner)',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.72),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
 
+                      // LOADING
                       if (_loading) ...[
                         const SizedBox(height: 16),
                         const SizedBox(

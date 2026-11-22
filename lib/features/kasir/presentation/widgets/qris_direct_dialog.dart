@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:kasir_celcious_coffe/data/api_service.dart';
 import 'package:kasir_celcious_coffe/features/kasir/application/cashier_transaction_service.dart';
-import 'package:kasir_celcious_coffe/features/settings/application/print_service.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 
 const Color _navy = Color(0xFF082640);
@@ -196,11 +195,7 @@ class _QrisDirectDialogState extends State<QrisDirectDialog> {
       idTransaksi: _idTransaksi,
     );
 
-    // Cetak stiker dan struk kasir otomatis
-    if (trx != null) {
-      PrintService.cetakStikerTransaksi(trx);
-      PrintService.cetakStruk(trx);
-    }
+    // Catatan: Struk & stiker tidak dicetak otomatis — kasir klik tombol manual di halaman Transaksi Berhasil.
 
     // Tunda sebentar (800ms) agar kasir melihat centang hijau sukses
     await Future.delayed(const Duration(milliseconds: 800));
@@ -220,6 +215,7 @@ class _QrisDirectDialogState extends State<QrisDirectDialog> {
       'tax': widget.tax,
       'discount': widget.discount,
       'total': widget.total,
+      if (trx != null) 'rawTransaksi': trx,
     });
   }
 

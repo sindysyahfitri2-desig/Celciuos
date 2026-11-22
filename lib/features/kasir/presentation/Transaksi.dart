@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 
 import 'package:kasir_celcious_coffe/features/kasir/application/cashier_order_service.dart';
+import 'package:kasir_celcious_coffe/features/settings/application/print_service.dart';
 import 'checkout_page.dart';
 import 'package:kasir_celcious_coffe/data/api_service.dart';
 
@@ -31,25 +33,234 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
   // ============================================================
 
   List<Map<String, dynamic>> pesanan = [];
+  Timer? _pollingTimer;
 
   @override
   void initState() {
     super.initState();
     TransactionStore.unfinishedOrders.addListener(_muatPesananTersimpan);
     _muatPesananTersimpan();
+    _sinkronisasiPesananDariServer();
+    // Sinkronisasi otomatis setiap 4 detik agar pesanan dari customer web langsung muncul di kasir
+    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted) _sinkronisasiPesananDariServer();
+    });
   }
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     TransactionStore.unfinishedOrders.removeListener(_muatPesananTersimpan);
     super.dispose();
   }
 
+  bool _deteksiSelfOrder(String nama) {
+    final trimmed = nama.trim().toLowerCase();
+    return trimmed.startsWith('meja ') && trimmed.contains(' - ');
+  }
+
+  int get _jumlahOrderMeja =>
+      pesanan.where((o) => o['isSelfOrder'] == true && o['selesai'] != true).length;
+
+  Future<void> _cetakStrukOrder(Map<String, dynamic> data) async {
+    try {
+      final payload = PrintService.buildPrintPayloadFromOrder(data);
+      await PrintService.cetakStruk(payload);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal cetak struk: $e')),
+      );
+    }
+  }
+
+  Future<void> _cetakStikerOrder(Map<String, dynamic> data) async {
+    try {
+      final payload = PrintService.buildPrintPayloadFromOrder(data);
+      await PrintService.cetakStikerTransaksi(payload);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal cetak stiker: $e')),
+      );
+    }
+  }
+
+  double _parseDouble(dynamic v) {
+    if (v is num) return v.toDouble();
+    return double.tryParse(v?.toString() ?? '') ?? 0.0;
+  }
+
+  int _parseInt(dynamic v, {int fallback = 0}) {
+    if (v is num) return v.toInt();
+    return int.tryParse(v?.toString() ?? '') ?? fallback;
+  }
+
+  Future<void> _sinkronisasiPesananDariServer() async {
+    try {
+      final res = await ApiService.get('transaksi');
+      final list = res['data'];
+      if (list is List) {
+        final serverOrders = <Map<String, dynamic>>[];
+        final selesaiIds = <String>{};
+        final selesaiTrxIds = <dynamic>{};
+
+        for (final item in list) {
+          if (item is Map) {
+            final map = Map<String, dynamic>.from(item);
+            final selesai = map['selesai'] == true || map['selesai'] == 1;
+            final statusBayar = map['status_bayar']?.toString().toLowerCase();
+            final kode =
+                map['kode']?.toString() ?? map['id_transaksi']?.toString() ?? '';
+
+            if (statusBayar == 'dibatalkan' || (selesai && statusBayar == 'lunas')) {
+              selesaiIds.add(kode);
+              if (map['id_transaksi'] != null) {
+                selesaiTrxIds.add(map['id_transaksi']);
+              }
+              continue;
+            }
+
+            // Tampilkan pesanan yang belum selesai atau belum lunas
+            if (!selesai || statusBayar == 'belum_lunas') {
+              final detailList = map['detail_transaksi'];
+              final cart = <Map<String, dynamic>>[];
+              int totalItemCount = 0;
+
+              if (detailList is List) {
+                for (final d in detailList) {
+                  if (d is Map) {
+                    final dMap = Map<String, dynamic>.from(d);
+                    final qty = _parseInt(dMap['jumlah'], fallback: 1);
+                    totalItemCount += qty;
+                    final produk = dMap['produk'];
+                    final prodName = produk is Map
+                        ? produk['nama_produk']?.toString()
+                        : 'Menu';
+                    final kategori = (produk is Map && produk['kategori'] is Map)
+                        ? produk['kategori']['nama_kategori']?.toString() ?? ''
+                        : '';
+                    final prodPrice = _parseDouble(dMap['harga_satuan']);
+                    cart.add({
+                      'id_produk': dMap['id_produk'],
+                      'name': prodName ?? 'Menu',
+                      'category': kategori,
+                      'price': prodPrice,
+                      'quantity': qty,
+                      'catatan': dMap['varian']?.toString() ?? '',
+                    });
+                  }
+                }
+              }
+
+              final total = _parseDouble(map['total']);
+              final subtotal = _parseDouble(map['subtotal']);
+              final ppn = _parseDouble(map['ppn']);
+              final namaPelanggan =
+                  map['nama_pelanggan']?.toString() ?? 'Pelanggan';
+              final metode = map['metode_pembayaran'] is Map
+                  ? map['metode_pembayaran']['nama_metode']?.toString() ?? 'Cash'
+                  : (map['midtrans_order_id'] != null ? 'QRIS' : 'Cash');
+
+              serverOrders.add({
+                'id': kode,
+                'kode': kode,
+                'tanggal':
+                    map['tanggal']?.toString() ?? DateTime.now().toIso8601String(),
+                'nama': namaPelanggan,
+                'kasir': map['pengguna'] is Map
+                    ? map['pengguna']['nama']?.toString() ?? 'Kasir'
+                    : 'Kasir',
+                'jumlah': totalItemCount,
+                'subtotal': subtotal,
+                'ppn': ppn,
+                'total': total,
+                'tipe': map['tipe_pesanan']?.toString() ?? 'Dine In',
+                'bayar': statusBayar == 'lunas' ? 'Lunas' : 'Pending',
+                'pembayaran': metode,
+                'selesai': selesai,
+                'cart': cart,
+                'idTransaksi': map['id_transaksi'],
+                'isSelfOrder': _deteksiSelfOrder(namaPelanggan),
+                'rawTransaksi': map,
+              });
+            }
+          }
+        }
+
+        if (!mounted) return;
+
+        bool changed = false;
+
+        // 1. Hapus order yang sudah selesai / dibatalkan di server
+        final beforeLen = pesanan.length;
+        pesanan.removeWhere((p) {
+          final idMatch = selesaiIds.contains(p['id']?.toString());
+          final trxMatch =
+              p['idTransaksi'] != null && selesaiTrxIds.contains(p['idTransaksi']);
+          return idMatch || trxMatch;
+        });
+        if (pesanan.length != beforeLen) changed = true;
+
+        // 2. Update order existing (anti-duplikat by idTransaksi atau id/kode) & kumpulkan order baru
+        final brandNew = <Map<String, dynamic>>[];
+        for (final srv in serverOrders) {
+          final idx = pesanan.indexWhere((p) {
+            final sameTrx = p['idTransaksi'] != null &&
+                srv['idTransaksi'] != null &&
+                p['idTransaksi'].toString() == srv['idTransaksi'].toString();
+            final sameCode = (p['id']?.toString() ?? '') ==
+                (srv['id']?.toString() ?? '');
+            return sameTrx || sameCode;
+          });
+
+          if (idx >= 0) {
+            final cur = pesanan[idx];
+            if (cur['bayar'] != srv['bayar'] ||
+                cur['pembayaran'] != srv['pembayaran'] ||
+                cur['rawTransaksi'] == null ||
+                cur['isSelfOrder'] != srv['isSelfOrder']) {
+              cur['bayar'] = srv['bayar'];
+              cur['pembayaran'] = srv['pembayaran'];
+              cur['selesai'] = srv['selesai'];
+              cur['cart'] = srv['cart'];
+              cur['isSelfOrder'] = srv['isSelfOrder'];
+              cur['rawTransaksi'] = srv['rawTransaksi'];
+              cur['idTransaksi'] = srv['idTransaksi'];
+              changed = true;
+            }
+          } else {
+            brandNew.add(srv);
+          }
+        }
+
+        if (brandNew.isNotEmpty) {
+          final formattedNew = CashierOrderService.mergeSavedOrders(pesanan, brandNew);
+          if (formattedNew.isNotEmpty) {
+            pesanan.insertAll(0, formattedNew);
+            changed = true;
+          }
+        }
+
+        if (changed && mounted) {
+          setState(() {});
+        }
+      }
+    } catch (e) {
+      debugPrint('Gagal sinkronisasi pesanan dari server: $e');
+    }
+  }
+
   void _muatPesananTersimpan() {
-    final saved = CashierOrderService.mergeSavedOrders(
-      pesanan,
-      TransactionStore.unfinishedOrders.value,
-    );
+    final normalized = TransactionStore.unfinishedOrders.value.map((o) {
+      final nama = o['nama']?.toString() ?? '';
+      return <String, dynamic>{
+        ...o,
+        'isSelfOrder': o['isSelfOrder'] == true || _deteksiSelfOrder(nama),
+      };
+    }).toList();
+
+    final saved = CashierOrderService.mergeSavedOrders(pesanan, normalized);
 
     if (saved.isNotEmpty && mounted) {
       setState(() => pesanan.insertAll(0, saved));
@@ -122,6 +333,7 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
                   data['pembayaran'] = initialPaymentMethod;
                 });
                 Navigator.pop(context);
+                _sinkronisasiPesananDariServer();
               },
             ),
           );
@@ -139,7 +351,8 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
 
     final data = pesanan[index];
     final items = checkoutData(data);
-    String metodePembayaran = 'QRIS';
+    final metodeAwal = data['pembayaran']?.toString().toLowerCase() ?? '';
+    String metodePembayaran = metodeAwal.contains('cash') ? 'Cash' : 'QRIS';
 
     showDialog(
       context: context,
@@ -718,11 +931,92 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
     );
   }
 
+  Widget _badgeSelfOrder({bool mobile = false}) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: mobile ? 6 : 8,
+        vertical: mobile ? 2 : 3,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xffe0f2fe),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xff4098ce), width: 0.9),
+      ),
+      child: Text(
+        'ORDER MEJA',
+        style: TextStyle(
+          color: navy,
+          fontSize: mobile ? 8 : 9.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
+  Widget _tombolCetakStruk(
+    Map<String, dynamic> data, {
+    bool mobile = false,
+    bool large = false,
+  }) {
+    return SizedBox(
+      height: mobile ? 29 : (large ? 34 : 31),
+      child: OutlinedButton.icon(
+        onPressed: () => _cetakStrukOrder(data),
+        icon: Icon(Icons.receipt_long_rounded, size: mobile ? 12 : 14),
+        label: Text(
+          'Cetak Struk',
+          style: TextStyle(
+            fontSize: mobile ? 8.5 : (large ? 11 : 10),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: navy,
+          side: BorderSide(color: navy, width: 1.2),
+          padding: EdgeInsets.symmetric(horizontal: mobile ? 8 : 11),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+    );
+  }
+
+  Widget _tombolCetakStiker(
+    Map<String, dynamic> data, {
+    bool mobile = false,
+    bool large = false,
+  }) {
+    return SizedBox(
+      height: mobile ? 29 : (large ? 34 : 31),
+      child: OutlinedButton.icon(
+        onPressed: () => _cetakStikerOrder(data),
+        icon: Icon(Icons.local_cafe_outlined, size: mobile ? 12 : 14),
+        label: Text(
+          'Cetak Stiker',
+          style: TextStyle(
+            fontSize: mobile ? 8.5 : (large ? 11 : 10),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xff16558a),
+          side: const BorderSide(color: Color(0xff4098ce), width: 1.2),
+          backgroundColor: const Color(0xfff0f7fd),
+          padding: EdgeInsets.symmetric(horizontal: mobile ? 8 : 11),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+    );
+  }
+
   // ============================================================
   // CARD LAPTOP / TABLET
   // ============================================================
 
   Widget _cardDesktop(Map<String, dynamic> data, bool pending) {
+    final isSelfOrder = data['isSelfOrder'] == true;
+    final adaMinuman = PrintService.adaMinuman(data);
+
     return Row(
       children: [
         Container(
@@ -738,7 +1032,7 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
             textAlign: TextAlign.center,
             style: TextStyle(
               color: navy,
-              fontSize: 14,
+              fontSize: 12,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -767,6 +1061,11 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
                   const SizedBox(width: 8),
 
                   _tipePesanan(data['tipe'], large: true),
+
+                  if (isSelfOrder) ...[
+                    const SizedBox(width: 6),
+                    _badgeSelfOrder(),
+                  ],
                 ],
               ),
 
@@ -804,14 +1103,19 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
 
             const SizedBox(height: 9),
 
-            Row(
+            Wrap(
+              spacing: 7,
+              runSpacing: 6,
+              alignment: WrapAlignment.end,
               children: [
+                if (!pending) ...[
+                  _tombolCetakStruk(data, large: true),
+                  if (adaMinuman) _tombolCetakStiker(data, large: true),
+                ],
+
                 _tombolSelesai(data, large: true),
 
-                if (pending) ...[
-                  const SizedBox(width: 7),
-                  _tombolBayar(data, large: true),
-                ],
+                if (pending) _tombolBayar(data, large: true),
               ],
             ),
           ],
@@ -825,6 +1129,9 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
   // ============================================================
 
   Widget _cardMobile(Map<String, dynamic> data, bool pending) {
+    final isSelfOrder = data['isSelfOrder'] == true;
+    final adaMinuman = PrintService.adaMinuman(data);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -843,7 +1150,7 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: navy,
-                  fontSize: 10,
+                  fontSize: 9.5,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -877,13 +1184,20 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
 
                   const SizedBox(height: 5),
 
-                  Text(
-                    '${data['jumlah']} • ${data['harga']}',
-                    style: TextStyle(
-                      color: navy,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${data['jumlah']} • ${data['harga']}',
+                          style: TextStyle(
+                            color: navy,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (isSelfOrder) _badgeSelfOrder(mobile: true),
+                    ],
                   ),
                 ],
               ),
@@ -907,6 +1221,18 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
             ],
           ],
         ),
+
+        if (!pending) ...[
+          const SizedBox(height: 7),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _tombolCetakStruk(data, mobile: true),
+              if (adaMinuman) _tombolCetakStiker(data, mobile: true),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -1173,8 +1499,15 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
   // ============================================================
 
   Widget _filter({bool mobile = false, bool large = false}) {
+    final jmlMeja = _jumlahOrderMeja;
+    final labelMeja = jmlMeja > 0 ? 'Order Meja ($jmlMeja)' : 'Order Meja';
+
     final buttons = [
       filterButton('Semua', value: 'Semua', large: large),
+
+      const SizedBox(width: 8),
+
+      filterButton(labelMeja, value: 'Order Meja', large: large),
 
       const SizedBox(width: 8),
 
@@ -1198,18 +1531,11 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
 
     return Row(
       children: [
-        Text(
-          '▦ Semua Orderan',
-          style: TextStyle(
-            color: navy,
-            fontSize: large ? 13 : 11,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+
 
         const SizedBox(width: 14),
 
-        ...buttons.sublist(2),
+        ...buttons,
       ],
     );
   }

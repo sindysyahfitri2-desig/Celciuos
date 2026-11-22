@@ -6,7 +6,6 @@ import 'package:kasir_celcious_coffe/data/payment_proof_store.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 import 'package:kasir_celcious_coffe/data/produk_data.dart';
 import 'package:kasir_celcious_coffe/data/api_service.dart';
-import 'package:kasir_celcious_coffe/features/settings/application/print_service.dart';
 
 /// Builds and persists cashier orders and completed transactions.
 class CashierTransactionService {
@@ -73,13 +72,7 @@ class CashierTransactionService {
       'items': _itemsApi(cart),
     });
     final idTransaksi = (res['data'] as Map)['id_transaksi'];
-    final data = res['data'];
-    if (data is Map<String, dynamic>) {
-      PrintService.cetakStikerTransaksi(data);
-      if (data['status_bayar'] == 'lunas') {
-        PrintService.cetakStruk(data);
-      }
-    }
+    // Catatan: Struk & stiker tidak dicetak otomatis — kasir mencetak manual via tombol 'Cetak Struk' / 'Cetak Stiker'.
     await TransactionStore.addUnfinishedOrder({
       'id': orderCode['id'],
       'kode': orderCode['display'],
@@ -175,6 +168,21 @@ class CashierTransactionService {
           id: orderCode['id']!,
           paymentMethod: paymentMethod,
           transaction: transaction,
+          fallbackOrder: <String, dynamic>{
+            'id': orderCode['id'],
+            'kode': orderCode['display'],
+            'tanggal': time.toIso8601String(),
+            'nama': customerName,
+            'kasir': cashierName.trim().isEmpty ? 'Kasir' : cashierName,
+            'jumlah': itemCount,
+            'tipe': orderType,
+            'bayar': 'Lunas',
+            'pembayaran': paymentMethod,
+            'selesai': false,
+            'cart': cartItems,
+            'idTransaksi': idTrx,
+            'isSelfOrder': existingOrder['isSelfOrder'] == true,
+          },
         );
       } else {
         final res = await ApiService.post('transaksi', {
@@ -191,12 +199,7 @@ class CashierTransactionService {
         final dataTrx = res['data'];
         final idTransaksi = dataTrx is Map ? dataTrx['id_transaksi'] : null;
 
-        if (dataTrx is Map<String, dynamic>) {
-          PrintService.cetakStikerTransaksi(dataTrx);
-          if (dataTrx['status_bayar'] == 'lunas') {
-            PrintService.cetakStruk(dataTrx);
-          }
-        }
+        // Catatan: Struk & stiker tidak dicetak otomatis — kasir klik tombol 'Cetak Struk' / 'Cetak Stiker' secara manual.
 
         await TransactionStore.addPaidOrder(
           order: {

@@ -103,7 +103,136 @@ class PrintService {
   }
 
   // =====================================================
-  // STIKER (satu stiker per porsi, mis. 1/2 dan 2/2)
+  // DETEKSI MINUMAN (Stiker hanya dicetak untuk minuman)
+  // =====================================================
+  static bool isMinumanItem(Map d) {
+    final produk = d['produk'];
+    final kategoriRaw = (produk is Map
+            ? (produk['kategori'] is Map
+                ? produk['kategori']['nama_kategori']
+                : produk['kategori'])
+            : null) ??
+        d['category'] ??
+        d['kategori'] ??
+        '';
+    final kat = kategoriRaw.toString().toLowerCase().trim();
+
+    if (kat == 'food' || kat == 'makanan' || kat == 'snack') {
+      return false;
+    }
+    if (kat == 'americano' ||
+        kat == 'coffee' ||
+        kat == 'non-coffee' ||
+        kat == 'non coffee' ||
+        kat == 'latte' ||
+        kat == 'sanger' ||
+        kat == 'refresh' ||
+        kat == 'minuman' ||
+        kat == 'drink') {
+      return true;
+    }
+
+    final namaRaw = (produk is Map ? produk['nama_produk'] : null) ??
+        d['name'] ??
+        d['nama_produk'] ??
+        '';
+    final nama = namaRaw.toString().toLowerCase();
+    const kataMakanan = [
+      'nasi',
+      'indomie',
+      'mie',
+      'rice bowl',
+      'spagetti',
+      'spaghetti',
+      'tomyam',
+      'burger',
+      'fries',
+      'kentang',
+      'donat',
+      'cinnamon',
+      'roll',
+      'geprek',
+      'ayam',
+      'roti',
+      'snack',
+      'food',
+    ];
+    for (final k in kataMakanan) {
+      if (nama.contains(k)) return false;
+    }
+    return nama.isNotEmpty;
+  }
+
+  /// Cek apakah transaksi / order memiliki minimal 1 item minuman.
+  static bool adaMinuman(Map t) {
+    final raw = t['rawTransaksi'];
+    if (raw is Map && raw['detail_transaksi'] is List) {
+      final list = (raw['detail_transaksi'] as List).whereType<Map>();
+      return list.any(isMinumanItem);
+    }
+    final list = (t['detail_transaksi'] ?? t['items'] ?? t['cart']) as List? ?? [];
+    return list.whereType<Map>().any(isMinumanItem);
+  }
+
+  /// Konversi data order/receipt (lokal maupun server) menjadi payload standar cetak.
+  static Map<String, dynamic> buildPrintPayloadFromOrder(
+    Map<String, dynamic> source,
+  ) {
+    final raw = source['rawTransaksi'];
+    if (raw is Map) {
+      return Map<String, dynamic>.from(raw);
+    }
+    if (source['detail_transaksi'] is List) {
+      return Map<String, dynamic>.from(source);
+    }
+
+    final itemsRaw = (source['items'] ?? source['cart']) as List? ?? const [];
+    final details = itemsRaw.whereType<Map>().map((it) {
+      final qty = _int(it['quantity'] ?? it['jumlah']);
+      final price =
+          (double.tryParse('${it['price'] ?? it['harga_satuan'] ?? 0}') ?? 0);
+      final cat = (it['category'] ?? it['kategori'] ?? '').toString();
+      return <String, dynamic>{
+        'jumlah': qty,
+        'harga_satuan': price,
+        'subtotal': price * qty,
+        'varian': (it['catatan'] ?? it['varian'] ?? '').toString(),
+        'produk': <String, dynamic>{
+          'nama_produk': (it['name'] ?? it['nama_produk'] ?? 'Menu').toString(),
+          if (cat.isNotEmpty) 'kategori': <String, dynamic>{'nama_kategori': cat},
+        },
+      };
+    }).toList();
+
+    final orderedAt = source['orderedAt'];
+    final tanggal = orderedAt is DateTime
+        ? orderedAt.toIso8601String()
+        : (source['tanggal']?.toString() ?? DateTime.now().toIso8601String());
+
+    final kasir = (source['cashierName'] ?? source['kasir'] ?? 'Kasir').toString();
+    final metode =
+        (source['paymentMethod'] ?? source['pembayaran'] ?? 'Cash').toString();
+
+    return <String, dynamic>{
+      'id_transaksi': source['idTransaksi'] ?? source['id'] ?? '',
+      'kode': (source['orderId'] ?? source['kode'] ?? source['id'] ?? '').toString(),
+      'nama_pelanggan':
+          (source['customerName'] ?? source['nama'] ?? 'Pelanggan').toString(),
+      'tipe_pesanan': (source['orderType'] ?? source['tipe'] ?? 'Dine In').toString(),
+      'tanggal': tanggal,
+      'subtotal': source['subtotal'] ?? 0,
+      'ppn': source['tax'] ?? source['ppn'] ?? 0,
+      'biaya_layanan': source['biaya_layanan'] ?? 0,
+      'diskon': source['discount'] ?? source['diskon'] ?? 0,
+      'total': source['total'] ?? 0,
+      'pengguna': <String, dynamic>{'nama': kasir, 'username': kasir},
+      'metode_pembayaran': <String, dynamic>{'nama_metode': metode},
+      'detail_transaksi': details,
+    };
+  }
+
+  // =====================================================
+  // STIKER MINUMAN (satu stiker per gelas minuman, mis. 1/2 dan 2/2)
   // =====================================================
   static List<_Stiker> _unitStiker(Map t) {
     final tgl = DateTime.tryParse('${t['tanggal']}')?.toLocal() ?? DateTime.now();
@@ -115,7 +244,10 @@ class PrintService {
     final tipe = '${t['tipe_pesanan']}' == 'Take Away' ? 'Ta' : 'Di';
     final kode = '${(t['pengguna'] is Map ? t['pengguna']['username'] : '') ?? ''}';
 
-    final details = (t['detail_transaksi'] as List? ?? []).whereType<Map>().toList();
+    final details = (t['detail_transaksi'] as List? ?? [])
+        .whereType<Map>()
+        .where(isMinumanItem)
+        .toList();
     final total = details.fold<int>(0, (a, d) => a + _int(d['jumlah']));
 
     final hasil = <_Stiker>[];

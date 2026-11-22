@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kasir_celcious_coffe/data/receipt_settings_store.dart';
+import 'package:kasir_celcious_coffe/features/settings/application/print_service.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 
 /// Halaman sukses setelah transaksi berhasil disimpan.
@@ -63,6 +64,33 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
       await SystemSound.play(SystemSoundType.click);
     } catch (_) {
       // Jika perangkat tidak mendukung suara sistem, animasi tetap berjalan.
+    }
+  }
+
+  bool _sedangCetakStruk = false;
+  bool _sedangCetakStiker = false;
+
+  Future<void> _cetakStrukManual() async {
+    final data = widget.receiptData;
+    if (data == null || _sedangCetakStruk) return;
+    setState(() => _sedangCetakStruk = true);
+    try {
+      final payload = PrintService.buildPrintPayloadFromOrder(data);
+      await PrintService.cetakStruk(payload);
+    } finally {
+      if (mounted) setState(() => _sedangCetakStruk = false);
+    }
+  }
+
+  Future<void> _cetakStikerManual() async {
+    final data = widget.receiptData;
+    if (data == null || _sedangCetakStiker) return;
+    setState(() => _sedangCetakStiker = true);
+    try {
+      final payload = PrintService.buildPrintPayloadFromOrder(data);
+      await PrintService.cetakStikerTransaksi(payload);
+    } finally {
+      if (mounted) setState(() => _sedangCetakStiker = false);
     }
   }
 
@@ -131,6 +159,10 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
                               child: _receiptCard(options),
                             ),
                           ),
+                        if (widget.receiptData != null) ...[
+                          const SizedBox(height: 16),
+                          _tombolCetakManual(),
+                        ],
                       ],
                     ),
                   ),
@@ -164,6 +196,79 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _tombolCetakManual() {
+    final data = widget.receiptData;
+    final punyaMinuman = data != null && PrintService.adaMinuman(data);
+
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: 46,
+            child: ElevatedButton.icon(
+              onPressed: _sedangCetakStruk ? null : _cetakStrukManual,
+              icon: _sedangCetakStruk
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.receipt_long_rounded, size: 18),
+              label: const Text(
+                'Cetak Struk',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _navy,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (punyaMinuman) ...[
+          const SizedBox(width: 10),
+          Expanded(
+            child: SizedBox(
+              height: 46,
+              child: OutlinedButton.icon(
+                onPressed: _sedangCetakStiker ? null : _cetakStikerManual,
+                icon: _sedangCetakStiker
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _navy,
+                        ),
+                      )
+                    : const Icon(Icons.local_cafe_outlined, size: 18),
+                label: const Text(
+                  'Cetak Stiker',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: _navy,
+                  side: const BorderSide(color: _navy, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 

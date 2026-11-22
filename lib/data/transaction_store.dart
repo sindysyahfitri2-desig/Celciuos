@@ -422,15 +422,18 @@ class TransactionStore {
     required String id,
     required String paymentMethod,
     required Map<String, dynamic> transaction,
+    Map<String, dynamic>? fallbackOrder,
   }) async {
     final orderIndex = unfinishedOrders.value.indexWhere(
       (order) => order['id']?.toString() == id,
     );
-    if (orderIndex < 0) {
+    if (orderIndex < 0 && fallbackOrder == null) {
       throw StateError('Pesanan yang akan dibayar tidak ditemukan.');
     }
 
-    final currentOrder = unfinishedOrders.value[orderIndex];
+    final currentOrder = orderIndex >= 0
+        ? unfinishedOrders.value[orderIndex]
+        : fallbackOrder!;
     final updatedOrder = withActiveShift(<String, dynamic>{
       ...currentOrder,
       ...transaction,
@@ -442,8 +445,9 @@ class TransactionStore {
       'diskon': transaction['diskon'],
       'total': transaction['total'],
     });
-    final updatedOrders = [...unfinishedOrders.value]
-      ..[orderIndex] = updatedOrder;
+    final updatedOrders = orderIndex >= 0
+        ? ([...unfinishedOrders.value]..[orderIndex] = updatedOrder)
+        : _uniqueById([updatedOrder, ...unfinishedOrders.value]);
     final updatedTransactions = transactions.value
         .where((item) => item['id']?.toString() != id)
         .toList();
