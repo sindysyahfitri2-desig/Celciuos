@@ -454,10 +454,6 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
                               ],
                         style: TextStyle(
                           color: _pinInvalid ? Colors.red : navy,
-                          fontSize: 20,
-                          color: _pinInvalid
-                              ? Colors.red
-                              : navy,
                           fontSize: _textPasswordMode ? 16 : 20,
                           fontWeight: FontWeight.bold,
                           letterSpacing: _textPasswordMode ? 2 : 9,
