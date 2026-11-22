@@ -1150,8 +1150,44 @@ class _kasirPageState extends State<kasirPage> {
   }
 
   // ==========================================================
-  // CATEGORIES
+  // CATEGORIES (7 kategori utama dari ProdukData)
   // ==========================================================
+
+  List<String> get _categoryLabels => [
+    'Semua Menu',
+    ...ProdukData.kategoriProduk,
+  ];
+
+  String _normalisasiKategori(Object? value) {
+    return (value?.toString() ?? '')
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[-_]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  IconData _iconForCategory(String title) {
+    switch (_normalisasiKategori(title)) {
+      case 'semua menu':
+        return Icons.grid_view_rounded;
+      case 'americano':
+        return Icons.coffee_rounded;
+      case 'sanger':
+        return Icons.coffee_maker_rounded;
+      case 'refresh':
+        return Icons.local_drink_rounded;
+      case 'best selling':
+        return Icons.local_fire_department_rounded;
+      case 'latte':
+        return Icons.local_cafe_rounded;
+      case 'non coffee':
+        return Icons.emoji_food_beverage_rounded;
+      case 'food':
+        return Icons.lunch_dining_rounded;
+      default:
+        return Icons.category_rounded;
+    }
+  }
 
   Widget _categories() {
     return SizedBox(
@@ -1161,11 +1197,8 @@ class _kasirPageState extends State<kasirPage> {
         controller: _categoryScrollController,
         scrollDirection: Axis.horizontal,
         children: [
-          _category(Icons.grid_view_rounded, 'Semua Menu'),
-          _category(Icons.local_drink_rounded, 'Non-Coffee'),
-          _category(Icons.coffee_rounded, 'Coffee'),
-          _category(Icons.lunch_dining_rounded, 'Food'),
-          _category(Icons.icecream_rounded, 'Snack'),
+          for (final title in _categoryLabels)
+            _category(_iconForCategory(title), title),
         ],
       ),
     );
@@ -1176,7 +1209,8 @@ class _kasirPageState extends State<kasirPage> {
   // ==========================================================
 
   Widget _category(IconData icon, String title) {
-    final bool active = selectedCategory == title;
+    final bool active =
+        _normalisasiKategori(selectedCategory) == _normalisasiKategori(title);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
@@ -1248,37 +1282,32 @@ class _kasirPageState extends State<kasirPage> {
             final double cardHeight;
             if (width < 580) {
               columns = 1;
-              cardHeight = 104;
+              cardHeight = 108;
             } else if (width < 920) {
               columns = 2;
-              cardHeight = 108;
+              cardHeight = 112;
             } else if (width < 1260) {
               columns = 3;
-              cardHeight = 110;
+              cardHeight = 114;
             } else {
               columns = 4;
-              cardHeight = 112;
+              cardHeight = 116;
             }
 
             final filteredProducts = products.where((product) {
               if (product['is_active'] == false) return false;
 
               final nama = product['name'].toString().toLowerCase();
-              final category = product['category']
-                  .toString()
-                  .trim()
-                  .toLowerCase();
+              final category = _normalisasiKategori(
+                product['category'] ?? product['kategori'],
+              );
 
               if (searchQuery.isNotEmpty && !nama.contains(searchQuery)) {
                 return false;
               }
-              if (selectedCategory == 'Semua Menu') return true;
-              if (selectedCategory == 'Coffee') return category == 'coffee';
-              if (selectedCategory == 'Non-Coffee')
-                return category == 'non-coffee';
-              if (selectedCategory == 'Food') return category == 'food';
-              if (selectedCategory == 'Snack') return category == 'snack';
-              return true;
+              final selected = _normalisasiKategori(selectedCategory);
+              if (selected == 'semua menu') return true;
+              return category == selected;
             }).toList();
 
             if (filteredProducts.isEmpty) {

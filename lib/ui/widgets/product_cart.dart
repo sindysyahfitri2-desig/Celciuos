@@ -138,16 +138,16 @@ class _ProductCardState extends State<ProductCard> {
                                     children: [
                                       Text(
                                         widget.name,
-                                        maxLines: height < 106 ? 1 : 2,
+                                        maxLines: height < 110 ? 1 : 2,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
                                           color: _titleColor,
                                           fontWeight: FontWeight.w800,
                                           fontSize: compact ? 12.5 : 14,
-                                          height: 1.15,
+                                          height: 1.2,
                                         ),
                                       ),
-                                      const SizedBox(height: 2),
+                                      const SizedBox(height: 6),
                                       Text(
                                         _rupiah(widget.price),
                                         maxLines: 1,
@@ -156,7 +156,7 @@ class _ProductCardState extends State<ProductCard> {
                                           color: _priceColor,
                                           fontWeight: FontWeight.w600,
                                           fontSize: compact ? 11 : 12.5,
-                                          height: 1.15,
+                                          height: 1.2,
                                         ),
                                       ),
                                     ],

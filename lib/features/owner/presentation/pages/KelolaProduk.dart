@@ -1134,6 +1134,7 @@ Widget _categoryFilter(bool isPhone) {
                       boxShadow: _shadowSmall(),
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Container(
                           width: imageSize,
@@ -1148,32 +1149,37 @@ Widget _categoryFilter(bool isPhone) {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                name,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: _navy,
-                                  fontSize: compact ? 10 : 12,
-                                  fontWeight: FontWeight.w900,
-                                  height: 1.2,
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: _navy,
+                                      fontSize: compact ? 11 : 12.5,
+                                      fontWeight: FontWeight.w900,
+                                      height: 1.2,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _rupiah(product['price']),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: _navy,
+                                      fontSize: compact ? 9.5 : 10.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 3),
-                              Text(
-                                _rupiah(product['price']),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: _navy,
-                                  fontSize: compact ? 9 : 10,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
                               Row(
                                 children: [
                                   SizedBox(

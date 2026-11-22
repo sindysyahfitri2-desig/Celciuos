@@ -365,8 +365,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final catatan = item['catatan']?.toString().trim() ?? '';
     final terkunci = widget.existingOrder != null;
     final cardHeight = catatan.isEmpty
-        ? (isMobile ? 102.0 : 108.0)
-        : (isMobile ? 116.0 : 122.0);
+        ? (isMobile ? 106.0 : 112.0)
+        : (isMobile ? 122.0 : 128.0);
     final pad = isMobile ? 8.0 : 9.0;
     final imageSize = (cardHeight - pad * 2).clamp(64.0, 88.0);
     final double tabWidth = isMobile ? 42 : 46;
@@ -447,10 +447,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                       color: const Color(0xff0e2235),
                                       fontSize: isMobile ? 13.5 : 14.5,
                                       fontWeight: FontWeight.w800,
-                                      height: 1.15,
+                                      height: 1.2,
                                     ),
                                   ),
-                                  const SizedBox(height: 3),
+                                  const SizedBox(height: 6),
                                   Text(
                                     widget.rupiah(harga),
                                     maxLines: 1,
@@ -462,7 +462,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                     ),
                                   ),
                                   if (catatan.isNotEmpty) ...[
-                                    const SizedBox(height: 2),
+                                    const SizedBox(height: 4),
                                     Text(
                                       'Catatan: $catatan',
                                       maxLines: 1,

@@ -30,10 +30,13 @@ class _ProdukPageState extends State<ProdukPage> {
   String? _selectedCategory;
 
   static const List<_CategoryItem> _categories = [
-    _CategoryItem('Coffee', Icons.local_cafe_outlined),
-    _CategoryItem('Non-Coffee', Icons.local_drink_outlined),
-    _CategoryItem('Food', Icons.ramen_dining_outlined),
-    _CategoryItem('Snack', Icons.cookie_outlined),
+    _CategoryItem('Americano', Icons.coffee_rounded),
+    _CategoryItem('Sanger', Icons.coffee_maker_rounded),
+    _CategoryItem('Refresh', Icons.local_drink_rounded),
+    _CategoryItem('Best Selling', Icons.local_fire_department_rounded),
+    _CategoryItem('Latte', Icons.local_cafe_rounded),
+    _CategoryItem('Non Coffee', Icons.emoji_food_beverage_rounded),
+    _CategoryItem('Food', Icons.lunch_dining_rounded),
   ];
 
   @override
@@ -326,6 +329,7 @@ class _ProdukPageState extends State<ProdukPage> {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
             width: _imageSize,
@@ -358,7 +362,7 @@ class _ProdukPageState extends State<ProdukPage> {
 
           Expanded(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -374,7 +378,7 @@ class _ProdukPageState extends State<ProdukPage> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 Text(
                   _rupiah(product['price']),
                   maxLines: 1,
@@ -383,7 +387,7 @@ class _ProdukPageState extends State<ProdukPage> {
                     color: isActive
                         ? _priceBlue
                         : const Color(0xff999999),
-                    fontSize: 12,
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -393,21 +397,25 @@ class _ProdukPageState extends State<ProdukPage> {
 
           const SizedBox(width: 8),
 
-          _ProductToggle(
-            value: isActive,
-            onChanged: (value) async {
-              try {
-                await ProdukData.setProductActive(
-                  product,
-                  isActive: value,
-                );
-              } catch (error) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Gagal mengubah status produk: $error')),
-                );
-              }
-            },
+          Center(
+            child: _ProductToggle(
+              value: isActive,
+              onChanged: (value) async {
+                try {
+                  await ProdukData.setProductActive(
+                    product,
+                    isActive: value,
+                  );
+                } catch (error) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Gagal mengubah status produk: $error'),
+                    ),
+                  );
+                }
+              },
+            ),
           ),
         ],
       ),
