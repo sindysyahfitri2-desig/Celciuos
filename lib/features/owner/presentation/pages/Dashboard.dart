@@ -8,8 +8,8 @@ import 'package:kasir_celcious_coffe/features/owner/presentation/widgets/Navigat
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/PengaturanPage.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 import 'package:kasir_celcious_coffe/data/dashboard_service.dart';
+import 'package:kasir_celcious_coffe/data/owner_profile_store.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
-import 'package:kasir_celcious_coffe/features/owner/application/kt_model.dart';
 import '../../../reports/application/report_service.dart' show ReportService;
 import 'KelolaLaporan.dart';
 
@@ -54,6 +54,8 @@ class DashboardOwner extends StatefulWidget {
 
 class _DashboardOwnerState extends State<DashboardOwner> {
   int selectedMenu = 0;
+  bool _openProfileOnPengaturan = false;
+  int _profileRequestId = 0;
 
   static const menuTitles = [
     'Dashboard',
@@ -61,12 +63,55 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     'Kelola Produk',
     'Transaksi',
     'Kelola Staf',
+    'Modal & Keuntungan',
     'Pengaturan',
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    OwnerProfileStore.initialize(fallbackName: widget.namaOwner);
+    OwnerProfileStore.ownerName.addListener(_onOwnerProfileChanged);
+    OwnerProfileStore.photoBytes.addListener(_onOwnerProfileChanged);
+    OwnerProfileStore.photoUrl.addListener(_onOwnerProfileChanged);
+  }
+
+  @override
+  void dispose() {
+    OwnerProfileStore.ownerName.removeListener(_onOwnerProfileChanged);
+    OwnerProfileStore.photoBytes.removeListener(_onOwnerProfileChanged);
+    OwnerProfileStore.photoUrl.removeListener(_onOwnerProfileChanged);
+    super.dispose();
+  }
+
+  void _onOwnerProfileChanged() {
+    if (mounted) setState(() {});
+  }
+
+  String get _currentOwnerName {
+    final stored = OwnerProfileStore.ownerName.value.trim();
+    return stored.isNotEmpty ? stored : widget.namaOwner;
+  }
+
   void selectMenu(int index) {
     if (index < 0 || index >= menuTitles.length) return;
-    setState(() => selectedMenu = index);
+    setState(() {
+      selectedMenu = index;
+      if (index != 6) {
+        _openProfileOnPengaturan = false;
+      }
+    });
+  }
+
+  void _openOwnerProfileSettings({bool closeDrawer = false}) {
+    if (closeDrawer) {
+      Navigator.of(context).pop();
+    }
+    setState(() {
+      selectedMenu = 6;
+      _openProfileOnPengaturan = true;
+      _profileRequestId++;
+    });
   }
 
   void _pilihMenuDariDrawer(int index) {
@@ -103,6 +148,29 @@ class _DashboardOwnerState extends State<DashboardOwner> {
         })
         .toList();
 
+    final bebanItems = snapshot.drawerRows
+        .where((entry) => entry['jenis']?.toLowerCase() == 'keluar')
+        .map((entry) {
+          final rawNominal = (entry['nominal'] ?? '0')
+              .replaceAll('+', '')
+              .replaceAll('-', '')
+              .replaceAll('.', '')
+              .replaceAll(',', '');
+          final nominal = num.tryParse(rawNominal) ?? 0;
+          final ket = (entry['keterangan'] ?? '').trim();
+          return LaporanNominalItem(
+            label: ket.isEmpty ? 'Beban Operasional' : ket,
+            nominal: nominal,
+          );
+        })
+        .toList();
+
+    final cashierName = snapshot.transactionRows.isNotEmpty
+        ? (snapshot.transactionRows.first['kasir'] ?? 'Kasir')
+        : (TransactionStore.shiftCashier.value.trim().isNotEmpty
+            ? TransactionStore.shiftCashier.value.trim()
+            : 'Kasir');
+
     final now = DateTime.now();
     const bulan = [
       'Januari',
@@ -119,12 +187,15 @@ class _DashboardOwnerState extends State<DashboardOwner> {
       'Desember',
     ];
 
-    final jumlahHari = DateTime(now.year, now.month + 1, 0).day;
-
     return KelolaLaporanContent(
-      judulLaporan: 'Laporan Transaksi',
-      tanggalLaporan: '1–$jumlahHari ${bulan[now.month - 1]} ${now.year}',
-      previewData: LaporanPreviewData(rows: rows),
+      judulLaporan: 'Laporan Laba Rugi & Keuangan Harian',
+      tanggalLaporan: '${now.day} ${bulan[now.month - 1]} ${now.year}',
+      previewData: LaporanPreviewData(
+        rows: rows,
+        bebanItems: bebanItems,
+        namaKasir: cashierName,
+        namaOwner: _currentOwnerName,
+      ),
     );
   }
 
@@ -143,14 +214,16 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                   child: SafeArea(
                     child: OwnerNavigation(
                       selectedIndex: selectedMenu,
-                      ownerName: widget.namaOwner,
+                      ownerName: _currentOwnerName,
                       onDestinationSelected: _pilihMenuDariDrawer,
                       onDashboard: () => _pilihMenuDariDrawer(0),
                       onLaporan: () => _pilihMenuDariDrawer(1),
                       onProduk: () => _pilihMenuDariDrawer(2),
                       onTransaksi: () => _pilihMenuDariDrawer(3),
                       onKelolaStaf: () => _pilihMenuDariDrawer(4),
-                      onPengaturan: () => _pilihMenuDariDrawer(5),
+                      onPengaturan: () => _pilihMenuDariDrawer(6),
+                      onProfileTap: () =>
+                          _openOwnerProfileSettings(closeDrawer: true),
                       onLogout: widget.onLogout,
                     ),
                   ),
@@ -165,14 +238,15 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                       if (isDesktop)
                         OwnerNavigation(
                           selectedIndex: selectedMenu,
-                          ownerName: widget.namaOwner,
+                          ownerName: _currentOwnerName,
                           onDestinationSelected: selectMenu,
                           onDashboard: () => selectMenu(0),
                           onLaporan: () => selectMenu(1),
                           onProduk: () => selectMenu(2),
                           onTransaksi: () => selectMenu(3),
                           onKelolaStaf: () => selectMenu(4),
-                          onPengaturan: () => selectMenu(5),
+                          onPengaturan: () => selectMenu(6),
+                          onProfileTap: () => _openOwnerProfileSettings(),
                           onLogout: widget.onLogout,
                         ),
                       Expanded(child: _content()),
@@ -189,12 +263,22 @@ class _DashboardOwnerState extends State<DashboardOwner> {
 
   Widget _content() {
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 350),
+      duration: const Duration(milliseconds: 300),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeIn,
+      layoutBuilder: (currentChild, previousChildren) {
+        return Stack(
+          fit: StackFit.expand,
+          alignment: Alignment.topLeft,
+          children: [
+            ...previousChildren,
+            if (currentChild != null) currentChild,
+          ],
+        );
+      },
       transitionBuilder: (child, animation) {
         final slide = Tween<Offset>(
-          begin: const Offset(0.025, 0),
+          begin: const Offset(0.02, 0),
           end: Offset.zero,
         ).animate(animation);
 
@@ -206,13 +290,25 @@ class _DashboardOwnerState extends State<DashboardOwner> {
       child: KeyedSubtree(
         key: ValueKey(selectedMenu),
         child: switch (selectedMenu) {
-          0 => _DashboardBody(namaOwner: widget.namaOwner),
+          0 => _DashboardBody(namaOwner: _currentOwnerName),
           1 => _buildLaporan(),
           2 => const owner_products.ProdukPage(),
-          3 => KelolaTransaksiPage(pakaiDataContoh: false, onNavigasiLaporan: () => selectMenu(1)),
+          3 => KelolaTransaksiPage(
+            pakaiDataContoh: false,
+            initialTab: 0,
+            onNavigasiLaporan: () => selectMenu(1),
+          ),
           4 => const KontrolStafPage(),
-          5 => const PengaturanPage(),
-          _ => _DashboardBody(namaOwner: widget.namaOwner),
+          5 => KelolaTransaksiPage(
+            pakaiDataContoh: false,
+            initialTab: 1,
+            onNavigasiLaporan: () => selectMenu(1),
+          ),
+          6 => PengaturanPage(
+            initialOpenProfile: _openProfileOnPengaturan,
+            profileRequestId: _profileRequestId,
+          ),
+          _ => _DashboardBody(namaOwner: _currentOwnerName),
         },
       ),
     );
@@ -292,7 +388,7 @@ Widget _topBar({required bool isDesktop}) {
           ),
         ),
 
-        // Notifikasi saja di sebelah kanan
+        // Notifikasi dan avatar profil owner di sebelah kanan
         IconButton(
           tooltip: 'Notifikasi',
           visualDensity: VisualDensity.compact,
@@ -303,6 +399,51 @@ Widget _topBar({required bool isDesktop}) {
             Icons.notifications_none_rounded,
             color: Colors.white,
             size: 20,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Tooltip(
+          message: 'Pengaturan Profil Owner',
+          child: InkWell(
+            onTap: () => _openOwnerProfileSettings(),
+            borderRadius: BorderRadius.circular(18),
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE6EEF6),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white70, width: 1.5),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: OwnerProfileStore.photoBytes.value != null
+                  ? Image.memory(
+                      OwnerProfileStore.photoBytes.value!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const Icon(
+                        Icons.person,
+                        color: ownerNavy,
+                        size: 19,
+                      ),
+                    )
+                  : (OwnerProfileStore.photoUrl.value != null &&
+                          OwnerProfileStore.photoUrl.value!.isNotEmpty)
+                      ? Image.network(
+                          OwnerProfileStore.photoUrl.value!,
+                          fit: BoxFit.cover,
+                          headers: const {'ngrok-skip-browser-warning': 'true'},
+                          errorBuilder: (_, _, _) => const Icon(
+                            Icons.person,
+                            color: ownerNavy,
+                            size: 19,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.person,
+                          color: ownerNavy,
+                          size: 19,
+                        ),
+            ),
           ),
         ),
       ],
@@ -591,53 +732,27 @@ class _DashboardBodyState extends State<_DashboardBody>
                       ),
                       SizedBox(height: isPhone ? 22 : 34),
 
-                      // HP: vertikal, tablet: 2 kolom, laptop: 3 kolom.
-                      if (isPhone)
-                        Column(
-                          children: [
-                            for (int i = 0; i < summaries.length; i++) ...[
-                              _animatedCard(
-                                i,
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: _SummaryCard(
-                                    data: summaries[i],
-                                    compact: false,
-                                  ),
-                                ),
+                      // 3 kartu selalu horizontal di HP, Tablet, dan Laptop
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (int i = 0; i < summaries.length; i++) ...[
+                            if (i > 0)
+                              SizedBox(
+                                width: isPhone ? 7 : (isTablet ? 10 : 14),
                               ),
-                              if (i != summaries.length - 1)
-                                const SizedBox(height: 13),
-                            ],
-                          ],
-                        )
-                      else if (isTablet)
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: List.generate(summaries.length, (i) {
-                            final cardWidth =
-                                (width - 2 * horizontalPadding - 12) / 2;
-                            return SizedBox(
-                              width: cardWidth,
+                            Expanded(
                               child: _animatedCard(
                                 i,
-                                _SummaryCard(data: summaries[i]),
+                                _SummaryCard(
+                                  data: summaries[i],
+                                  compact: isPhone,
+                                ),
                               ),
-                            );
-                          }),
-                        )
-                      else
-                        // TIGA KARTU - RESPONSIVE 3 KOLOM
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            for (int i = 0; i < summaries.length; i++) ...[
-                              if (i > 0) SizedBox(width: isPhone ? 6 : 10),
-                              Expanded(child: _SummaryCard(data: summaries[i])),
-                            ],
+                            ),
                           ],
-                        ),
+                        ],
+                      ),
 
                       SizedBox(height: isPhone ? 20 : 28),
 
@@ -705,11 +820,12 @@ class _SummaryCard extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final scale = (width / 270).clamp(0.82, 1.15);
+        final isTiny = compact || width < 145;
+        final scale = (width / 270).clamp(0.75, 1.15);
         final isNarrow = width < 230;
-        final cardHeight = data.suffix == null
-            ? (isNarrow ? 145.0 : 152.0)
-            : 142.0;
+        final cardHeight = isTiny
+            ? 126.0
+            : (data.suffix == null ? (isNarrow ? 146.0 : 154.0) : 146.0);
 
         return AnimatedContainer(
           duration: const Duration(milliseconds: 250),
@@ -718,7 +834,11 @@ class _SummaryCard extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(isTiny ? 11 : 14),
+            border: Border.all(
+              color: const Color(0xFFC5DBEE),
+              width: 1,
+            ),
             boxShadow: _softShadow(),
           ),
           child: Stack(
@@ -727,8 +847,8 @@ class _SummaryCard extends StatelessWidget {
                 top: 0,
                 left: 0,
                 child: Container(
-                  width: 105 * scale,
-                  height: 8,
+                  width: isTiny ? (width * 0.55) : 105 * scale,
+                  height: isTiny ? 6 : 8,
                   decoration: BoxDecoration(
                     color: data.accent,
                     borderRadius: const BorderRadius.only(
@@ -739,7 +859,9 @@ class _SummaryCard extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: EdgeInsets.fromLTRB(13 * scale, 15, 13 * scale, 11),
+                padding: isTiny
+                    ? const EdgeInsets.fromLTRB(8, 11, 8, 8)
+                    : EdgeInsets.fromLTRB(13 * scale, 15, 13 * scale, 11),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -748,27 +870,31 @@ class _SummaryCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             data.title,
-                            maxLines: 1,
+                            maxLines: isTiny ? 2 : 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: ownerNavy,
-                              fontSize: 11 * scale,
+                              fontSize: isTiny ? 8.8 : 11 * scale,
                               fontWeight: FontWeight.w800,
+                              height: 1.15,
                             ),
                           ),
                         ),
-                        Container(
-                          width: 25,
-                          height: 25,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEAF0F5),
-                            borderRadius: BorderRadius.circular(6),
+                        if (!isTiny) ...[
+                          const SizedBox(width: 4),
+                          Container(
+                            width: 25,
+                            height: 25,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEAF3FB),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Icon(data.icon, size: 15, color: ownerNavy),
                           ),
-                          child: Icon(data.icon, size: 15, color: ownerNavy),
-                        ),
+                        ],
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: isTiny ? 6 : 8),
                     if (data.suffix != null)
                       Expanded(
                         child: Center(
@@ -781,20 +907,21 @@ class _SummaryCard extends StatelessWidget {
                                   _formatNumber(data.amount),
                                   style: TextStyle(
                                     color: ownerNavy,
-                                    fontSize: 35 * scale,
+                                    fontSize: isTiny ? 24 : 35 * scale,
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
                                 Padding(
                                   padding: const EdgeInsets.only(
-                                    left: 4,
-                                    bottom: 5,
+                                    left: 3,
+                                    bottom: 3,
                                   ),
                                   child: Text(
                                     data.suffix!,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: ownerNavy,
-                                      fontSize: 10,
+                                      fontSize: isTiny ? 8.5 : 10,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ),
@@ -811,7 +938,7 @@ class _SummaryCard extends StatelessWidget {
                           'Rp. ${_formatNumber(data.amount)}',
                           style: TextStyle(
                             color: ownerNavy,
-                            fontSize: 27 * scale,
+                            fontSize: isTiny ? 15 : 27 * scale,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -822,21 +949,21 @@ class _SummaryCard extends StatelessWidget {
                         ...data.detail
                             .split(' • ')
                             .where((line) => line.isNotEmpty)
-                            .take(2)
+                            .take(isTiny ? 1 : 2)
                             .map(
                               (line) => Padding(
-                                padding: const EdgeInsets.only(bottom: 3),
+                                padding: const EdgeInsets.only(bottom: 2),
                                 child: Row(
                                   children: [
                                     Container(
-                                      width: 5,
-                                      height: 5,
+                                      width: 4,
+                                      height: 4,
                                       decoration: BoxDecoration(
                                         color: data.accent,
                                         shape: BoxShape.circle,
                                       ),
                                     ),
-                                    const SizedBox(width: 6),
+                                    const SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
                                         line,
@@ -844,7 +971,7 @@ class _SummaryCard extends StatelessWidget {
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
                                           color: ownerNavy,
-                                          fontSize: 8.5 * scale,
+                                          fontSize: isTiny ? 7.5 : 8.5 * scale,
                                         ),
                                       ),
                                     ),
@@ -859,15 +986,15 @@ class _SummaryCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: ownerNavy,
-                            fontSize: 8.5 * scale,
+                            fontSize: isTiny ? 7.5 : 8.5 * scale,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        SizedBox(height: isTiny ? 4 : 6),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: LinearProgressIndicator(
                             value: data.progress,
-                            minHeight: 4,
+                            minHeight: isTiny ? 3.5 : 4,
                             backgroundColor: const Color(0xFFE5EAF0),
                             valueColor: AlwaysStoppedAnimation<Color>(
                               data.accent,
@@ -875,7 +1002,7 @@ class _SummaryCard extends StatelessWidget {
                           ),
                         ),
                       ],
-                      if (data.title == 'Total Omset Penjualan')
+                      if (data.title == 'Total Omset Penjualan' && !isTiny)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Row(

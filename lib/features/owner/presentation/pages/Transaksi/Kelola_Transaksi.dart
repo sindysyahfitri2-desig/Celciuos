@@ -38,11 +38,13 @@ class KelolaTransaksiPage extends StatefulWidget {
     super.key,
     this.namaKasir = 'Kasir',
     this.pakaiDataContoh = false,
+    this.initialTab = 0,
     this.onNavigasiLaporan,
   });
 
   final String namaKasir;
   final bool pakaiDataContoh;
+  final int initialTab;
   final VoidCallback? onNavigasiLaporan;
 
   @override
@@ -60,6 +62,7 @@ class _KelolaTransaksiPageState extends State<KelolaTransaksiPage> {
   void initState() {
     super.initState();
     rekap = _ambilData();
+    tabDipilih = widget.initialTab;
     if (!widget.pakaiDataContoh) {
       for (final s in _sumberData) {
         s.addListener(_muatUlang);

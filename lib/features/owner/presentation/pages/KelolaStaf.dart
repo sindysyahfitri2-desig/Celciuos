@@ -1,8 +1,6 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:kasir_celcious_coffe/features/owner/application/staff_directory_controller.dart';
 
@@ -10,25 +8,25 @@ import 'package:kasir_celcious_coffe/features/owner/application/staff_directory_
 // KONSTANTA DESAIN
 // ============================================================
 
-const _kPrimary = Color(0xff0E2F56);
-const _kBackground = Color(0xffD8E4F0);
-const _kPlaceholder = Color(0xffD9D9D9);
-const _kPicker = Color(0xffD8D1E9);
+const _kPrimary = Color(0xFF0B2540);
+const _kBackground = Color(0xFFDCE9F4);
+const _kPlaceholder = Color(0xFFD9D9D9);
+const _kPicker = Color(0xFFD6D1EA);
+const _kMuted = Color(0xFF6B8094);
 
-/// Shadow khas desain: jatuh ke kanan-bawah, abu-abu lembut.
-const List<BoxShadow> _kShadow = [
+const List<BoxShadow> _kCardShadow = [
   BoxShadow(
-    color: Color(0x40000000),
-    blurRadius: 4,
-    offset: Offset(2, 3),
+    color: Color(0x26082640),
+    blurRadius: 10,
+    offset: Offset(0, 4),
   ),
 ];
 
-const List<BoxShadow> _kShadowSmall = [
+const List<BoxShadow> _kPillShadow = [
   BoxShadow(
-    color: Color(0x59000000),
-    blurRadius: 3,
-    offset: Offset(1, 2),
+    color: Color(0x2E082640),
+    blurRadius: 6,
+    offset: Offset(0, 2),
   ),
 ];
 
@@ -109,7 +107,7 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
     bool photoChanged = false;
 
     final screenW = MediaQuery.of(context).size.width;
-    final dialogWidth = screenW < 400 ? screenW * 0.92 : 380.0;
+    final dialogWidth = screenW < 420 ? screenW * 0.92 : 390.0;
 
     final ok = await showDialog<bool>(
       context: context,
@@ -157,7 +155,7 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
                       'Edit Profil Staf',
                       style: TextStyle(
                         fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w800,
                         color: _kPrimary,
                       ),
                     ),
@@ -274,10 +272,10 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
   }
 
   // ==========================================================
-  // HAPUS / NONAKTIFKAN STAF
+  // NONAKTIFKAN STAF
   // ==========================================================
 
-  Future<void> _confirmDelete(int index) async {
+  Future<void> _confirmDeactivate(int index) async {
     final staff = staffList[index];
 
     final yes = await showDialog<bool>(
@@ -290,14 +288,13 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
           children: [
             Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
             SizedBox(width: 10),
-            Flexible(child: Text('Hapus Staf')),
+            Flexible(child: Text('Nonaktifkan Staf')),
           ],
         ),
         content: Text(
-          'Hapus akun ${staff.name}?\n\n'
-          'Jika staf sudah punya riwayat transaksi atau shift, '
-          'akun akan dinonaktifkan (bukan dihapus) dan bisa '
-          'diaktifkan kembali.',
+          'Nonaktifkan akun ${staff.name}?\n\n'
+          'Staf nonaktif tidak bisa login kasir, namun riwayat transaksi '
+          'tetap tersimpan dan dapat diaktifkan kembali kapan saja.',
         ),
         actions: [
           TextButton(
@@ -309,7 +306,7 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
               backgroundColor: Colors.redAccent,
             ),
             onPressed: () => Navigator.pop(dCtx, true),
-            child: const Text('Lanjutkan'),
+            child: const Text('Nonaktifkan'),
           ),
         ],
       ),
@@ -344,43 +341,84 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
   Widget build(BuildContext context) {
     final filtered = _directory.filteredStaff;
 
-    return Scaffold(
-      backgroundColor: _kBackground,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _directory.fetchStaff,
-          color: _kPrimary,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _Header(onSearch: _directory.setSearchQuery),
-                const SizedBox(height: 18),
-                if (!_directory.showInactive) ...[
-                  _AddStaffCard(
-                    onSave: (s, pin) async {
-                      final ok = await _directory.addStaff(s, pin: pin);
+    return SizedBox.expand(
+      child: ColoredBox(
+        color: _kBackground,
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final isPhone = width < 600;
+              final isTablet = width >= 600 && width < 1024;
+              final pad = isPhone ? 16.0 : (isTablet ? 24.0 : 30.0);
 
-                      if (!ok && mounted && _directory.errorMessage != null) {
-                        _snack(_directory.errorMessage!, error: true);
-                      }
-                      return ok;
-                    },
+              return RefreshIndicator(
+                onRefresh: _directory.fetchStaff,
+                color: _kPrimary,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(
+                    pad,
+                    isPhone ? 16 : 24,
+                    pad,
+                    28,
                   ),
-                  const SizedBox(height: 22),
-                ],
-                _buildBody(filtered),
-                const SizedBox(height: 16),
-                // Filter dipindah ke bawah agar tampilan atas sama
-                // persis dengan desain.
-                _FilterBar(
-                  showInactive: _directory.showInactive,
-                  onChanged: _directory.setShowInactive,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _Header(
+                        isPhone: isPhone,
+                        onSearch: _directory.setSearchQuery,
+                      ),
+                      SizedBox(height: isPhone ? 18 : 24),
+
+                      // Kartu tambah staf di bagian atas (menyerupai desain referensi)
+                      if (!_directory.showInactive) ...[
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: isPhone ? double.infinity : 640,
+                          ),
+                          child: _AddStaffCard(
+                            isPhone: isPhone,
+                            onSave: (s, pin) async {
+                              final ok = await _directory.addStaff(s, pin: pin);
+
+                              if (!ok &&
+                                  mounted &&
+                                  _directory.errorMessage != null) {
+                                _snack(_directory.errorMessage!, error: true);
+                              } else if (ok && mounted) {
+                                _snack('Staf baru berhasil ditambahkan.');
+                              }
+                              return ok;
+                            },
+                          ),
+                        ),
+                        SizedBox(height: isPhone ? 18 : 22),
+                      ],
+
+                      // Filter Aktif & Nonaktif di sebelah KIRI
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: _FilterBar(
+                          showInactive: _directory.showInactive,
+                          onChanged: _directory.setShowInactive,
+                        ),
+                      ),
+                      SizedBox(height: isPhone ? 16 : 20),
+
+                      // Daftar kartu staf
+                      _buildBody(
+                        filtered,
+                        availableWidth: width - (pad * 2),
+                        isPhone: isPhone,
+                        isTablet: isTablet,
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -391,7 +429,12 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
   // BODY DAFTAR STAF
   // ==========================================================
 
-  Widget _buildBody(List<Staff> list) {
+  Widget _buildBody(
+    List<Staff> list, {
+    required double availableWidth,
+    required bool isPhone,
+    required bool isTablet,
+  }) {
     if (_directory.isLoading && list.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 80),
@@ -402,43 +445,63 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
     }
 
     if (list.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 60),
-        child: Center(
-          child: Column(
-            children: [
-              Icon(
-                Icons.people_outline,
-                size: 64,
-                color: Colors.grey.shade400,
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: _kCardShadow,
+        ),
+        child: Column(
+          children: [
+            Icon(
+              Icons.people_outline_rounded,
+              size: 52,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _directory.showInactive
+                  ? 'Tidak ada staf nonaktif.'
+                  : 'Belum ada staf terdaftar.',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: _kMuted,
               ),
-              const SizedBox(height: 12),
-              Text(
-                _directory.showInactive
-                    ? 'Tidak ada staf nonaktif.'
-                    : 'Belum ada staf.',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
 
-    // Kartu berukuran tetap ~ 105 x 140 seperti desain, rata kiri.
+    final spacing = isPhone ? 12.0 : 18.0;
+    final double cardWidth;
+    if (isPhone) {
+      final cols = availableWidth < 330 ? 1 : 2;
+      cardWidth = (availableWidth - spacing * (cols - 1)) / cols;
+    } else if (isTablet) {
+      cardWidth = 172.0;
+    } else {
+      cardWidth = 180.0;
+    }
+    final cardHeight = isPhone ? 210.0 : 226.0;
+
     return Wrap(
-      spacing: 14,
-      runSpacing: 14,
+      alignment: WrapAlignment.start,
+      spacing: spacing,
+      runSpacing: spacing,
       children: [
         for (final staff in list)
           SizedBox(
-            width: 105,
-            height: 140,
+            width: cardWidth,
+            height: cardHeight,
             child: _StaffCard(
               staff: staff,
               inactive: _directory.showInactive,
               onEdit: () => _editStaff(staffList.indexOf(staff)),
-              onDelete: () => _confirmDelete(staffList.indexOf(staff)),
+              onDeactivate: () => _confirmDeactivate(staffList.indexOf(staff)),
               onActivate: () => _activate(staffList.indexOf(staff)),
             ),
           ),
@@ -452,81 +515,100 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
 // ============================================================
 
 class _Header extends StatelessWidget {
+  final bool isPhone;
   final ValueChanged<String> onSearch;
 
-  const _Header({required this.onSearch});
+  const _Header({
+    required this.isPhone,
+    required this.onSearch,
+  });
+
+  Widget _title() {
+    return Text(
+      'Kontrol Staf',
+      style: TextStyle(
+        fontSize: isPhone ? 24 : 28,
+        fontWeight: FontWeight.w900,
+        color: _kPrimary,
+        letterSpacing: -0.2,
+        shadows: const [
+          Shadow(
+            color: Color(0x33082640),
+            blurRadius: 4,
+            offset: Offset(1, 2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _searchBox() {
+    return Container(
+      height: 38,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: _kCardShadow,
+      ),
+      child: TextField(
+        onChanged: onSearch,
+        style: const TextStyle(fontSize: 13, color: _kPrimary),
+        decoration: InputDecoration(
+          hintText: 'Cari',
+          hintStyle: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFFA2B5C9),
+          ),
+          prefixIcon: const Icon(
+            Icons.search_rounded,
+            size: 18,
+            color: Color(0xFF7F95B0),
+          ),
+          prefixIconConstraints: const BoxConstraints(minWidth: 38),
+          filled: true,
+          fillColor: Colors.white,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: const BorderSide(color: _kPrimary, width: 1.2),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (isPhone) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _title(),
+          const SizedBox(height: 12),
+          _searchBox(),
+        ],
+      );
+    }
+
     return Row(
       children: [
-        const Text(
-          'Kontrol Staf',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w900,
-            color: _kPrimary,
-            shadows: [
-              Shadow(
-                color: Color(0x66000000),
-                blurRadius: 3,
-                offset: Offset(1.5, 2),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
+        _title(),
+        const SizedBox(width: 20),
         Expanded(
           child: Align(
             alignment: Alignment.centerRight,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 220),
-              child: Container(
-                height: 28,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: _kShadow,
-                ),
-                child: TextField(
-                  onChanged: onSearch,
-                  style: const TextStyle(fontSize: 11, color: _kPrimary),
-                  decoration: InputDecoration(
-                    hintText: 'Cari',
-                    hintStyle: const TextStyle(
-                      fontSize: 10,
-                      color: Color(0xffA9BBD1),
-                    ),
-                    prefixIcon: const Icon(
-                      Icons.search,
-                      size: 13,
-                      color: Color(0xff7F95B0),
-                    ),
-                    prefixIconConstraints: const BoxConstraints(
-                      minWidth: 30,
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: const BorderSide(
-                        color: _kPrimary,
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              constraints: const BoxConstraints(maxWidth: 340),
+              child: _searchBox(),
             ),
           ),
         ),
@@ -536,13 +618,13 @@ class _Header extends StatelessWidget {
 }
 
 // ============================================================
-// TOMBOL PIL (dipakai Simpan / Edit / Aktifkan)
+// TOMBOL PIL (Simpan / Edit / Aktifkan)
 // ============================================================
 
 class _PillButton extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
-  final double width;
+  final double minWidth;
   final double height;
   final double fontSize;
   final Color color;
@@ -551,7 +633,7 @@ class _PillButton extends StatelessWidget {
   const _PillButton({
     required this.label,
     required this.onTap,
-    required this.width,
+    required this.minWidth,
     required this.height,
     required this.fontSize,
     this.color = _kPrimary,
@@ -561,37 +643,42 @@ class _PillButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: width,
+      constraints: BoxConstraints(minWidth: minWidth),
       height: height,
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: _kShadowSmall,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: _kPillShadow,
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         child: InkWell(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(22),
           onTap: onTap,
-          child: Center(
-            child: loading
-                ? const SizedBox(
-                    width: 10,
-                    height: 10,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Center(
+              widthFactor: 1,
+              child: loading
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: 0.2,
+                      ),
                     ),
-                  )
-                : Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: fontSize,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
+            ),
           ),
         ),
       ),
@@ -600,7 +687,7 @@ class _PillButton extends StatelessWidget {
 }
 
 // ============================================================
-// FILTER AKTIF / NONAKTIF
+// FILTER AKTIF / NONAKTIF (RATA KIRI)
 // ============================================================
 
 class _FilterBar extends StatelessWidget {
@@ -615,15 +702,17 @@ class _FilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Wrap(
-      spacing: 8,
+      alignment: WrapAlignment.start,
+      spacing: 10,
+      runSpacing: 8,
       children: [
-        _Chip(
+        _StatusTabChip(
           label: 'Aktif',
-          icon: Icons.check_circle_outline,
+          icon: Icons.check_circle_outline_rounded,
           selected: !showInactive,
           onTap: () => onChanged(false),
         ),
-        _Chip(
+        _StatusTabChip(
           label: 'Nonaktif',
           icon: Icons.cancel_outlined,
           selected: showInactive,
@@ -634,13 +723,13 @@ class _FilterBar extends StatelessWidget {
   }
 }
 
-class _Chip extends StatelessWidget {
+class _StatusTabChip extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
 
-  const _Chip({
+  const _StatusTabChip({
     required this.label,
     required this.icon,
     required this.selected,
@@ -649,34 +738,41 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? _kPrimary : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: _kShadowSmall,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 13,
-              color: selected ? Colors.white : Colors.grey,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? _kPrimary : Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: selected ? _kPrimary : const Color(0xFFC5D5E4),
+              width: 1.2,
             ),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: selected ? Colors.white : Colors.grey.shade700,
+            boxShadow: _kPillShadow,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: selected ? Colors.white : _kMuted,
               ),
-            ),
-          ],
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? Colors.white : _kPrimary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -684,32 +780,32 @@ class _Chip extends StatelessWidget {
 }
 
 // ============================================================
-// KARTU STAF
+// KARTU STAF (sesuai desain gambar referensi, aksi status di KIRI)
 // ============================================================
 
 class _StaffCard extends StatelessWidget {
   final Staff staff;
   final bool inactive;
   final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final VoidCallback onDeactivate;
   final VoidCallback onActivate;
 
   const _StaffCard({
     required this.staff,
     required this.inactive,
     required this.onEdit,
-    required this.onDelete,
+    required this.onDeactivate,
     required this.onActivate,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(6, 6, 6, 7),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: _kShadow,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: _kCardShadow,
       ),
       child: Column(
         children: [
@@ -730,82 +826,101 @@ class _StaffCard extends StatelessWidget {
                         : _avatar(),
                   ),
                 ),
-                if (inactive)
-                  Positioned(
-                    top: 5,
-                    left: 5,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade100,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        'Nonaktif',
-                        style: TextStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange.shade800,
+
+                // Status / tombol nonaktifkan diletakkan di KIRI ATAS (bukan di kanan)
+                Positioned(
+                  top: 7,
+                  left: 7,
+                  child: inactive
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: _kPillShadow,
+                          ),
+                          child: Text(
+                            'Nonaktif',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.orange.shade900,
+                            ),
+                          ),
+                        )
+                      : Tooltip(
+                          message: 'Nonaktifkan staf',
+                          child: Material(
+                            color: Colors.white.withValues(alpha: 0.94),
+                            borderRadius: BorderRadius.circular(10),
+                            elevation: 2,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: onDeactivate,
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 4,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.person_off_outlined,
+                                      size: 13,
+                                      color: Colors.redAccent,
+                                    ),
+                                    SizedBox(width: 3),
+                                    Text(
+                                      'Nonaktif',
+                                      style: TextStyle(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.redAccent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ),
-                if (!inactive)
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: GestureDetector(
-                      onTap: onDelete,
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.9),
-                          shape: BoxShape.circle,
-                          boxShadow: _kShadowSmall,
-                        ),
-                        child: const Icon(
-                          Icons.delete_outline,
-                          size: 12,
-                          color: Colors.redAccent,
-                        ),
-                      ),
-                    ),
-                  ),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 9),
           Text(
             staff.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
             style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
               color: _kPrimary,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           if (inactive)
             _PillButton(
               label: 'Aktifkan',
               onTap: onActivate,
-              width: 52,
-              height: 16,
-              fontSize: 8,
-              color: Colors.green.shade600,
+              minWidth: 94,
+              height: 28,
+              fontSize: 11.5,
+              color: const Color(0xFF1F8A5B),
             )
           else
             _PillButton(
               label: 'Edit',
               onTap: onEdit,
-              width: 40,
-              height: 16,
-              fontSize: 8,
+              minWidth: 84,
+              height: 28,
+              fontSize: 12,
             ),
         ],
       ),
@@ -816,21 +931,25 @@ class _StaffCard extends StatelessWidget {
     return Center(
       child: Icon(
         Icons.person_rounded,
-        size: 40,
-        color: Colors.grey.shade400,
+        size: 48,
+        color: Colors.grey.shade500,
       ),
     );
   }
 }
 
 // ============================================================
-// KARTU TAMBAH STAF
+// KARTU TAMBAH STAF (sesuai desain gambar referensi)
 // ============================================================
 
 class _AddStaffCard extends StatefulWidget {
+  final bool isPhone;
   final Future<bool> Function(Staff, String pin) onSave;
 
-  const _AddStaffCard({required this.onSave});
+  const _AddStaffCard({
+    required this.isPhone,
+    required this.onSave,
+  });
 
   @override
   State<_AddStaffCard> createState() => _AddStaffCardState();
@@ -838,6 +957,7 @@ class _AddStaffCard extends StatefulWidget {
 
 class _AddStaffCardState extends State<_AddStaffCard> {
   final _nameCtrl = TextEditingController();
+  final _nameFocus = FocusNode();
 
   String? _photoPath;
   Uint8List? _photoBytes;
@@ -846,12 +966,9 @@ class _AddStaffCardState extends State<_AddStaffCard> {
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _nameFocus.dispose();
     super.dispose();
   }
-
-  // ==========================================================
-  // PILIH FOTO
-  // ==========================================================
 
   Future<void> _pick() async {
     final img = await ImagePicker().pickImage(
@@ -870,10 +987,6 @@ class _AddStaffCardState extends State<_AddStaffCard> {
       });
     }
   }
-
-  // ==========================================================
-  // INPUT PIN
-  // ==========================================================
 
   Future<String?> _askPin() async {
     final pc = TextEditingController();
@@ -942,10 +1055,6 @@ class _AddStaffCardState extends State<_AddStaffCard> {
     return pin;
   }
 
-  // ==========================================================
-  // SIMPAN STAF
-  // ==========================================================
-
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
 
@@ -986,69 +1095,76 @@ class _AddStaffCardState extends State<_AddStaffCard> {
     }
   }
 
-  // ==========================================================
-  // BUILD
-  // ==========================================================
-
   @override
   Widget build(BuildContext context) {
+    final photoSize = widget.isPhone ? 64.0 : 78.0;
+
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: EdgeInsets.all(widget.isPhone ? 10 : 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: _kShadow,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: _kCardShadow,
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Kotak foto (ungu muda + ikon plus putih)
-          GestureDetector(
-            onTap: _pick,
-            child: Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: _kPicker,
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: _photoBytes == null
-                  ? const Icon(Icons.add, color: Colors.white, size: 26)
-                  : ClipRRect(
-                      borderRadius: BorderRadius.circular(9),
-                      child: Image.memory(
+          // Kotak foto ungu muda + ikon plus putih
+          Tooltip(
+            message: 'Pilih foto staf',
+            child: InkWell(
+              onTap: _pick,
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                width: photoSize,
+                height: photoSize,
+                decoration: BoxDecoration(
+                  color: _kPicker,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _photoBytes == null
+                    ? Icon(
+                        Icons.add_rounded,
+                        color: Colors.white,
+                        size: widget.isPhone ? 30 : 36,
+                      )
+                    : Image.memory(
                         _photoBytes!,
                         fit: BoxFit.cover,
-                        width: 50,
-                        height: 50,
+                        width: photoSize,
+                        height: photoSize,
                       ),
-                    ),
+              ),
             ),
           ),
 
-          const SizedBox(width: 12),
+          SizedBox(width: widget.isPhone ? 12 : 16),
 
-          // Nama staf + ikon edit tepat di sebelahnya
+          // Nama staf + ikon edit di sebelahnya
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Flexible(
+            child: Row(
+              children: [
+                Flexible(
+                  child: IntrinsicWidth(
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 95),
+                      constraints: BoxConstraints(
+                        minWidth: widget.isPhone ? 90 : 120,
+                        maxWidth: widget.isPhone ? 180 : 280,
+                      ),
                       child: TextField(
                         controller: _nameCtrl,
-                        style: const TextStyle(
-                          fontSize: 11,
+                        focusNode: _nameFocus,
+                        textCapitalization: TextCapitalization.words,
+                        style: TextStyle(
+                          fontSize: widget.isPhone ? 14 : 16,
                           color: _kPrimary,
                           fontWeight: FontWeight.w800,
                         ),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           hintText: 'Nama Staf',
                           hintStyle: TextStyle(
-                            fontSize: 11,
+                            fontSize: widget.isPhone ? 14 : 16,
                             color: _kPrimary,
                             fontWeight: FontWeight.w800,
                           ),
@@ -1061,33 +1177,34 @@ class _AddStaffCardState extends State<_AddStaffCard> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  const Padding(
-                    padding: EdgeInsets.only(top: 1),
+                ),
+                const SizedBox(width: 8),
+                InkWell(
+                  borderRadius: BorderRadius.circular(6),
+                  onTap: () => _nameFocus.requestFocus(),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
                     child: Icon(
                       Icons.edit_square,
-                      size: 12,
+                      size: widget.isPhone ? 16 : 18,
                       color: _kPrimary,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
 
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
 
-          // Tombol Simpan di pojok kanan atas
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: _PillButton(
-              label: 'Simpan',
-              onTap: _saving ? null : _save,
-              width: 44,
-              height: 16,
-              fontSize: 8,
-              loading: _saving,
-            ),
+          // Tombol Simpan berbentuk pil navy di kanan
+          _PillButton(
+            label: 'Simpan',
+            onTap: _saving ? null : _save,
+            minWidth: widget.isPhone ? 74 : 92,
+            height: widget.isPhone ? 30 : 34,
+            fontSize: widget.isPhone ? 11.5 : 13,
+            loading: _saving,
           ),
         ],
       ),

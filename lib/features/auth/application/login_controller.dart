@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:kasir_celcious_coffe/data/api_service.dart';
+import 'package:kasir_celcious_coffe/data/owner_profile_store.dart';
 
 enum LoginSubmissionStatus { invalid, authenticated, failed, ignored }
 
@@ -31,7 +32,7 @@ class LoginController extends ChangeNotifier {
   LoginController({http.Client? httpClient, String? baseUrl})
     : _httpClient = httpClient ?? http.Client(),
       _ownsHttpClient = httpClient == null,
-      _baseUrl = baseUrl ?? 'https://clatter-distant-sterling.ngrok-free.dev/api/kasir-profil';
+      _baseUrl = baseUrl ?? 'https://clatter-distant-sterling.ngrok-free.dev';
 
   final http.Client _httpClient;
   final bool _ownsHttpClient;
@@ -64,7 +65,56 @@ class LoginController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await _loginToBackend(username, password);
+      Map<String, dynamic>? result;
+      final isKnownOwner =
+          OwnerProfileStore.ownerUsername.value.isNotEmpty &&
+          OwnerProfileStore.ownerUsername.value.toLowerCase() == username;
+      OwnerPinResolution? resolution;
+
+      if (isKnownOwner) {
+        resolution = await OwnerProfileStore.resolveOwnerSecretForLogin(
+          password,
+        );
+        if (!resolution.allowed) {
+          return const LoginSubmission(
+            status: LoginSubmissionStatus.failed,
+            message: 'Username atau password salah.',
+          );
+        }
+      }
+
+      try {
+        result = await _loginToBackend(username, password);
+        if (result != null &&
+            result['pengguna'] is Map &&
+            (result['pengguna'] as Map)['role']?.toString().toLowerCase() ==
+                'owner') {
+          if (resolution?.fallbackBackendSecret != null) {
+            await OwnerProfileStore.clearLocalPasswordOverride(password);
+          } else {
+            await OwnerProfileStore.recordAuthenticatedSecret(
+              password,
+              isBackendSecret: true,
+            );
+          }
+        }
+      } catch (e) {
+        if (resolution != null &&
+            resolution.fallbackBackendSecret != null &&
+            resolution.fallbackBackendSecret!.isNotEmpty) {
+          result = await _loginToBackend(
+            username,
+            resolution.fallbackBackendSecret!,
+          );
+          await OwnerProfileStore.recordAuthenticatedSecret(
+            password,
+            isBackendSecret: false,
+          );
+        } else {
+          rethrow;
+        }
+      }
+
       if (result == null ||
           result['pengguna'] is! Map<String, dynamic> ||
           result['token'] == null) {

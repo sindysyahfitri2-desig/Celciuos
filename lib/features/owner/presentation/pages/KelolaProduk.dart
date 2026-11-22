@@ -60,6 +60,9 @@ class _ProdukPageState extends State<ProdukPage> {
   final FocusNode _nameFocus = FocusNode();
   final FocusNode _priceFocus = FocusNode();
 
+  final ScrollController _categoryScrollController = ScrollController();
+  final ScrollController _gridScrollController = ScrollController();
+
   final ImagePicker _picker = ImagePicker();
 
   String _search = '';
@@ -101,6 +104,8 @@ class _ProdukPageState extends State<ProdukPage> {
     _priceController.dispose();
     _nameFocus.dispose();
     _priceFocus.dispose();
+    _categoryScrollController.dispose();
+    _gridScrollController.dispose();
     super.dispose();
   }
 
@@ -405,71 +410,115 @@ class _ProdukPageState extends State<ProdukPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: _background,
-      child: SafeArea(
-        child: ValueListenableBuilder<List<Map<String, dynamic>>>(
-          valueListenable: ProdukData.produk,
-          builder: (context, products, child) {
-            final query = _search.toLowerCase();
+    return SizedBox.expand(
+      child: ColoredBox(
+        color: _background,
+        child: SafeArea(
+          child: ValueListenableBuilder<List<Map<String, dynamic>>>(
+            valueListenable: ProdukData.produk,
+            builder: (context, products, child) {
+              final query = _search.toLowerCase();
 
-            final visibleProducts = products.where((product) {
-              final name = product['name']?.toString() ?? '';
-              final category = product['category']?.toString() ?? '';
+              final visibleProducts = products.where((product) {
+                final name = product['name']?.toString() ?? '';
+                final category = product['category']?.toString() ?? '';
 
-              final matchesSearch =
-                  name.toLowerCase().contains(query) ||
-                  category.toLowerCase().contains(query);
+                final matchesSearch =
+                    name.toLowerCase().contains(query) ||
+                    category.toLowerCase().contains(query);
 
-              final matchesCategory =
-                  _activeCategory == null ||
-                  category.toLowerCase() == _activeCategory!.toLowerCase();
+                final matchesCategory =
+                    _activeCategory == null ||
+                    category.toLowerCase() == _activeCategory!.toLowerCase();
 
-              return matchesSearch && matchesCategory;
-            }).toList();
+                return matchesSearch && matchesCategory;
+              }).toList();
 
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                final isPhone = width < 600;
-                final isTablet = width >= 600 && width < 1100;
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.maxWidth;
+                  final height = constraints.maxHeight;
+                  final isPhone = width < 600;
+                  final isTablet = width >= 600 && width < 1024;
+                  final isShortViewport = height < 460;
 
-                final pad = isPhone
-                    ? 14.0
-                    : isTablet
-                    ? 20.0
-                    : 26.0;
+                  final pad = isPhone
+                      ? 14.0
+                      : isTablet
+                          ? 20.0
+                          : 26.0;
 
-                return SingleChildScrollView(
-                  padding: EdgeInsets.fromLTRB(
-                    pad,
-                    isPhone ? 16 : 20,
-                    pad,
-                    28,
-                  ),
-                  child: Column(
+                  final topSection = Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      pad,
+                      isPhone ? 14 : 20,
+                      pad,
+                      isPhone ? 8 : 10,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _header(isPhone),
+                        SizedBox(height: isPhone ? 14 : 22),
+                        _formSection(isPhone),
+                        SizedBox(height: isPhone ? 14 : 18),
+                        _categoryFilter(isPhone),
+                      ],
+                    ),
+                  );
+
+                  if (isShortViewport) {
+                    return SingleChildScrollView(
+                      padding: EdgeInsets.only(bottom: 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          topSection,
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: pad),
+                            child: visibleProducts.isEmpty
+                                ? _emptyState()
+                                : _productGrid(
+                                    visibleProducts,
+                                    isPhone: isPhone,
+                                    isTablet: isTablet,
+                                    shrinkWrap: true,
+                                  ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _header(isPhone),
-                      SizedBox(height: isPhone ? 20 : 34),
-                      _formSection(isPhone),
-                      SizedBox(height: isPhone ? 16 : 20),
-                      _categoryFilter(isPhone),
-                      SizedBox(height: isPhone ? 10 : 12),
-                      if (visibleProducts.isEmpty)
-                        _emptyState()
-                      else
-                        _productGrid(
-                          visibleProducts,
-                          isPhone: isPhone,
-                          isTablet: isTablet,
-                        ),
+                      topSection,
+                      Expanded(
+                        child: visibleProducts.isEmpty
+                            ? SingleChildScrollView(
+                                controller: _gridScrollController,
+                                padding: EdgeInsets.fromLTRB(pad, 4, pad, 24),
+                                child: Align(
+                                  alignment: Alignment.topCenter,
+                                  child: _emptyState(),
+                                ),
+                              )
+                            : _productGrid(
+                                visibleProducts,
+                                isPhone: isPhone,
+                                isTablet: isTablet,
+                                shrinkWrap: false,
+                                padding: EdgeInsets.fromLTRB(pad, 4, pad, 24),
+                              ),
+                      ),
                     ],
-                  ),
-                );
-              },
-            );
-          },
+                  );
+                },
+              );
+            },
+          ),
         ),
       ),
     );
@@ -953,6 +1002,8 @@ Widget _categoryFilter(bool isPhone) {
   return SizedBox(
     height: 42,
     child: ListView.separated(
+      key: const PageStorageKey<String>('owner-product-categories'),
+      controller: _categoryScrollController,
       scrollDirection: Axis.horizontal,
       physics: const ClampingScrollPhysics(),
       padding: const EdgeInsets.only(bottom: 8, right: 6),
@@ -977,6 +1028,9 @@ Widget _categoryFilter(bool isPhone) {
                 _activeCategory =
                     index == 0 ? null : label;
               });
+              if (_gridScrollController.hasClients) {
+                _gridScrollController.jumpTo(0);
+              }
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
@@ -1019,6 +1073,8 @@ Widget _categoryFilter(bool isPhone) {
     List<Map<String, dynamic>> products, {
     required bool isPhone,
     required bool isTablet,
+    bool shrinkWrap = false,
+    EdgeInsetsGeometry padding = EdgeInsets.zero,
   }) {
     final columns = isPhone
         ? 1
@@ -1027,14 +1083,18 @@ Widget _categoryFilter(bool isPhone) {
         : 3;
 
     return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+      controller: shrinkWrap ? null : _gridScrollController,
+      shrinkWrap: shrinkWrap,
+      physics: shrinkWrap
+          ? const NeverScrollableScrollPhysics()
+          : const AlwaysScrollableScrollPhysics(),
+      padding: padding,
       itemCount: products.length,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        mainAxisExtent: 96,
+        mainAxisExtent: 98,
       ),
       itemBuilder: (context, index) {
         return _productCard(products[index]);

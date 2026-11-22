@@ -78,7 +78,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 800));
 
     expect(find.text('CC-1105-001'), findsOneWidget);
-    expect(find.textContaining('Americano'), findsOneWidget);
+    expect(find.textContaining('Americano'), findsNWidgets(2));
     expect(find.text('Total Bayar'), findsOneWidget);
   });
 }

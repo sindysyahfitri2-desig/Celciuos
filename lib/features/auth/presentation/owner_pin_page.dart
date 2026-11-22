@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:kasir_celcious_coffe/data/api_service.dart';
+import 'package:kasir_celcious_coffe/data/owner_profile_store.dart';
 import 'package:kasir_celcious_coffe/data/produk_data.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/Dashboard.dart';
 import 'package:kasir_celcious_coffe/features/auth/presentation/pilih_peran_page.dart';
@@ -22,13 +23,29 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
 
   bool _loading = false;
   bool _pinInvalid = false;
+  bool _textPasswordMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _textPasswordMode = OwnerProfileStore.requiresTextPasswordLogin.value;
+    OwnerProfileStore.initialize().then((_) {
+      if (!mounted) return;
+      final needsText = OwnerProfileStore.requiresTextPasswordLogin.value;
+      if (needsText != _textPasswordMode) {
+        setState(() => _textPasswordMode = needsText);
+      }
+    });
+  }
 
   // ============================================================
   // LOGIN OWNER
   // ============================================================
 
   Future<void> _masuk() async {
-    if (_pin.text.length != 6 || _loading) return;
+    final entered = _pin.text.trim();
+    if (_loading) return;
+    if (_textPasswordMode ? entered.length < 6 : entered.length != 6) return;
 
     setState(() {
       _loading = true;
@@ -36,10 +53,35 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
     });
 
     try {
-      final res = await ApiService.post(
-        'login-owner-pin',
-        {'pin': _pin.text},
-      );
+      final resolution =
+          await OwnerProfileStore.resolveOwnerSecretForLogin(entered);
+
+      if (!resolution.allowed) {
+        throw Exception(
+          resolution.errorMessage ?? 'PIN / password salah, silakan coba lagi.',
+        );
+      }
+
+      Map<String, dynamic> res;
+      var usedFallbackBackend = false;
+
+      try {
+        res = await ApiService.post(
+          'login-owner-pin',
+          {'pin': resolution.primarySecretToTry ?? entered},
+        );
+      } catch (primaryErr) {
+        if (resolution.fallbackBackendSecret != null &&
+            resolution.fallbackBackendSecret!.isNotEmpty) {
+          res = await ApiService.post(
+            'login-owner-pin',
+            {'pin': resolution.fallbackBackendSecret!},
+          );
+          usedFallbackBackend = true;
+        } else {
+          rethrow;
+        }
+      }
 
       final user = Map<String, dynamic>.from(
         res['pengguna'] as Map,
@@ -49,6 +91,20 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
         token: res['token'].toString(),
         user: user,
       );
+
+      if (usedFallbackBackend) {
+        await OwnerProfileStore.recordAuthenticatedSecret(
+          entered,
+          isBackendSecret: false,
+        );
+      } else if (resolution.fallbackBackendSecret != null) {
+        await OwnerProfileStore.clearLocalPasswordOverride(entered);
+      } else {
+        await OwnerProfileStore.recordAuthenticatedSecret(
+          entered,
+          isBackendSecret: true,
+        );
+      }
 
       await ProdukData.loadFromApi();
 
@@ -194,9 +250,9 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
                       // JUDUL
                       // ==================================================
 
-                      const Text(
-                        'PIN OWNER',
-                        style: TextStyle(
+                      Text(
+                        _textPasswordMode ? 'PASSWORD OWNER' : 'PIN OWNER',
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
@@ -207,7 +263,7 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
                       const SizedBox(height: 16),
 
                       // ==================================================
-                      // INPUT PIN
+                      // INPUT PIN / PASSWORD
                       // ==================================================
 
                       TextField(
@@ -215,25 +271,37 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
                         focusNode: _focusNode,
                         autofocus: true,
                         enabled: !_loading,
-                        keyboardType: TextInputType.number,
+                        keyboardType: _textPasswordMode
+                            ? TextInputType.visiblePassword
+                            : TextInputType.number,
                         textInputAction: TextInputAction.done,
                         textAlign: TextAlign.center,
                         obscureText: true,
-                        maxLength: 6,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(6),
-                        ],
+                        maxLength: _textPasswordMode ? 64 : 6,
+                        inputFormatters: _textPasswordMode
+                            ? null
+                            : [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(6),
+                              ],
                         style: TextStyle(
                           color: _pinInvalid
                               ? Colors.red
                               : navy,
-                          fontSize: 20,
+                          fontSize: _textPasswordMode ? 16 : 20,
                           fontWeight: FontWeight.bold,
-                          letterSpacing: 9,
+                          letterSpacing: _textPasswordMode ? 2 : 9,
                         ),
                         decoration: InputDecoration(
-                          hintText: '',
+                          hintText: _textPasswordMode
+                              ? 'Masukkan password owner'
+                              : '',
+                          hintStyle: TextStyle(
+                            color: navy.withValues(alpha: 0.45),
+                            fontSize: 13,
+                            letterSpacing: 0.2,
+                            fontWeight: FontWeight.w500,
+                          ),
                           counterText: '',
                           filled: true,
                           fillColor: Colors.white,
@@ -261,12 +329,38 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
                             });
                           }
 
-                          if (value.length == 6) {
+                          if (!_textPasswordMode && value.length == 6) {
                             _masuk();
                           }
                         },
                         onSubmitted: (_) => _masuk(),
                       ),
+
+                      if (_textPasswordMode) ...[
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: 160,
+                          height: 40,
+                          child: ElevatedButton(
+                            onPressed: _loading ? null : _masuk,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFA8CBE9),
+                              foregroundColor: navy,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                              elevation: 2,
+                            ),
+                            child: const Text(
+                              'Masuk',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
 
                       // ==================================================
                       // PESAN PIN SALAH
@@ -274,10 +368,12 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
 
                       if (_pinInvalid) ...[
                         const SizedBox(height: 10),
-                        const Text(
-                          'PIN salah, silakan coba lagi.',
+                        Text(
+                          _textPasswordMode
+                              ? 'Password salah, silakan coba lagi.'
+                              : 'PIN salah, silakan coba lagi.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,

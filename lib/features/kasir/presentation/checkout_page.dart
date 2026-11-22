@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'Transaksi_Berhasil.dart';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
+import 'package:kasir_celcious_coffe/data/payment_methods_store.dart';
 import 'package:kasir_celcious_coffe/data/qris_store.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 import 'package:kasir_celcious_coffe/features/kasir/application/cashier_checkout_pricing.dart';
@@ -254,33 +255,55 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   ),
                                 ),
                               )
-                            : SingleChildScrollView(
-                                padding: EdgeInsets.fromLTRB(
-                                  sidePad,
-                                  4,
-                                  sidePad,
-                                  15,
-                                ),
-                                child: Align(
-                                  alignment: isMobile
-                                      ? Alignment.topCenter
-                                      : Alignment.topLeft,
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxWidth: isMobile
-                                          ? math.min(width, 380.0)
-                                          : isTablet
-                                          ? 540
-                                          : 560,
+                            : LayoutBuilder(
+                                builder: (context, listBox) {
+                                  final availW =
+                                      (listBox.maxWidth - sidePad * 2)
+                                          .clamp(240.0, 1280.0);
+                                  final int columns;
+                                  if (availW < 620) {
+                                    columns = 1;
+                                  } else if (availW < 1020) {
+                                    columns = 2;
+                                  } else {
+                                    columns = 3;
+                                  }
+                                  const spacing = 14.0;
+                                  final cardW = columns == 1
+                                      ? math.min(availW, 440.0)
+                                      : (availW - spacing * (columns - 1)) /
+                                          columns;
+
+                                  return SingleChildScrollView(
+                                    padding: EdgeInsets.fromLTRB(
+                                      sidePad,
+                                      6,
+                                      sidePad,
+                                      18,
                                     ),
-                                    child: Column(
-                                      children: List.generate(
-                                        widget.cart.length,
-                                        (index) => _itemCard(index, isMobile),
+                                    child: Align(
+                                      alignment: isMobile
+                                          ? Alignment.topCenter
+                                          : Alignment.topLeft,
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 1280,
+                                        ),
+                                        child: Wrap(
+                                          spacing: spacing,
+                                          runSpacing: 12,
+                                          children: List.generate(
+                                            widget.cart.length,
+                                            (index) => SizedBox(
+                                              width: cardW,
+                                              child: _itemCard(index, isMobile),
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ),
+                                  );
+                                },
                               ),
                       ),
                     ],
@@ -297,174 +320,216 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   // ==========================================================
-  // CARD ITEM (card putih + tab merah di ujung kanan)
+  // CARD ITEM (rapi sesuai desain gambar ke-4: foto + info + - qty + + strip hapus merah)
   // ==========================================================
+
+  void _ubahQtyItem(int index, int delta) {
+    if (index < 0 || index >= widget.cart.length) return;
+    setState(() {
+      final current = (widget.cart[index]['quantity'] as num?)?.toInt() ?? 1;
+      final next = current + delta;
+      if (next <= 0) {
+        widget.cart.removeAt(index);
+      } else {
+        widget.cart[index]['quantity'] = next;
+      }
+    });
+  }
+
+  Widget _qtyBoxButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    double size = 28,
+  }) {
+    return Material(
+      color: _navy,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox(
+          width: size,
+          height: size,
+          child: Icon(icon, color: Colors.white, size: size * 0.58),
+        ),
+      ),
+    );
+  }
 
   Widget _itemCard(int index, bool isMobile) {
     final item = widget.cart[index];
     final harga = (item['price'] as num).toDouble();
-    final jumlah = item['quantity'] as int;
+    final jumlah = (item['quantity'] as num).toInt();
     final subtotal = harga * jumlah;
     final catatan = item['catatan']?.toString().trim() ?? '';
     final terkunci = widget.existingOrder != null;
 
-    final cardHeight = isMobile
-        ? (catatan.isEmpty ? 96.0 : 112.0)
-        : (catatan.isEmpty ? 112.0 : 128.0);
-    final imageSize = cardHeight - 16;
-
-    // Lebar tab merah dan bagian yang tertimpa card putih.
-    final double tabWidth = isMobile ? 44 : 50;
-    const double overlap = 14;
+    final cardHeight = catatan.isEmpty
+        ? (isMobile ? 102.0 : 108.0)
+        : (isMobile ? 116.0 : 122.0);
+    final pad = isMobile ? 8.0 : 9.0;
+    final imageSize = (cardHeight - pad * 2).clamp(64.0, 88.0);
+    final double tabWidth = isMobile ? 42 : 46;
+    final double btnSize = isMobile ? 25 : 27;
 
     Widget iconCoffee() =>
         const Icon(Icons.coffee_rounded, color: _navy, size: 28);
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
-      duration: Duration(milliseconds: 350 + index * 60),
+      duration: Duration(milliseconds: 280 + index * 45),
       curve: Curves.easeOutCubic,
       builder: (_, v, child) => Opacity(
         opacity: v,
         child: Transform.translate(
-          offset: Offset(0, 14 * (1 - v)),
+          offset: Offset(0, 12 * (1 - v)),
           child: child,
         ),
       ),
       child: Container(
         height: cardHeight,
-        margin: const EdgeInsets.only(bottom: 12),
-        child: Stack(
-          children: [
-            // TAB MERAH DI BELAKANG
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: terkunci ? Colors.grey : _merah,
-                  borderRadius: BorderRadius.circular(26),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _navy.withValues(alpha: 0.10),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: const BorderRadius.horizontal(
-                        right: Radius.circular(20),
-                      ),
-                      onTap: terkunci
-                          ? null
-                          : () => setState(() => widget.cart.removeAt(index)),
-                      child: SizedBox(
-                        width: tabWidth,
-                        height: double.infinity,
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: overlap),
-                          child: Center(
-                            child: Icon(
-                              terkunci ? Icons.lock_outline : Icons.close,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+        decoration: BoxDecoration(
+          color: terkunci ? Colors.grey.shade400 : _merah,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: _navy.withValues(alpha: 0.10),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
-
-            // CARD PUTIH MENIMPA SEBAGIAN TAB MERAH
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              right: tabWidth - overlap,
-              child: IgnorePointer(
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // KARTU PUTIH UTAMA (melengkung rapi di sisi kanan menimpa strip merah)
+              Expanded(
                 child: Container(
-                  padding: const EdgeInsets.all(22),
+                  padding: EdgeInsets.all(pad),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _navy.withValues(alpha: 0.12),
-                        blurRadius: 8,
-                        offset: const Offset(2, 0),
-                      ),
-                    ],
+                    borderRadius: BorderRadius.circular(18),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Container(
                         width: imageSize,
                         height: imageSize,
                         decoration: BoxDecoration(
-                          color: const Color(0xffd9d6e8),
-                          borderRadius: BorderRadius.circular(14),
+                          color: const Color(0xffd5d1e8),
+                          borderRadius: BorderRadius.circular(13),
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: item['image'] == null
                             ? iconCoffee()
                             : ProductImage(image: item['image']),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              item['name'].toString(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: const Color(0xff081d2e),
-                                fontSize: isMobile ? 14 : 17,
-                                fontWeight: FontWeight.w800,
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    item['name'].toString(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: const Color(0xff0e2235),
+                                      fontSize: isMobile ? 13.5 : 14.5,
+                                      fontWeight: FontWeight.w800,
+                                      height: 1.15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    widget.rupiah(harga),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: const Color(0xff335e84),
+                                      fontSize: isMobile ? 11.5 : 12.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  if (catatan.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Catatan: $catatan',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Color(0xff5b7388),
+                                        fontSize: 10.5,
+                                        fontStyle: FontStyle.italic,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '$jumlah X ${widget.rupiah(harga).replaceFirst('Rp ', '')}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: const Color(0xff315b76),
-                                fontSize: isMobile ? 11 : 12,
-                              ),
+                            Align(
+                              alignment: Alignment.bottomRight,
+                              child: terkunci
+                                  ? Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xffeaf2fa),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        'x$jumlah • ${widget.rupiah(subtotal)}',
+                                        style: const TextStyle(
+                                          color: _navy,
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    )
+                                  : Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _qtyBoxButton(
+                                          icon: Icons.remove_rounded,
+                                          size: btnSize,
+                                          onTap: () =>
+                                              _ubahQtyItem(index, -1),
+                                        ),
+                                        SizedBox(
+                                          width: isMobile ? 24 : 28,
+                                          child: Center(
+                                            child: Text(
+                                              '$jumlah',
+                                              style: TextStyle(
+                                                color: _navy,
+                                                fontSize: isMobile ? 13.5 : 15,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        _qtyBoxButton(
+                                          icon: Icons.add_rounded,
+                                          size: btnSize,
+                                          onTap: () =>
+                                              _ubahQtyItem(index, 1),
+                                        ),
+                                      ],
+                                    ),
                             ),
-                            const SizedBox(height: 3),
-                            Text(
-                              'Subtotal: ${widget.rupiah(subtotal).replaceFirst('Rp ', '')}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: const Color(0xff16558a),
-                                fontSize: isMobile ? 11 : 12,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            if (catatan.isNotEmpty) ...[
-                              const SizedBox(height: 3),
-                              Text(
-                                'Catatan: $catatan',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: _navy,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                       ),
@@ -472,8 +537,30 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   ),
                 ),
               ),
-            ),
-          ],
+
+              // STRIP MERAH TOMBOL HAPUS DI KANAN
+              SizedBox(
+                width: tabWidth,
+                child: Material(
+                  color: terkunci ? Colors.grey.shade400 : _merah,
+                  child: InkWell(
+                    onTap: terkunci
+                        ? null
+                        : () => setState(() => widget.cart.removeAt(index)),
+                    child: Center(
+                      child: Icon(
+                        terkunci
+                            ? Icons.lock_outline_rounded
+                            : Icons.delete_outline_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -907,10 +994,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
         _namaCustomerPembayaran = nama;
       }
 
-      if (metodePembayaran == 'QRIS') {
+      if (metodePembayaran.toUpperCase() == 'QRIS') {
         _dialogQRIS();
-      } else if (metodePembayaran == 'Cash') {
+      } else if (metodePembayaran.toLowerCase() == 'cash') {
         _dialogCash();
+      } else {
+        _dialogPembayaranCustom(metodePembayaran);
       }
     } finally {
       _memulaiPembayaran = false;
@@ -1248,18 +1337,103 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Future<String?> _pilihPembayaran() async {
     if (!langsungBayar) return null;
 
+    final options = PaymentMethodsStore.methods.value;
     final pilihan = await _bukaDropdown(
       link: _bayarLink,
       targetKey: _bayarKey,
       header: 'Pembayaran',
-      options: const ['Qris', 'Cash'],
-      selected: metodePembayaran == 'QRIS' ? 'Qris' : metodePembayaran,
+      options: options.isEmpty ? const ['QRIS', 'Cash'] : options,
+      selected: metodePembayaran,
       gayaPembayaran: true,
     );
 
     if (pilihan == null) return null;
-    // Nilai internal tetap 'QRIS' / 'Cash' agar tersambung ke kode lama.
-    return pilihan == 'Qris' ? 'QRIS' : pilihan;
+    if (pilihan.toLowerCase() == 'qris') return 'QRIS';
+    if (pilihan.toLowerCase() == 'cash') return 'Cash';
+    return pilihan;
+  }
+
+  void _dialogPembayaranCustom(String metode) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+        child: _dialogDenganX(
+          dialogContext: dialogContext,
+          child: Container(
+            width: 360,
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: _biruMuda, width: 1.5),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEAF3FB),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.account_balance_wallet_outlined,
+                    color: _navy,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Pembayaran $metode',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: _navy,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Total yang harus dibayar:\n${widget.rupiah(totalAkhir)}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF45647E),
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: ElevatedButton.icon(
+                    onPressed: _menyimpanPesanan
+                        ? null
+                        : () => _simpanPembayaran(dialogContext),
+                    icon: const Icon(Icons.check_circle_outline_rounded),
+                    label: const Text(
+                      'Konfirmasi Pembayaran',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _navy,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _mulaiPembayaranQris(BuildContext dialogContext) async {
