@@ -416,11 +416,6 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
 
                       const SizedBox(height: 12),
 
-                      // JUDUL
-                      const Text(
-                        'PIN OWNER',
-                        style: TextStyle(
-                      // ==================================================
 
                       Text(
                         _textPasswordMode ? 'PASSWORD OWNER' : 'PIN OWNER',
