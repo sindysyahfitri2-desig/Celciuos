@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -15,6 +15,7 @@ import 'package:kasir_celcious_coffe/features/kasir/application/cashier_transact
 import 'package:kasir_celcious_coffe/ui/widgets/product_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:kasir_celcious_coffe/data/api_service.dart';
+import 'widgets/qris_direct_dialog.dart';
 
 class CheckoutPage extends StatefulWidget {
   final List<Map<String, dynamic>> cart;
@@ -161,9 +162,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
         child: LayoutBuilder(
           builder: (context, box) {
             final width = box.maxWidth;
-            final isMobile = width < 600;
-            final isTablet = width >= 600 && width < 1000;
-            final isDesktop = width >= 1000;
+            final isMobile = width < 3450;
+            final isTablet = width >= 650 && width < 800;
+            final isDesktop = width >= 800;
 
             final double sidePad = isMobile
                 ? 12
@@ -363,7 +364,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final subtotal = harga * jumlah;
     final catatan = item['catatan']?.toString().trim() ?? '';
     final terkunci = widget.existingOrder != null;
-
     final cardHeight = catatan.isEmpty
         ? (isMobile ? 102.0 : 108.0)
         : (isMobile ? 116.0 : 122.0);
@@ -537,7 +537,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   ),
                 ),
               ),
-
               // STRIP MERAH TOMBOL HAPUS DI KANAN
               SizedBox(
                 width: tabWidth,
@@ -1037,32 +1036,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       );
 
       if (!mounted) return;
-      // Tampilkan struk setelah pesanan berhasil disimpan (Bayar Nanti)
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) => TransaksiBerhasilPage(
-            receiptData: {
-              'orderId': kodePesanan['id'] ?? '',
-              'customerName': nama,
-              'cashierName': widget.namaKasir,
-              'orderType': widget.jenisPesanan,
-              'paymentMethod': 'Belum Dibayar',
-              'orderedAt': waktu,
-              'items': widget.cart
-                  .map((item) => Map<String, dynamic>.from(item))
-                  .toList(),
-              'subtotal': total,
-              'tax': biayaLainnya,
-              'discount': nominalDiskon,
-              'total': totalAkhir,
-            },
-            onSelesai: () {
-              Navigator.of(context).pop();
-              widget.onBayarNanti?.call();
-            },
-          ),
-        ),
-      );
+      widget.onBayarNanti?.call();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1599,149 +1573,44 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   void _dialogQRIS() {
+    final namaCustomer = _namaCustomerPembayaran ?? 'Pelanggan';
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
         return PopScope(
           canPop: !_mustCompletePayment,
-          child: Dialog(
-            backgroundColor: Colors.transparent,
-            insetPadding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 20,
-            ),
-            child: _dialogDenganX(
-              dialogContext: dialogContext,
-              bisaTutup: !_mustCompletePayment,
-              child: Container(
-                width: 340,
-                padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.12),
-                      blurRadius: 15,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
+          child: QrisDirectDialog(
+            customerName: namaCustomer,
+            cashierName: widget.namaKasir,
+            orderType: widget.jenisPesanan,
+            total: totalAkhir,
+            subtotal: total,
+            tax: biayaLainnya,
+            taxRate: ppnRate,
+            discount: nominalDiskon,
+            discountInput: diskon,
+            discountType: jenisDiskon,
+            itemCount: jumlahItem,
+            cart: widget.cart,
+            rupiah: widget.rupiah,
+            onSuccess: (receiptData) async {
+              setState(() => _paymentCompleted = true);
+              _namaCustomerPembayaran = null;
+
+              await Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => TransaksiBerhasilPage(
+                    receiptData: receiptData,
+                    onSelesai: () {
+                      Navigator.of(context).pop();
+                      widget.onLanjutPembayaran();
+                    },
+                  ),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Total Pembayaran',
-                      style: TextStyle(
-                        color: Color(0xff102b40),
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-
-                    const SizedBox(height: 4),
-
-                    Text(
-                      widget.rupiah(totalAkhir),
-                      style: const TextStyle(
-                        color: Color(0xff16558a),
-                        fontSize: 19,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    // GAMBAR QRIS
-                    Container(
-                      width: 680,
-                      height: 220,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: const Color(0xfff4f7fa),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xffe5eaf0)),
-                      ),
-                      child: const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.qr_code_2_rounded, color: _navy, size: 75),
-                          SizedBox(height: 12),
-                          Text(
-                            'Pembayaran QRIS melalui Midtrans',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: _navy,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          SizedBox(height: 6),
-                          Text(
-                            'Tekan Bayar QRIS untuk membuka halaman pembayaran.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Color(0xff607181),
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 18),
-
-                    // TOMBOL
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        if (!_mustCompletePayment)
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(dialogContext);
-                            },
-                            child: const Text(
-                              'Batal',
-                              style: TextStyle(
-                                color: Color(0xff607181),
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-
-                        const SizedBox(width: 8),
-
-                        SizedBox(
-                          width: 88,
-                          height: 34,
-                          child: ElevatedButton(
-                            onPressed: _menyimpanPesanan
-                                ? null
-                                : () => _mulaiPembayaranQris(dialogContext),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _navy,
-                              foregroundColor: Colors.white,
-                              disabledBackgroundColor: const Color(0xffb8c5cf),
-                              padding: EdgeInsets.zero,
-                              elevation: 2,
-                              shape: const StadiumBorder(),
-                            ),
-                            child: const Text(
-                              'Bayar QRIS',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
+              );
+            },
           ),
         );
       },
@@ -2529,4 +2398,3 @@ class _RibuanFormatter extends TextInputFormatter {
     );
   }
 }
-

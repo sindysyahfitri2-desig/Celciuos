@@ -69,26 +69,6 @@ class ProductManagementService {
   static Future<List<String>?> loadCategories() async {
     await _ensureCanonicalCategories();
 
-    // Sinkronkan kategori dari backend ke ProdukData.kategori (ValueNotifier)
-    // agar halaman Kasir dapat menampilkan kategori dinamis dari server.
-    final backendKategori = _categoryRecords
-        .map((r) => (r['nama_kategori'] ?? r['name'] ?? '') as String)
-        .where((s) => s.isNotEmpty)
-        .toSet()
-        .toList();
-
-    // Pertahankan hanya 7 kategori kanonik.
-    final kanonikal = Set<String>.from(ProdukData.kategoriProduk
-        .map((k) => k.toLowerCase()));
-    final filtered = backendKategori
-        .where((k) => kanonikal.contains(k.toLowerCase()))
-        .toList();
-
-    ProdukData.kategori.value =
-        filtered.isEmpty ? List<Map<String, dynamic>>.from(
-            ProdukData.kategoriProduk.map((k) => {'nama_kategori': k}))
-        : filtered.map((k) => {'nama_kategori': k}).toList();
-
     return List<String>.from(ProdukData.kategoriProduk);
   }
 
@@ -181,13 +161,6 @@ class ProductManagementService {
       throw const FormatException(
         'Isi nama, harga, dan kategori dengan benar.',
       );
-    }
-
-    final sudahAda = ProdukData.produk.value.any((p) =>
-        (p['name'] ?? '').toString().trim().toLowerCase() == cleanName.toLowerCase());
-
-    if (sudahAda) {
-      throw Exception('Produk "$cleanName" sudah ada. Silakan gunakan nama lain.');
     }
 
     final categoryId = await _getCategoryId(category);

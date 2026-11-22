@@ -20,13 +20,9 @@ const _destinations = <_OwnerDestination>[
   _OwnerDestination('Dashboard', 'Beranda', Icons.home_outlined),
   _OwnerDestination('Kelola Laporan', 'Laporan', Icons.bar_chart_rounded),
   _OwnerDestination('Kelola Produk', 'Produk', Icons.inventory_2_outlined),
+  _OwnerDestination('Manajemen Stok', 'Stok', Icons.warehouse_rounded),
   _OwnerDestination('Transaksi', 'Transaksi', Icons.receipt_long_outlined),
   _OwnerDestination('Kelola Staf', 'Staf', Icons.person_outline_rounded),
-  _OwnerDestination(
-    'Modal & Keuntungan',
-    'Modal',
-    Icons.account_balance_wallet_outlined,
-  ),
   _OwnerDestination('Pengaturan', 'Atur', Icons.settings_outlined),
 ];
 
@@ -186,6 +182,7 @@ class OwnerNavigation extends StatelessWidget {
     required this.onLaporan,
     required this.onPengaturan,
     this.onProfileTap,
+    this.onStok,
     this.onLogout,
   });
 
@@ -201,6 +198,7 @@ class OwnerNavigation extends StatelessWidget {
   final VoidCallback onKelolaStaf;
   final VoidCallback onPengaturan;
   final VoidCallback? onProfileTap;
+  final VoidCallback? onStok;
   final VoidCallback? onLogout;
 
   // Navigasi hanya dijalankan satu kali.

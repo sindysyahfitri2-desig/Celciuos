@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'product_image.dart';
 
 class ProductCard extends StatefulWidget {

@@ -69,7 +69,11 @@ class RiwayatTransaksiPanel extends StatelessWidget {
             )
           else
             for (final t in daftar)
-              TransaksiItemCard(data: t, onHapus: () => onHapus(t), onTap: onDetail != null ? () => onDetail!(t) : null),
+              TransaksiItemCard(
+                data: t,
+                onHapus: () => onHapus(t),
+                onDetail: onDetail == null ? null : () => onDetail!(t),
+              ),
         ],
       ),
     );
@@ -84,12 +88,12 @@ class TransaksiItemCard extends StatelessWidget {
     super.key,
     required this.data,
     required this.onHapus,
-    this.onTap,
+    this.onDetail,
   });
 
   final TransaksiKasir data;
   final VoidCallback onHapus; // dipanggil saat tombol merah ditekan
-  final VoidCallback? onTap; // popup detail saat kartu diklik
+  final VoidCallback? onDetail;
 
   static const TextStyle _gaya = TextStyle(
     color: KtWarna.navy,
@@ -100,7 +104,7 @@ class TransaksiItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: onDetail,
       child: Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.fromLTRB(4, 4, 10, 4),
@@ -158,8 +162,8 @@ class TransaksiItemCard extends StatelessWidget {
           ),
         ],
       ),
-    ), // Container
-    ); // GestureDetector
+    ),
+    );
   }
 
   // Satu baris "Label : isi" (label lebarnya tetap supaya titik dua rata)

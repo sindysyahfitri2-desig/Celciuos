@@ -4,6 +4,7 @@ import 'package:kasir_celcious_coffe/features/owner/presentation/pages/KelolaPro
     as owner_products;
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/KelolaStaf.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/Transaksi/Kelola_Transaksi.dart';
+import 'package:kasir_celcious_coffe/features/owner/presentation/pages/stok/manajemen_stok_page.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/widgets/Navigation.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/PengaturanPage.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
@@ -61,9 +62,9 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     'Dashboard',
     'Kelola Laporan',
     'Kelola Produk',
+    'Manajemen Stok',
     'Transaksi',
     'Kelola Staf',
-    'Modal & Keuntungan',
     'Pengaturan',
   ];
 
@@ -219,8 +220,9 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                       onDashboard: () => _pilihMenuDariDrawer(0),
                       onLaporan: () => _pilihMenuDariDrawer(1),
                       onProduk: () => _pilihMenuDariDrawer(2),
-                      onTransaksi: () => _pilihMenuDariDrawer(3),
-                      onKelolaStaf: () => _pilihMenuDariDrawer(4),
+                      onStok: () => _pilihMenuDariDrawer(3),
+                      onTransaksi: () => _pilihMenuDariDrawer(4),
+                      onKelolaStaf: () => _pilihMenuDariDrawer(5),
                       onPengaturan: () => _pilihMenuDariDrawer(6),
                       onProfileTap: () =>
                           _openOwnerProfileSettings(closeDrawer: true),
@@ -243,8 +245,9 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                           onDashboard: () => selectMenu(0),
                           onLaporan: () => selectMenu(1),
                           onProduk: () => selectMenu(2),
-                          onTransaksi: () => selectMenu(3),
-                          onKelolaStaf: () => selectMenu(4),
+                          onStok: () => selectMenu(3),
+                          onTransaksi: () => selectMenu(4),
+                          onKelolaStaf: () => selectMenu(5),
                           onPengaturan: () => selectMenu(6),
                           onProfileTap: () => _openOwnerProfileSettings(),
                           onLogout: widget.onLogout,
@@ -293,17 +296,13 @@ class _DashboardOwnerState extends State<DashboardOwner> {
           0 => _DashboardBody(namaOwner: _currentOwnerName),
           1 => _buildLaporan(),
           2 => const owner_products.ProdukPage(),
-          3 => KelolaTransaksiPage(
+          3 => const ManajemenStokPage(),
+          4 => KelolaTransaksiPage(
             pakaiDataContoh: false,
             initialTab: 0,
             onNavigasiLaporan: () => selectMenu(1),
           ),
-          4 => const KontrolStafPage(),
-          5 => KelolaTransaksiPage(
-            pakaiDataContoh: false,
-            initialTab: 1,
-            onNavigasiLaporan: () => selectMenu(1),
-          ),
+          5 => const KontrolStafPage(),
           6 => PengaturanPage(
             initialOpenProfile: _openProfileOnPengaturan,
             profileRequestId: _profileRequestId,
@@ -314,142 +313,123 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     );
   }
 
-  
-Widget _topBar({required bool isDesktop}) {
-  return Container(
-    height: 56,
-    padding: const EdgeInsets.symmetric(horizontal: 12),
-    decoration: BoxDecoration(
-      color: ownerNavy,
-      boxShadow: [
-        BoxShadow(
-          color: ownerNavy.withValues(alpha: 0.22),
-          blurRadius: 10,
-          offset: const Offset(0, 3),
-        ),
-      ],
-    ),
-    child: Row(
-      children: [
-        // Tombol menu HP dan tablet
-        if (!isDesktop)
-          Builder(
-            builder: (context) => IconButton(
-              tooltip: 'Buka menu',
-              onPressed: () => Scaffold.of(context).openDrawer(),
-              icon: const Icon(
-                Icons.menu_rounded,
-                color: Colors.white,
+  Widget _topBar({required bool isDesktop}) {
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: ownerNavy,
+        boxShadow: [
+          BoxShadow(
+            color: ownerNavy.withValues(alpha: 0.22),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          if (!isDesktop)
+            Builder(
+              builder: (context) => IconButton(
+                tooltip: 'Buka menu',
+                onPressed: () => Scaffold.of(context).openDrawer(),
+                icon: const Icon(Icons.menu_rounded, color: Colors.white),
               ),
             ),
+          Container(
+            width: 32,
+            height: 32,
+            decoration: const BoxDecoration(
+              color: Color(0xFF3979AD),
+              shape: BoxShape.circle,
+            ),
+            child: const ClipOval(child: AppBrandingLogo(fallbackIconSize: 18)),
           ),
-
-        // Logo Celcious Coffee
-        Container(
-          width: 32,
-          height: 32,
-          decoration: const BoxDecoration(
-            color: Color(0xFF3979AD),
-            shape: BoxShape.circle,
-          ),
-          child: const ClipOval(
-            child: AppBrandingLogo(
-              fallbackIconSize: 18,
+          const SizedBox(width: 9),
+          const Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Celcious Coffee',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  'Dashboard Owner',
+                  style: TextStyle(color: Colors.white70, fontSize: 9),
+                ),
+              ],
             ),
           ),
-        ),
-
-        const SizedBox(width: 9),
-
-        // Nama aplikasi dan dashboard
-        const Expanded(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Celcious Coffee',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              Text(
-                'Dashboard Owner',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 9,
-                ),
-              ),
-            ],
+          IconButton(
+            tooltip: 'Notifikasi',
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _showMessage('Belum ada notifikasi baru.'),
+            icon: const Icon(
+              Icons.notifications_none_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
-        ),
-
-        // Notifikasi dan avatar profil owner di sebelah kanan
-        IconButton(
-          tooltip: 'Notifikasi',
-          visualDensity: VisualDensity.compact,
-          onPressed: () {
-            _showMessage('Belum ada notifikasi baru.');
-          },
-          icon: const Icon(
-            Icons.notifications_none_rounded,
-            color: Colors.white,
-            size: 20,
-          ),
-        ),
-        const SizedBox(width: 4),
-        Tooltip(
-          message: 'Pengaturan Profil Owner',
-          child: InkWell(
-            onTap: () => _openOwnerProfileSettings(),
-            borderRadius: BorderRadius.circular(18),
-            child: Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE6EEF6),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white70, width: 1.5),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: OwnerProfileStore.photoBytes.value != null
-                  ? Image.memory(
-                      OwnerProfileStore.photoBytes.value!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const Icon(
-                        Icons.person,
-                        color: ownerNavy,
-                        size: 19,
-                      ),
-                    )
-                  : (OwnerProfileStore.photoUrl.value != null &&
-                          OwnerProfileStore.photoUrl.value!.isNotEmpty)
-                      ? Image.network(
-                          OwnerProfileStore.photoUrl.value!,
-                          fit: BoxFit.cover,
-                          headers: const {'ngrok-skip-browser-warning': 'true'},
-                          errorBuilder: (_, _, _) => const Icon(
-                            Icons.person,
-                            color: ownerNavy,
-                            size: 19,
-                          ),
-                        )
-                      : const Icon(
+          const SizedBox(width: 4),
+          Tooltip(
+            message: 'Pengaturan Profil Owner',
+            child: InkWell(
+              onTap: () => _openOwnerProfileSettings(),
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE6EEF6),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white70, width: 1.5),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: OwnerProfileStore.photoBytes.value != null
+                    ? Image.memory(
+                        OwnerProfileStore.photoBytes.value!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const Icon(
                           Icons.person,
                           color: ownerNavy,
                           size: 19,
                         ),
+                      )
+                    : (OwnerProfileStore.photoUrl.value != null &&
+                            OwnerProfileStore.photoUrl.value!.isNotEmpty)
+                        ? Image.network(
+                            OwnerProfileStore.photoUrl.value!,
+                            fit: BoxFit.cover,
+                            headers: const {
+                              'ngrok-skip-browser-warning': 'true',
+                            },
+                            errorBuilder: (_, _, _) => const Icon(
+                              Icons.person,
+                              color: ownerNavy,
+                              size: 19,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.person,
+                            color: ownerNavy,
+                            size: 19,
+                          ),
+              ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
