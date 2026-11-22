@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:kasir_celcious_coffe/data/api_service.dart';
 import 'package:kasir_celcious_coffe/data/app_branding_store.dart';
+import 'package:kasir_celcious_coffe/data/owner_profile_store.dart';
+import 'package:kasir_celcious_coffe/data/payment_methods_store.dart';
 import 'package:kasir_celcious_coffe/data/qris_store.dart';
 import 'package:kasir_celcious_coffe/data/receipt_settings_store.dart';
 import 'package:kasir_celcious_coffe/data/sticker_settings_store.dart';
@@ -18,7 +20,14 @@ String _formatPercent(double rate) =>
     (rate * 100).toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
 
 class PengaturanPage extends StatefulWidget {
-  const PengaturanPage({super.key});
+  const PengaturanPage({
+    super.key,
+    this.initialOpenProfile = false,
+    this.profileRequestId = 0,
+  });
+
+  final bool initialOpenProfile;
+  final int profileRequestId;
 
   @override
   State<PengaturanPage> createState() => _PengaturanPageState();
@@ -46,21 +55,39 @@ class _PengaturanPageState extends State<PengaturanPage> {
   bool strukAktif = true;
   bool stikerAktif = true;
   bool _showReceiptManagement = false;
-  // di bagian DATA PENGATURAN (hapus _showStickerManagement lama, ganti ini bila perlu)
   bool _showStickerManagement = false;
+  bool _showProfileManagement = false;
+
+  Uint8List? _pickedOwnerPhoto;
+  String _pickedOwnerPhotoName = 'owner_profile.jpg';
+  bool _savingProfile = false;
+  bool _savingPassword = false;
+  bool _hideOldPassword = true;
+  bool _hideNewPassword = true;
+  bool _hideConfirmPassword = true;
+
+  final TextEditingController _ownerNameController = TextEditingController();
+  final TextEditingController _oldPasswordController = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+  final TextEditingController _newPaymentController = TextEditingController();
 
   final TextEditingController captionController = TextEditingController(
     text: 'Selamat menikmati, semoga harimu menyenangkan ☕',
   );
-  bool _isSavingPengaturan = false;
   bool _isExporting = false;
 
-  String namaToko = 'Nama Toko';
-  String alamatToko = 'Alamat Toko';
+  static const String _defaultAlamatToko =
+      'Dusun vak111 kampun, Mekar Sawit, Kec. Sawit Seberang, '
+      'Kabupaten Langkat, Sumatera Utara 20852';
+
+  String namaToko = 'Celcious Coffee';
+  String alamatToko = _defaultAlamatToko;
 
   String ppn = '${_formatPercent(TransactionStore.ppnRate.value)}%';
   String biayaPelayanan = '2%';
-  String metodePembayaran = 'Qris';
+  String metodePembayaran = 'QRIS';
 
   Uint8List? _qrisImageBytes;
   bool _memuatQris = true;
@@ -91,10 +118,140 @@ class _PengaturanPageState extends State<PengaturanPage> {
   @override
   void initState() {
     super.initState();
+    _showProfileManagement = widget.initialOpenProfile;
+    _ownerNameController.text = OwnerProfileStore.ownerName.value;
+    PaymentMethodsStore.initialize().then((_) {
+      if (!mounted) return;
+      final list = PaymentMethodsStore.methods.value;
+      if (list.isNotEmpty && !list.contains(metodePembayaran)) {
+        setState(() => metodePembayaran = list.first);
+      }
+    });
+    _muatProfilOwner();
     _muatFotoQris();
     _muatPengaturanStruk();
     _muatPengaturanStiker();
     _muatPengaturanBackend();
+  }
+
+  @override
+  void didUpdateWidget(covariant PengaturanPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.profileRequestId != oldWidget.profileRequestId &&
+        widget.initialOpenProfile) {
+      setState(() {
+        _showReceiptManagement = false;
+        _showStickerManagement = false;
+        _showProfileManagement = true;
+        _ownerNameController.text = OwnerProfileStore.ownerName.value;
+      });
+    }
+  }
+
+  Future<void> _muatProfilOwner() async {
+    await OwnerProfileStore.initialize();
+    if (!mounted) return;
+    setState(() {
+      _ownerNameController.text = OwnerProfileStore.ownerName.value;
+    });
+  }
+
+  Future<void> _pilihFotoOwner() async {
+    final foto = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 80,
+    );
+    if (foto == null) return;
+    try {
+      final rawBytes = await foto.readAsBytes();
+      if (!mounted || rawBytes.isEmpty) return;
+      final prepared = await OwnerProfileStore.preparePhotoBytes(rawBytes);
+      if (!mounted) return;
+      setState(() {
+        _pickedOwnerPhoto = prepared.bytes;
+        _pickedOwnerPhotoName =
+            prepared.reencodedPng ? 'owner_profile.png' : foto.name;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memilih foto profil: $e')),
+      );
+    }
+  }
+
+  Future<void> _simpanProfilOwner() async {
+    if (_savingProfile) return;
+    setState(() => _savingProfile = true);
+    try {
+      final msg = await OwnerProfileStore.updateProfile(
+        name: _ownerNameController.text,
+        newPhotoBytes: _pickedOwnerPhoto,
+        photoFileName: _pickedOwnerPhotoName,
+      );
+      if (!mounted) return;
+      setState(() => _pickedOwnerPhoto = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: const Color(0xFF1F8A5B),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final text = e is FormatException
+          ? e.message
+          : e.toString().replaceFirst('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(text),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _savingProfile = false);
+    }
+  }
+
+  Future<void> _simpanPasswordOwner() async {
+    if (_savingPassword) return;
+    setState(() => _savingPassword = true);
+    try {
+      final msg = await OwnerProfileStore.updatePassword(
+        oldPassword: _oldPasswordController.text,
+        newPassword: _newPasswordController.text,
+        confirmPassword: _confirmPasswordController.text,
+      );
+      if (!mounted) return;
+      _oldPasswordController.clear();
+      _newPasswordController.clear();
+      _confirmPasswordController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: const Color(0xFF1F8A5B),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final text = e is FormatException
+          ? e.message
+          : e.toString().replaceFirst('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(text),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _savingPassword = false);
+    }
   }
 
   Future<void> _muatPengaturanStruk() async {
@@ -144,8 +301,11 @@ class _PengaturanPageState extends State<PengaturanPage> {
             namaTokoController.text = data['nama_toko'].toString().trim();
             namaToko = namaTokoController.text;
           }
-          if (data['alamat'] != null) {
-            alamatToko = data['alamat'].toString();
+          if (data['alamat'] != null &&
+              data['alamat'].toString().trim().isNotEmpty &&
+              data['alamat'].toString().trim().toLowerCase() != 'alamat toko' &&
+              data['alamat'].toString().trim().toLowerCase() != 'alamat cafe') {
+            alamatToko = data['alamat'].toString().trim();
           }
           if (data['ppn_persen'] != null) {
             final rate = double.tryParse(data['ppn_persen'].toString()) ?? 11;
@@ -315,6 +475,11 @@ class _PengaturanPageState extends State<PengaturanPage> {
     ppnController.dispose();
     pelayananController.dispose();
     captionController.dispose();
+    _ownerNameController.dispose();
+    _oldPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    _newPaymentController.dispose();
     super.dispose();
   }
 
@@ -346,6 +511,13 @@ class _PengaturanPageState extends State<PengaturanPage> {
       if (!mounted) return;
 
       setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Foto toko berhasil disimpan.'),
+          backgroundColor: Color(0xFF1F8A5B),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
 
@@ -950,6 +1122,13 @@ class _PengaturanPageState extends State<PengaturanPage> {
 
         _barisKe = 0;
 
+        if (_showProfileManagement) {
+          return _halamanKelolaProfil(
+            isMobile: isMobile,
+            isTablet: isTablet,
+            maxContentWidth: maxContentWidth,
+          );
+        }
         if (_showReceiptManagement) {
           return _halamanKelolaStruk(
             isMobile: isMobile,
@@ -985,6 +1164,39 @@ class _PengaturanPageState extends State<PengaturanPage> {
                         ),
 
                         divider(),
+
+                        // PROFIL OWNER
+                        settingRow(
+                          title: 'Pengaturan Profil',
+                          titleSize: titleSize,
+                          horizontalPadding: horizontalPadding,
+                          isMobile: isMobile,
+                          onTap: () {
+                            setState(() {
+                              _ownerNameController.text =
+                                  OwnerProfileStore.ownerName.value;
+                              _showProfileManagement = true;
+                            });
+                          },
+                          child: TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _ownerNameController.text =
+                                    OwnerProfileStore.ownerName.value;
+                                _showProfileManagement = true;
+                              });
+                            },
+                            icon: Icon(
+                              Icons.manage_accounts_outlined,
+                              size: contentSize + 3,
+                            ),
+                            label: Text(
+                              'Kelola',
+                              style: TextStyle(fontSize: contentSize - 1),
+                            ),
+                            style: TextButton.styleFrom(foregroundColor: navy),
+                          ),
+                        ),
 
                         // DEVICE
                         settingRow(
@@ -1178,19 +1390,20 @@ class _PengaturanPageState extends State<PengaturanPage> {
                             child: ElevatedButton(
                               onPressed: simpanPengaturan,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: navy,
-                                elevation: 2,
+                                backgroundColor: navy,
+                                foregroundColor: Colors.white,
+                                elevation: 3,
+                                shadowColor: navy.withValues(alpha: 0.3),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(18),
                                 ),
                               ),
                               child: Text(
                                 'Simpan Pengaturan',
                                 style: TextStyle(
-                                  color: navy,
+                                  color: Colors.white,
                                   fontSize: contentSize,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
@@ -1207,6 +1420,803 @@ class _PengaturanPageState extends State<PengaturanPage> {
           ),
         );
       },
+    );
+  }
+
+  // ==========================================================
+  // HALAMAN PENGATURAN PROFIL OWNER (Ganti Profil & Ganti Password)
+  // ==========================================================
+
+  Widget _halamanKelolaProfil({
+    required bool isMobile,
+    required bool isTablet,
+    required double maxContentWidth,
+  }) {
+    final bool besar = !isMobile;
+    final double padLuar = isMobile ? 16 : (isTablet ? 24 : 32);
+
+    ImageProvider? ownerAvatarProvider() {
+      if (_pickedOwnerPhoto != null) {
+        return MemoryImage(_pickedOwnerPhoto!);
+      }
+      if (OwnerProfileStore.photoBytes.value != null) {
+        return MemoryImage(OwnerProfileStore.photoBytes.value!);
+      }
+      final url = OwnerProfileStore.photoUrl.value;
+      if (url != null && url.isNotEmpty) {
+        return NetworkImage(
+          url,
+          headers: const {'ngrok-skip-browser-warning': 'true'},
+        );
+      }
+      return null;
+    }
+
+    InputDecoration fieldDecoration({
+      required String label,
+      required String hint,
+      required IconData icon,
+      Widget? suffixIcon,
+    }) {
+      return InputDecoration(
+        labelText: label,
+        hintText: hint,
+        labelStyle: TextStyle(
+          color: navy.withValues(alpha: 0.8),
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+        hintStyle: const TextStyle(color: Color(0xFF9AB0C4), fontSize: 12.5),
+        prefixIcon: Icon(icon, color: navy, size: 20),
+        suffixIcon: suffixIcon,
+        filled: true,
+        fillColor: const Color(0xFFF5F9FD),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 13,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: navy.withValues(alpha: 0.16)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: navy.withValues(alpha: 0.16)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: navy, width: 1.5),
+        ),
+      );
+    }
+
+    final avatarProvider = ownerAvatarProvider();
+    final currentName = _ownerNameController.text.trim().isNotEmpty
+        ? _ownerNameController.text.trim()
+        : OwnerProfileStore.ownerName.value;
+    final pwNew = _newPasswordController.text;
+    final pwConfirm = _confirmPasswordController.text;
+    final showMatchBadge = pwNew.isNotEmpty && pwConfirm.isNotEmpty;
+    final pwMatches = pwNew == pwConfirm;
+
+    final heroBanner = Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(besar ? 24 : 18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF082640), Color(0xFF143E66), Color(0xFF1E578A)],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: navy.withValues(alpha: 0.26),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: -18,
+            top: -22,
+            child: Container(
+              width: 110,
+              height: 110,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFA8CBE9).withValues(alpha: 0.14),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 45,
+            bottom: -30,
+            child: Container(
+              width: 74,
+              height: 74,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFA8CBE9).withValues(alpha: 0.10),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              GestureDetector(
+                onTap: _pilihFotoOwner,
+                child: Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [
+                    Container(
+                      width: besar ? 88 : 74,
+                      height: besar ? 88 : 74,
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFA8CBE9),
+                          width: 2.5,
+                        ),
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                      child: ClipOval(
+                        child: avatarProvider != null
+                            ? Image(
+                                image: avatarProvider,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => Container(
+                                  color: const Color(0xFFDCE9F4),
+                                  child: Icon(
+                                    Icons.person_rounded,
+                                    size: besar ? 42 : 34,
+                                    color: navy,
+                                  ),
+                                ),
+                              )
+                            : Container(
+                                color: const Color(0xFFDCE9F4),
+                                child: Icon(
+                                  Icons.person_rounded,
+                                  size: besar ? 42 : 34,
+                                  color: navy,
+                                ),
+                              ),
+                      ),
+                    ),
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFA8CBE9),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: navy, width: 2),
+                      ),
+                      child: Icon(
+                        Icons.camera_alt_rounded,
+                        color: navy,
+                        size: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(width: besar ? 18 : 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFA8CBE9).withValues(alpha: 0.24),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: const Color(0xFFA8CBE9).withValues(alpha: 0.45),
+                        ),
+                      ),
+                      child: const Text(
+                        'OWNER • CELCIOUS COFFEE',
+                        style: TextStyle(
+                          color: Color(0xFFDCE9F4),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      currentName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: besar ? 22 : 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      OwnerProfileStore.ownerUsername.value.isNotEmpty
+                          ? '@${OwnerProfileStore.ownerUsername.value}'
+                          : 'Kelola profil & keamanan akun Anda',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFFBBD7F0),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final profileCard = Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFC5DBEE), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: navy.withValues(alpha: 0.10),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(
+              horizontal: besar ? 22 : 16,
+              vertical: 14,
+            ),
+            decoration: const BoxDecoration(
+              color: Color(0xFFEAF3FB),
+              border: Border(
+                bottom: BorderSide(color: Color(0xFFCDE0F0)),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: navy,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.person_outline_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Profil Owner',
+                        style: TextStyle(
+                          color: navy,
+                          fontSize: besar ? 16.5 : 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const Text(
+                        'Ubah foto profil dan nama akun',
+                        style: TextStyle(
+                          color: Color(0xFF53728E),
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.all(besar ? 22 : 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                InkWell(
+                  onTap: _pilihFotoOwner,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F8FD),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFA8CBE9)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDCE9F4),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.add_a_photo_outlined,
+                            color: navy,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _pickedOwnerPhoto != null
+                                    ? 'Foto baru siap disimpan'
+                                    : 'Ganti Foto Profil',
+                                style: TextStyle(
+                                  color: navy,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const Text(
+                                'Ketuk untuk memilih foto dari galeri',
+                                style: TextStyle(
+                                  color: Color(0xFF5E7A94),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: navy,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Text(
+                            'Pilih',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _ownerNameController,
+                  onChanged: (_) => setState(() {}),
+                  textCapitalization: TextCapitalization.words,
+                  style: TextStyle(
+                    color: navy,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  decoration: fieldDecoration(
+                    label: 'Nama Owner',
+                    hint: 'Masukkan nama owner',
+                    icon: Icons.badge_outlined,
+                  ),
+                ),
+                if (OwnerProfileStore.ownerUsername.value.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 11,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEAF3FB),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.alternate_email_rounded,
+                          size: 17,
+                          color: navy,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Username: ${OwnerProfileStore.ownerUsername.value}',
+                          style: TextStyle(
+                            color: navy,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton.icon(
+                    onPressed: _savingProfile ? null : _simpanProfilOwner,
+                    icon: _savingProfile
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.save_rounded, size: 18),
+                    label: Text(
+                      _savingProfile ? 'Menyimpan...' : 'Simpan Profil',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: navy,
+                      foregroundColor: Colors.white,
+                      elevation: 2,
+                      shadowColor: navy.withValues(alpha: 0.3),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final passwordCard = Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFC5DBEE), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: navy.withValues(alpha: 0.10),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(
+              horizontal: besar ? 22 : 16,
+              vertical: 14,
+            ),
+            decoration: const BoxDecoration(
+              color: Color(0xFFEAF3FB),
+              border: Border(
+                bottom: BorderSide(color: Color(0xFFCDE0F0)),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: navy,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.lock_outline_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Ganti Password',
+                        style: TextStyle(
+                          color: navy,
+                          fontSize: besar ? 16.5 : 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const Text(
+                        'Keamanan akun dengan konfirmasi password',
+                        style: TextStyle(
+                          color: Color(0xFF53728E),
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.all(besar ? 22 : 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEAF3FB),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFA8CBE9)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded, size: 17, color: navy),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Gunakan 6 digit angka untuk login PIN Owner, atau minimal 6 karakter untuk login password.',
+                          style: TextStyle(
+                            color: navy.withValues(alpha: 0.88),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _oldPasswordController,
+                  obscureText: _hideOldPassword,
+                  style: TextStyle(color: navy, fontSize: 14),
+                  decoration: fieldDecoration(
+                    label: 'Password Lama',
+                    hint: 'Masukkan password saat ini',
+                    icon: Icons.key_outlined,
+                    suffixIcon: IconButton(
+                      onPressed: () =>
+                          setState(() => _hideOldPassword = !_hideOldPassword),
+                      icon: Icon(
+                        _hideOldPassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: navy.withValues(alpha: 0.7),
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _newPasswordController,
+                  onChanged: (_) => setState(() {}),
+                  obscureText: _hideNewPassword,
+                  style: TextStyle(color: navy, fontSize: 14),
+                  decoration: fieldDecoration(
+                    label: 'Password Baru',
+                    hint: 'Minimal 6 karakter',
+                    icon: Icons.lock_reset_rounded,
+                    suffixIcon: IconButton(
+                      onPressed: () =>
+                          setState(() => _hideNewPassword = !_hideNewPassword),
+                      icon: Icon(
+                        _hideNewPassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: navy.withValues(alpha: 0.7),
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _confirmPasswordController,
+                  onChanged: (_) => setState(() {}),
+                  obscureText: _hideConfirmPassword,
+                  style: TextStyle(color: navy, fontSize: 14),
+                  decoration: fieldDecoration(
+                    label: 'Konfirmasi Password',
+                    hint: 'Ulangi password baru',
+                    icon: Icons.verified_user_outlined,
+                    suffixIcon: IconButton(
+                      onPressed: () => setState(
+                        () => _hideConfirmPassword = !_hideConfirmPassword,
+                      ),
+                      icon: Icon(
+                        _hideConfirmPassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: navy.withValues(alpha: 0.7),
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
+                if (showMatchBadge) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Icon(
+                        pwMatches
+                            ? Icons.check_circle_rounded
+                            : Icons.error_outline_rounded,
+                        size: 16,
+                        color: pwMatches
+                            ? const Color(0xFF1A7A55)
+                            : Colors.redAccent,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        pwMatches
+                            ? 'Konfirmasi password cocok'
+                            : 'Konfirmasi password belum cocok',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: pwMatches
+                              ? const Color(0xFF1A7A55)
+                              : Colors.redAccent,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton.icon(
+                    onPressed: _savingPassword ? null : _simpanPasswordOwner,
+                    icon: _savingPassword
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.shield_outlined, size: 18),
+                    label: Text(
+                      _savingPassword ? 'Memproses...' : 'Ganti Password',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: navy,
+                      foregroundColor: Colors.white,
+                      elevation: 2,
+                      shadowColor: navy.withValues(alpha: 0.3),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: background,
+      child: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(padLuar, 12, padLuar, 28),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxContentWidth),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () =>
+                            setState(() => _showProfileManagement = false),
+                        tooltip: 'Kembali ke Pengaturan',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
+                        icon: Icon(
+                          Icons.arrow_back_rounded,
+                          color: navy,
+                          size: besar ? 26 : 23,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Pengaturan Profil',
+                          style: TextStyle(
+                            color: navy,
+                            fontSize: isMobile ? 20 : (isTablet ? 24 : 27),
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  heroBanner,
+                  const SizedBox(height: 20),
+                  if (!isMobile && !isTablet)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: profileCard),
+                        const SizedBox(width: 22),
+                        Expanded(child: passwordCard),
+                      ],
+                    )
+                  else ...[
+                    profileCard,
+                    const SizedBox(height: 18),
+                    passwordCard,
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1470,9 +2480,17 @@ class _PengaturanPageState extends State<PengaturanPage> {
             ),
           ),
 
-          Text(
-            'Alamat Cafe',
-            style: TextStyle(color: Colors.white70, fontSize: besar ? 13 : 9),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              alamatToko,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: besar ? 12.5 : 9,
+                height: 1.3,
+              ),
+            ),
           ),
 
           SizedBox(height: besar ? 28 : 18),
@@ -2067,84 +3085,573 @@ class _PengaturanPageState extends State<PengaturanPage> {
   }
 
   // ==========================================================
-  // PAYMENT CONTROL
+  // PAYMENT CONTROL (dropdown + tombol plus navy yang membuka pop up)
   // ==========================================================
 
-  Widget paymentControl({required double size, required bool isMobile}) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: isMobile ? 30 : 36,
-          height: isMobile ? 30 : 36,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(Icons.qr_code_2, size: isMobile ? 20 : 25, color: navy),
+  Future<bool> _tambahMetodePembayaran([String? customText]) async {
+    final text = (customText ?? _newPaymentController.text).trim();
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Ketik nama metode pembayaran terlebih dahulu.'),
+          backgroundColor: navy,
+          behavior: SnackBarBehavior.floating,
         ),
+      );
+      return false;
+    }
 
-        const SizedBox(width: 4),
+    final added = await PaymentMethodsStore.addMethod(text);
+    if (!mounted) return false;
+    if (!added) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Metode "$text" sudah ada.'),
+          backgroundColor: navy,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return false;
+    }
 
-        Container(
-          height: isMobile ? 30 : 36,
-          constraints: BoxConstraints(
-            minWidth: isMobile ? 72 : 100,
-            maxWidth: isMobile ? 105 : 150,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: metodePembayaran,
-              isDense: true,
-              isExpanded: true,
-              icon: Icon(
-                Icons.keyboard_arrow_down,
-                size: isMobile ? 14 : 18,
-                color: navy,
-              ),
-              style: TextStyle(
-                color: navy,
-                fontSize: size,
-                fontWeight: FontWeight.w600,
-              ),
-              items: const [
-                DropdownMenuItem(value: 'Qris', child: Text('Qris')),
-                DropdownMenuItem(value: 'Cash', child: Text('Cash')),
-                DropdownMenuItem(value: 'Transfer', child: Text('Transfer')),
-              ],
-              onChanged: (value) {
-                if (value == null) return;
+    _newPaymentController.clear();
+    setState(() => metodePembayaran = text);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Metode pembayaran "$text" ditambahkan.'),
+        backgroundColor: const Color(0xFF1F8A5B),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    return true;
+  }
 
-                setState(() {
-                  metodePembayaran = value;
+  Future<void> _hapusMetodePembayaran(String method) async {
+    final removed = await PaymentMethodsStore.removeMethod(method);
+    if (!mounted || !removed) return;
+    final list = PaymentMethodsStore.methods.value;
+    setState(() {
+      if (metodePembayaran == method && list.isNotEmpty) {
+        metodePembayaran = list.first;
+      }
+    });
+  }
+
+  Future<void> _bukaPopupTambahPembayaran() async {
+    _newPaymentController.clear();
+    String? errorText;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> submitMethod() async {
+              final raw = _newPaymentController.text.trim();
+              if (raw.isEmpty) {
+                setDialogState(() {
+                  errorText = 'Nama metode pembayaran tidak boleh kosong.';
                 });
-              },
+                return;
+              }
+              final added = await _tambahMetodePembayaran(raw);
+              if (!dialogContext.mounted) return;
+              if (added) {
+                setDialogState(() => errorText = null);
+              } else {
+                setDialogState(() {
+                  errorText = 'Metode "$raw" sudah ada di daftar.';
+                });
+              }
+            }
+
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: const Color(0xFFA8CBE9),
+                      width: 1.4,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: navy.withValues(alpha: 0.25),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Header Navy
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFF082640), Color(0xFF174975)],
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFFA8CBE9,
+                                  ).withValues(alpha: 0.22),
+                                  borderRadius: BorderRadius.circular(11),
+                                ),
+                                child: const Icon(
+                                  Icons.payments_outlined,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Tambah Metode Pembayaran',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      'Tambahkan metode baru ke dropdown kasir',
+                                      style: TextStyle(
+                                        color: Color(0xFFBFD9F0),
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => Navigator.pop(dialogContext),
+                                tooltip: 'Tutup',
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Body
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Nama Metode Pembayaran',
+                                style: TextStyle(
+                                  color: navy,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _newPaymentController,
+                                      autofocus: true,
+                                      textCapitalization:
+                                          TextCapitalization.words,
+                                      textInputAction: TextInputAction.done,
+                                      onChanged: (_) {
+                                        if (errorText != null) {
+                                          setDialogState(
+                                            () => errorText = null,
+                                          );
+                                        }
+                                      },
+                                      onSubmitted: (_) => submitMethod(),
+                                      style: TextStyle(
+                                        color: navy,
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      decoration: InputDecoration(
+                                        hintText: 'Contoh: Dana, OVO, GoPay...',
+                                        hintStyle: const TextStyle(
+                                          color: Color(0xFF90A9C0),
+                                          fontSize: 12.5,
+                                        ),
+                                        filled: true,
+                                        fillColor: const Color(0xFFF3F8FD),
+                                        isDense: true,
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 12,
+                                        ),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFFA8CBE9),
+                                          ),
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFFA8CBE9),
+                                          ),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: navy,
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  SizedBox(
+                                    height: 44,
+                                    child: ElevatedButton.icon(
+                                      onPressed: submitMethod,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: navy,
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                        ),
+                                      ),
+                                      icon: const Icon(
+                                        Icons.add_rounded,
+                                        size: 18,
+                                      ),
+                                      label: const Text(
+                                        'Tambah',
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (errorText != null) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  errorText!,
+                                  style: const TextStyle(
+                                    color: Colors.redAccent,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+
+                              const SizedBox(height: 16),
+                              Text(
+                                'Metode Tersedia',
+                                style: TextStyle(
+                                  color: navy,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              ValueListenableBuilder<List<String>>(
+                                valueListenable: PaymentMethodsStore.methods,
+                                builder: (context, methods, _) {
+                                  return Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      for (final m in methods)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 11,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: m == metodePembayaran
+                                                ? navy
+                                                : const Color(0xFFEAF3FB),
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                            border: Border.all(
+                                              color: m == metodePembayaran
+                                                  ? navy
+                                                  : const Color(0xFFA8CBE9),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              GestureDetector(
+                                                onTap: () {
+                                                  setState(
+                                                    () => metodePembayaran = m,
+                                                  );
+                                                  setDialogState(() {});
+                                                },
+                                                child: Text(
+                                                  m,
+                                                  style: TextStyle(
+                                                    color: m == metodePembayaran
+                                                        ? Colors.white
+                                                        : navy,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (methods.length > 1 &&
+                                                  m.toLowerCase() != 'qris' &&
+                                                  m.toLowerCase() !=
+                                                      'cash') ...[
+                                                const SizedBox(width: 5),
+                                                GestureDetector(
+                                                  onTap: () async {
+                                                    await _hapusMetodePembayaran(
+                                                      m,
+                                                    );
+                                                    setDialogState(() {});
+                                                  },
+                                                  child: Icon(
+                                                    Icons.close_rounded,
+                                                    size: 14,
+                                                    color: m == metodePembayaran
+                                                        ? Colors.white70
+                                                        : navy.withValues(
+                                                            alpha: 0.75,
+                                                          ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ),
+                                    ],
+                                  );
+                                },
+                              ),
+
+                              const SizedBox(height: 16),
+                              const Divider(
+                                height: 1,
+                                color: Color(0xFFD6E5F3),
+                              ),
+                              const SizedBox(height: 12),
+
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () async {
+                                        Navigator.pop(dialogContext);
+                                        await pilihFotoQris();
+                                      },
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: navy,
+                                        side: const BorderSide(
+                                          color: Color(0xFFA8CBE9),
+                                        ),
+                                        backgroundColor: const Color(
+                                          0xFFF3F8FD,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 10,
+                                        ),
+                                      ),
+                                      icon: const Icon(
+                                        Icons.image_outlined,
+                                        size: 17,
+                                      ),
+                                      label: const Text(
+                                        'Ganti Foto QRIS',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  ElevatedButton(
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFA8CBE9),
+                                      foregroundColor: navy,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 18,
+                                        vertical: 10,
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Selesai',
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget paymentControl({required double size, required bool isMobile}) {
+    return ValueListenableBuilder<List<String>>(
+      valueListenable: PaymentMethodsStore.methods,
+      builder: (context, methods, _) {
+        final safeMethods = methods.isEmpty ? const ['QRIS', 'Cash'] : methods;
+        final selected = safeMethods.contains(metodePembayaran)
+            ? metodePembayaran
+            : safeMethods.first;
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: isMobile ? 34 : 38,
+              constraints: BoxConstraints(
+                minWidth: isMobile ? 102 : 132,
+                maxWidth: isMobile ? 150 : 200,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFFA8CBE9),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: navy.withValues(alpha: 0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: selected,
+                  isDense: true,
+                  isExpanded: true,
+                  dropdownColor: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  icon: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: isMobile ? 18 : 20,
+                    color: navy,
+                  ),
+                  style: TextStyle(
+                    color: navy,
+                    fontSize: isMobile ? 12.5 : 13.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  items: [
+                    for (final m in safeMethods)
+                      DropdownMenuItem<String>(
+                        value: m,
+                        child: Text(
+                          m,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => metodePembayaran = value);
+                  },
+                ),
+              ),
             ),
-          ),
-        ),
-
-        const SizedBox(width: 4),
-
-        Container(
-          width: isMobile ? 30 : 36,
-          height: isMobile ? 30 : 36,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-          ),
-          child: IconButton(
-            onPressed: pilihFotoQris,
-            tooltip: 'Ganti foto QRIS',
-            padding: EdgeInsets.zero,
-            icon: Icon(Icons.add, color: navy, size: isMobile ? 17 : 22),
-          ),
-        ),
-      ],
+            const SizedBox(width: 8),
+            Tooltip(
+              message: 'Tambah Metode Pembayaran',
+              child: Material(
+                color: navy,
+                shape: const CircleBorder(),
+                elevation: 2,
+                shadowColor: navy.withValues(alpha: 0.35),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: _bukaPopupTambahPembayaran,
+                  child: SizedBox(
+                    width: isMobile ? 34 : 38,
+                    height: isMobile ? 34 : 38,
+                    child: Icon(
+                      Icons.add_rounded,
+                      color: Colors.white,
+                      size: isMobile ? 20 : 22,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

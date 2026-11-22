@@ -1,5 +1,4 @@
-
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'product_image.dart';
 
 class ProductCard extends StatefulWidget {
@@ -31,13 +30,17 @@ class ProductCard extends StatefulWidget {
 }
 
 class _ProductCardState extends State<ProductCard> {
-  static const _navy = Color(0xff082640);
-  static const _merah = Color(0xffe45a5a);
+  static const _navy = Color(0xFF0B2846);
+  static const _titleColor = Color(0xFF0E2235);
+  static const _priceColor = Color(0xFF335E84);
+  static const _imagePlaceholder = Color(0xFFD5D1E8);
+  static const _merah = Color(0xFFD65656);
 
   bool _hover = false;
 
   String _rupiah(double value) {
     final digits = value.toInt().toString();
+
     return 'Rp ${digits.replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
       (_) => '.',
@@ -50,26 +53,27 @@ class _ProductCardState extends State<ProductCard> {
       builder: (context, constraints) {
         final height = constraints.maxHeight.isFinite
             ? constraints.maxHeight
-            : 120.0;
+            : 102.0;
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 300.0;
 
-        final compact = constraints.maxWidth < 150 || height < 105;
-
-        final imageSize = compact
-            ? (height - 16).clamp(38.0, 62.0)
-            : (height - 18).clamp(50.0, 105.0);
+        final compact = width < 260 || height < 96;
+        final pad = compact ? 7.0 : 9.0;
+        final imageSize = (height - pad * 2).clamp(58.0, 86.0);
 
         final hasQuantity =
             widget.showCartControls && widget.quantity > 0;
 
-        final tabWidth = compact ? 34.0 : 50.0;
-        final buttonSize = compact ? 24.0 : 28.0;
+        final tabWidth = compact ? 38.0 : 44.0;
+        final buttonSize = compact ? 24.0 : 27.0;
 
         return MouseRegion(
           cursor: SystemMouseCursors.click,
           onEnter: (_) => setState(() => _hover = true),
           onExit: (_) => setState(() => _hover = false),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
+            duration: const Duration(milliseconds: 200),
             curve: Curves.easeOutCubic,
             transform: Matrix4.translationValues(
               0,
@@ -78,160 +82,145 @@ class _ProductCardState extends State<ProductCard> {
             ),
             decoration: BoxDecoration(
               color: hasQuantity ? _merah : Colors.white,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(18),
               boxShadow: [
                 BoxShadow(
                   color: _navy.withValues(
-                    alpha: _hover ? 0.18 : 0.10,
+                    alpha: _hover ? 0.16 : 0.09,
                   ),
-                  blurRadius: _hover ? 16 : 11,
-                  offset: Offset(0, _hover ? 6 : 3),
+                  blurRadius: _hover ? 14 : 9,
+                  offset: Offset(0, _hover ? 5 : 3),
                 ),
               ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(18),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // BAGIAN PUTIH CARD
                   Expanded(
                     child: Container(
+                      padding: EdgeInsets.all(pad),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(18),
                       ),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // GAMBAR PRODUK
-                          Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: Container(
-                              width: imageSize,
-                              height: imageSize,
-                              decoration: BoxDecoration(
-                                color: const Color(0xffd9d6e8),
-                                borderRadius: BorderRadius.circular(19),
-                              ),
-                              clipBehavior: Clip.antiAlias,
-                              child: ProductImage(
-                                image: widget.image,
-                                fit: BoxFit.cover,
-                              ),
+                          // Foto produk di sebelah kiri (kotak membulat)
+                          Container(
+                            width: imageSize,
+                            height: imageSize,
+                            decoration: BoxDecoration(
+                              color: _imagePlaceholder,
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: ProductImage(
+                              image: widget.image,
+                              fit: BoxFit.cover,
                             ),
                           ),
+                          SizedBox(width: compact ? 10 : 12),
 
-                          // INFORMASI PRODUK
+                          // Nama menu & harga sejajar dengan foto + tombol qty di kanan bawah
                           Expanded(
-                            child: Padding(
-                              padding: EdgeInsets.fromLTRB(
-                                compact ? 8 : 8,
-                                10,
-                                compact ? 7 : 10,
-                                10,
-                              ),
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Column(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Flexible(
+                                  child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
                                         widget.name,
-                                        maxLines: 2,
+                                        maxLines: height < 106 ? 1 : 2,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
-                                          color: const Color(0xff10202d),
+                                          color: _titleColor,
                                           fontWeight: FontWeight.w800,
-                                          fontSize: compact ? 11 : 15,
+                                          fontSize: compact ? 12.5 : 14,
                                           height: 1.15,
                                         ),
                                       ),
-                                      const SizedBox(height: 3),
+                                      const SizedBox(height: 2),
                                       Text(
                                         _rupiah(widget.price),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
-                                          color: const Color(0xff24577e),
+                                          color: _priceColor,
                                           fontWeight: FontWeight.w600,
-                                          fontSize: compact ? 9 : 13,
+                                          fontSize: compact ? 11 : 12.5,
+                                          height: 1.15,
                                         ),
                                       ),
                                     ],
                                   ),
-
-                                  // TOMBOL JUMLAH
-                                  if (widget.showCartControls)
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: hasQuantity
-                                          ? Row(
-                                              mainAxisSize:
-                                                  MainAxisSize.min,
-                                              children: [
-                                                _QtyButton(
-                                                  icon: Icons.remove_rounded,
-                                                  onTap: widget.onMinus,
-                                                  size: buttonSize,
-                                                ),
-                                                SizedBox(
-                                                  width: compact ? 4 : 9,
-                                                ),
-                                                SizedBox(
-                                                  width: compact ? 12 : 20,
-                                                  child: Center(
-                                                    child: AnimatedSwitcher(
-                                                      duration:
-                                                          const Duration(
-                                                        milliseconds: 160,
+                                ),
+                                if (widget.showCartControls)
+                                  Align(
+                                    alignment: Alignment.bottomRight,
+                                    child: hasQuantity
+                                        ? Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              _QtyButton(
+                                                icon: Icons.remove_rounded,
+                                                onTap: widget.onMinus,
+                                                size: buttonSize,
+                                              ),
+                                              SizedBox(
+                                                width: compact ? 22 : 28,
+                                                child: Center(
+                                                  child: AnimatedSwitcher(
+                                                    duration: const Duration(
+                                                      milliseconds: 150,
+                                                    ),
+                                                    transitionBuilder:
+                                                        (child, animation) {
+                                                      return ScaleTransition(
+                                                        scale: animation,
+                                                        child: FadeTransition(
+                                                          opacity: animation,
+                                                          child: child,
+                                                        ),
+                                                      );
+                                                    },
+                                                    child: Text(
+                                                      '${widget.quantity}',
+                                                      key: ValueKey(
+                                                        widget.quantity,
                                                       ),
-                                                      transitionBuilder:
-                                                          (child, animation) {
-                                                        return ScaleTransition(
-                                                          scale: animation,
-                                                          child:
-                                                              FadeTransition(
-                                                            opacity: animation,
-                                                            child: child,
-                                                          ),
-                                                        );
-                                                      },
-                                                      child: Text(
-                                                        '${widget.quantity}',
-                                                        key: ValueKey(
-                                                          widget.quantity,
-                                                        ),
-                                                        style: TextStyle(
-                                                          color: _navy,
-                                                          fontSize:
-                                                              compact ? 12 : 18,
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                        ),
+                                                      style: TextStyle(
+                                                        color: _navy,
+                                                        fontSize:
+                                                            compact ? 13 : 15,
+                                                        fontWeight:
+                                                            FontWeight.w700,
                                                       ),
                                                     ),
                                                   ),
                                                 ),
-                                                SizedBox(
-                                                  width: compact ? 4 : 9,
-                                                ),
-                                                _QtyButton(
-                                                  icon: Icons.add_rounded,
-                                                  onTap: widget.onAdd,
-                                                  size: buttonSize,
-                                                ),
-                                              ],
-                                            )
-                                          : _QtyButton(
-                                              icon: Icons.add_rounded,
-                                              onTap: widget.onAdd,
-                                              size: buttonSize,
-                                            ),
-                                    ),
-                                ],
-                              ),
+                                              ),
+                                              _QtyButton(
+                                                icon: Icons.add_rounded,
+                                                onTap: widget.onAdd,
+                                                size: buttonSize,
+                                              ),
+                                            ],
+                                          )
+                                        : _QtyButton(
+                                            icon: Icons.add_rounded,
+                                            onTap: widget.onAdd,
+                                            size: buttonSize,
+                                          ),
+                                  ),
+                              ],
                             ),
                           ),
                         ],
@@ -239,9 +228,9 @@ class _ProductCardState extends State<ProductCard> {
                     ),
                   ),
 
-                  // TAB MERAH HAPUS
+                  // Strip merah tombol hapus di sisi kanan (tampil saat item dipilih)
                   AnimatedContainer(
-                    duration: const Duration(milliseconds: 240),
+                    duration: const Duration(milliseconds: 220),
                     curve: Curves.easeOutCubic,
                     width: hasQuantity ? tabWidth : 0,
                     child: ClipRect(
@@ -255,7 +244,7 @@ class _ProductCardState extends State<ProductCard> {
                               child: Icon(
                                 Icons.delete_outline_rounded,
                                 color: Colors.white,
-                                size: compact ? 16 : 19,
+                                size: compact ? 18 : 20,
                               ),
                             ),
                           ),
@@ -273,12 +262,11 @@ class _ProductCardState extends State<ProductCard> {
   }
 }
 
-// TOMBOL PLUS DAN MINUS
 class _QtyButton extends StatefulWidget {
   const _QtyButton({
     required this.icon,
     required this.onTap,
-    this.size = 25,
+    this.size = 28,
   });
 
   final IconData icon;
@@ -310,12 +298,12 @@ class _QtyButtonState extends State<_QtyButton> {
             height: widget.size,
             decoration: BoxDecoration(
               color: _ProductCardState._navy,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               widget.icon,
               color: Colors.white,
-              size: widget.size < 30 ? 15 : 21,
+              size: widget.size * 0.58,
             ),
           ),
         ),

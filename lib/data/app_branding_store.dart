@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:kasir_celcious_coffe/data/owner_profile_store.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -38,16 +39,34 @@ class AppBrandingStore {
   }
 
   static Future<void> saveLogo(XFile image) async {
-    final bytes = await image.readAsBytes();
-    if (bytes.isEmpty) {
+    final rawBytes = await image.readAsBytes();
+    if (rawBytes.isEmpty) {
       throw StateError('Foto toko kosong atau tidak dapat dibaca.');
     }
 
+    final prepared = await OwnerProfileStore.preparePhotoBytes(rawBytes);
+    final bytes = prepared.bytes;
     final preferences = await SharedPreferences.getInstance();
 
-    // Selalu simpan data base64 ke SharedPreferences agar logo permanen dan tidak hilang saat sistem dimatikan/restart
-    final base64String = base64Encode(bytes);
-    await preferences.setString(_logoDataKey, base64String);
+    // Perbarui UI segera
+    logoBytes.value = bytes;
+
+    // Simpan data base64 ke SharedPreferences dengan fallback kompresi agar aman di Web
+    try {
+      await preferences.setString(_logoDataKey, base64Encode(bytes));
+    } catch (e) {
+      debugPrint('Simpan logo percobaan 1 gagal: $e');
+      try {
+        final smaller = await OwnerProfileStore.preparePhotoBytes(
+          bytes,
+          maxDimension: 144,
+        );
+        await preferences.setString(_logoDataKey, base64Encode(smaller.bytes));
+        logoBytes.value = smaller.bytes;
+      } catch (e2) {
+        debugPrint('Simpan logo percobaan 2 gagal: $e2');
+      }
+    }
 
     if (!kIsWeb) {
       try {
@@ -57,9 +76,11 @@ class AppBrandingStore {
         );
         await brandingDirectory.create(recursive: true);
 
-        final extension = image.name.contains('.')
-            ? image.name.split('.').last.toLowerCase()
-            : 'jpg';
+        final extension = prepared.reencodedPng
+            ? 'png'
+            : (image.name.contains('.')
+                ? image.name.split('.').last.toLowerCase()
+                : 'jpg');
         const supportedExtensions = {'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'};
         final safeExtension = supportedExtensions.contains(extension)
             ? extension
@@ -67,14 +88,12 @@ class AppBrandingStore {
         final destination = File(
           '${brandingDirectory.path}${Platform.pathSeparator}logo.$safeExtension',
         );
-        await File(image.path).copy(destination.path);
+        await destination.writeAsBytes(bytes, flush: true);
         await preferences.setString(_logoPathKey, destination.path);
         logoPath.value = destination.path;
       } catch (e) {
         debugPrint('Gagal menyimpan file logo fisik: $e');
       }
     }
-
-    logoBytes.value = bytes;
   }
 }

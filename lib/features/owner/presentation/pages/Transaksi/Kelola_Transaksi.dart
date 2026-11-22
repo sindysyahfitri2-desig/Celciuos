@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:kasir_celcious_coffe/ui/pages/LaporanPage.dart';
 
 import 'package:kasir_celcious_coffe/features/owner/application/kt_data_service.dart';
@@ -38,10 +38,14 @@ class KelolaTransaksiPage extends StatefulWidget {
     super.key,
     this.namaKasir = 'Kasir',
     this.pakaiDataContoh = false,
+    this.initialTab = 0,
+    this.onNavigasiLaporan,
   });
 
   final String namaKasir;
   final bool pakaiDataContoh;
+  final int initialTab;
+  final VoidCallback? onNavigasiLaporan;
 
   @override
   State<KelolaTransaksiPage> createState() => _KelolaTransaksiPageState();
@@ -58,6 +62,7 @@ class _KelolaTransaksiPageState extends State<KelolaTransaksiPage> {
   void initState() {
     super.initState();
     rekap = _ambilData();
+    tabDipilih = widget.initialTab;
     if (!widget.pakaiDataContoh) {
       for (final s in _sumberData) {
         s.addListener(_muatUlang);
@@ -97,11 +102,112 @@ class _KelolaTransaksiPageState extends State<KelolaTransaksiPage> {
     }).toList();
   }
 
-  // Tombol "Unduh Laporan Keuangan" -> buka LaporanPage
+  // Tombol "Unduh Laporan Keuangan" -> ke Kelola Laporan
   void _bukaLaporan() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => LaporanPage(namaKasir: rekap.namaKasir),
+    if (widget.onNavigasiLaporan != null) {
+      widget.onNavigasiLaporan!();
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => LaporanPage(namaKasir: rekap.namaKasir),
+        ),
+      );
+    }
+  }
+
+  // Popup detail transaksi saat kartu diklik
+  void _tampilkanDetail(TransaksiKasir t) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 360),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: _bayanganBesar(),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: _gradasiNavy,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.receipt_long, color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Detail Transaksi',
+                      style: TextStyle(color: KtWarna.navy, fontSize: 16, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: const Icon(Icons.close, color: KtWarna.navy),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              const Divider(height: 1),
+              const SizedBox(height: 14),
+              _detailBaris('ID Transaksi', t.id),
+              _detailBaris('Kasir', t.kasir),
+              _detailBaris('Total Pesanan', t.ringkasanItem),
+              _detailBaris('Total Harga', formatRupiah(t.totalHarga, spasi: true)),
+              _detailBaris('Metode', t.metodeBayar.isEmpty ? '-' : t.metodeBayar),
+              const SizedBox(height: 10),
+              _detailBaris('Status', t.labelStatus, isStatus: true, lunas: t.lunas),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: KtWarna.navy,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text('Tutup', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _detailBaris(String label, String nilai, {bool isStatus = false, bool lunas = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 100, child: Text(label, style: const TextStyle(color: KtWarna.abuTeks, fontSize: 12))),
+          const Text(': ', style: TextStyle(color: KtWarna.abuTeks, fontSize: 12)),
+          Expanded(
+            child: isStatus
+                ? Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      gradient: lunas ? KtGaya.gradasiHijau : null,
+                      color: lunas ? null : KtWarna.oranye,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(nilai, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                  )
+                : Text(nilai, style: const TextStyle(color: KtWarna.navy, fontSize: 12, fontWeight: FontWeight.w600)),
+          ),
+        ],
       ),
     );
   }
@@ -237,6 +343,7 @@ class _KelolaTransaksiPageState extends State<KelolaTransaksiPage> {
                       RiwayatTransaksiPanel(
                         daftar: _transaksiTampil,
                         onHapus: _konfirmasiHapus,
+                        onDetail: _tampilkanDetail,
                       )
                     else
                       ModalKeuntunganPanel(

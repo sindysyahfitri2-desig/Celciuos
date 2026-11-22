@@ -1,5 +1,6 @@
 
 import 'package:flutter/material.dart';
+import 'package:kasir_celcious_coffe/data/owner_profile_store.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 
 const _ownerNavy = Color(0xFF082640);
@@ -36,12 +37,14 @@ class OwnerTopBar extends StatelessWidget {
     this.showName = false,
     this.onLogout,
     this.onNotifikasi,
+    this.onProfileTap,
   });
 
   final String ownerName;
   final bool showName;
   final VoidCallback? onLogout;
   final VoidCallback? onNotifikasi;
+  final VoidCallback? onProfileTap;
 
   @override
   Widget build(BuildContext context) {
@@ -128,18 +131,22 @@ class OwnerTopBar extends StatelessWidget {
                 size: 23,
               ),
             ),
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE6EEF6),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-            ),
-            child: const Icon(
-              Icons.person,
-              color: _ownerNavy,
-              size: 23,
+          Tooltip(
+            message: 'Pengaturan Profil',
+            child: InkWell(
+              onTap: onProfileTap,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE6EEF6),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _OwnerAvatarImage(iconSize: 23),
+              ),
             ),
           ),
           if (onLogout != null)
@@ -174,6 +181,7 @@ class OwnerNavigation extends StatelessWidget {
     required this.onKelolaStaf,
     required this.onLaporan,
     required this.onPengaturan,
+    this.onProfileTap,
     this.onStok,
     this.onLogout,
   });
@@ -189,6 +197,7 @@ class OwnerNavigation extends StatelessWidget {
   final VoidCallback onTransaksi;
   final VoidCallback onKelolaStaf;
   final VoidCallback onPengaturan;
+  final VoidCallback? onProfileTap;
   final VoidCallback? onStok;
   final VoidCallback? onLogout;
 
@@ -221,8 +230,8 @@ class OwnerNavigation extends StatelessWidget {
             ),
             Container(
               padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 12,
+                horizontal: 10,
+                vertical: 10,
               ),
               decoration: const BoxDecoration(
                 color: _ownerNavyLight,
@@ -232,39 +241,79 @@ class OwnerNavigation extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const CircleAvatar(
-                    radius: 17,
-                    backgroundColor: Colors.white70,
-                    child: Icon(
-                      Icons.person,
-                      color: _ownerNavy,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          ownerName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                    child: Tooltip(
+                      message: 'Buka Pengaturan Profil',
+                      child: Material(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          hoverColor: Colors.white.withValues(alpha: 0.10),
+                          onTap: onProfileTap ?? onPengaturan,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 5,
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white70,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white30,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: const _OwnerAvatarImage(iconSize: 20),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: ValueListenableBuilder<String>(
+                                    valueListenable:
+                                        OwnerProfileStore.ownerName,
+                                    builder: (context, storedName, _) {
+                                      final displayName =
+                                          storedName.trim().isNotEmpty
+                                              ? storedName
+                                              : ownerName;
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            displayName,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          const Text(
+                                            'Owner • Profil',
+                                            style: TextStyle(
+                                              color: Colors.white60,
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          'Owner',
-                          style: TextStyle(
-                            color: Colors.white60,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                   if (onLogout != null)
@@ -624,6 +673,54 @@ class _BottomItem extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _OwnerAvatarImage extends StatelessWidget {
+  const _OwnerAvatarImage({this.iconSize = 20});
+
+  final double iconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: OwnerProfileStore.photoBytes,
+      builder: (context, bytes, _) {
+        if (bytes != null) {
+          return Image.memory(
+            bytes,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => Icon(
+              Icons.person,
+              color: _ownerNavy,
+              size: iconSize,
+            ),
+          );
+        }
+        return ValueListenableBuilder<String?>(
+          valueListenable: OwnerProfileStore.photoUrl,
+          builder: (context, url, _) {
+            if (url != null && url.isNotEmpty) {
+              return Image.network(
+                url,
+                fit: BoxFit.cover,
+                headers: const {'ngrok-skip-browser-warning': 'true'},
+                errorBuilder: (_, __, ___) => Icon(
+                  Icons.person,
+                  color: _ownerNavy,
+                  size: iconSize,
+                ),
+              );
+            }
+            return Icon(
+              Icons.person,
+              color: _ownerNavy,
+              size: iconSize,
+            );
+          },
+        );
+      },
     );
   }
 }

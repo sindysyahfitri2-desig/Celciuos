@@ -22,6 +22,9 @@ class PrintService {
 
   static const kPrinterDapur = 'celcious_printer_dapur';
   static const kPrinterStruk = 'celcious_printer_struk';
+  static const kDefaultAlamatToko =
+      'Dusun vak111 kampun, Mekar Sawit, Kec. Sawit Seberang, '
+      'Kabupaten Langkat, Sumatera Utara 20852';
 
   // ---------- util ----------
   static String _dua(int n) => n.toString().padLeft(2, '0');
@@ -387,7 +390,10 @@ class PrintService {
                 child: pw.Text(_latin('${toko['nama_toko'] ?? 'Celcious Coffee'}'),
                     style: pw.TextStyle(font: bold, fontSize: 11))),
             pw.Center(
-                child: pw.Text(_latin('${toko['alamat'] ?? ''}'),
+                child: pw.Text(
+                    _latin(
+                      '${(toko['alamat']?.toString().trim().isNotEmpty == true) ? toko['alamat'] : kDefaultAlamatToko}',
+                    ),
                     textAlign: pw.TextAlign.center,
                     style: pw.TextStyle(font: reg, fontSize: 7))),
             pw.Divider(thickness: 0.5),
@@ -441,5 +447,151 @@ class PrintService {
     } catch (e) {
       debugPrint('Gagal cetak struk: $e');
     }
+  }
+
+  // =====================================================
+  // STRUK DAPUR (sesuai format: Order No, Meja/Customer, Pesanan | Jlh Pesanan)
+  // =====================================================
+  static Future<void> cetakStrukDapur(Map<String, dynamic> receiptData) async {
+    try {
+      final bold = pw.Font.helveticaBold();
+      final reg = pw.Font.helvetica();
+      final orderId = '${receiptData['orderId'] ?? '-'}';
+      final customerName = '${receiptData['customerName'] ?? ''}'.trim();
+      final orderType = '${receiptData['orderType'] ?? 'Dine In'}'.trim();
+      final subHeader = customerName.isNotEmpty
+          ? '$orderType - $customerName'
+          : orderType;
+
+      final items = (receiptData['items'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+
+      final fmt = PdfPageFormat.roll57.copyWith(
+        marginLeft: 4 * PdfPageFormat.mm,
+        marginRight: 4 * PdfPageFormat.mm,
+        marginTop: 4 * PdfPageFormat.mm,
+        marginBottom: 6 * PdfPageFormat.mm,
+      );
+
+      final doc = pw.Document();
+      doc.addPage(
+        pw.Page(
+          pageFormat: fmt,
+          build: (_) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                _latin('Order #$orderId'),
+                style: pw.TextStyle(font: bold, fontSize: 13),
+              ),
+              pw.SizedBox(height: 2),
+              pw.Text(
+                _latin(subHeader),
+                style: pw.TextStyle(font: reg, fontSize: 9),
+              ),
+              pw.SizedBox(height: 6),
+              pw.Container(height: 1.2, color: PdfColors.black),
+              pw.SizedBox(height: 6),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    'Pesanan',
+                    style: pw.TextStyle(font: bold, fontSize: 9),
+                  ),
+                  pw.Text(
+                    'Jlh Pesanan',
+                    style: pw.TextStyle(font: bold, fontSize: 9),
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 6),
+              for (final item in items) ...[
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            _latin('${item['name'] ?? 'Menu'}'),
+                            style: pw.TextStyle(font: bold, fontSize: 9),
+                          ),
+                          if ('${item['catatan'] ?? ''}'.trim().isNotEmpty)
+                            pw.Text(
+                              _latin('Catatan: ${item['catatan']}'),
+                              style: pw.TextStyle(font: reg, fontSize: 7.5),
+                            ),
+                        ],
+                      ),
+                    ),
+                    pw.SizedBox(width: 8),
+                    pw.Text(
+                      '${item['quantity'] ?? 1}',
+                      style: pw.TextStyle(font: bold, fontSize: 9.5),
+                    ),
+                  ],
+                ),
+                pw.SizedBox(height: 5),
+              ],
+            ],
+          ),
+        ),
+      );
+
+      await _kirim(
+        await doc.save(),
+        'Struk_Dapur_$orderId',
+        kPrinterDapur,
+        fmt,
+      );
+    } catch (e) {
+      debugPrint('Gagal cetak struk dapur: $e');
+    }
+  }
+
+  /// Cetak struk pelanggan langsung dari map `receiptData` halaman TransaksiBerhasil.
+  static Future<void> cetakStrukCustomer(
+    Map<String, dynamic> receiptData,
+  ) async {
+    final items = (receiptData['items'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) {
+          final qty = _int(item['quantity']);
+          final price = (item['price'] as num?)?.toDouble() ?? 0;
+          return {
+            'jumlah': qty,
+            'varian': item['catatan']?.toString() ?? '',
+            'harga_satuan': price,
+            'subtotal': price * qty,
+            'produk': {'nama_produk': item['name']?.toString() ?? 'Menu'},
+          };
+        })
+        .toList();
+
+    final rawDate = receiptData['orderedAt'];
+    final dateIso = rawDate is DateTime
+        ? rawDate.toIso8601String()
+        : DateTime.now().toIso8601String();
+
+    await cetakStruk({
+      'kode': receiptData['orderId']?.toString() ?? '-',
+      'nama_pelanggan': receiptData['customerName']?.toString() ?? '',
+      'tipe_pesanan': receiptData['orderType']?.toString() ?? 'Dine In',
+      'tanggal': dateIso,
+      'subtotal': receiptData['subtotal'] ?? 0,
+      'ppn': receiptData['tax'] ?? 0,
+      'biaya_layanan': 0,
+      'diskon': receiptData['discount'] ?? 0,
+      'total': receiptData['total'] ?? 0,
+      'pengguna': {'nama': receiptData['cashierName']?.toString() ?? 'Kasir'},
+      'metode_pembayaran': {
+        'nama_metode': receiptData['paymentMethod']?.toString() ?? '-',
+      },
+      'detail_transaksi': items,
+    });
   }
 }

@@ -57,6 +57,8 @@ class _kasirPageState extends State<kasirPage> {
 
   final namaController = TextEditingController();
   final kasController = TextEditingController();
+  final _searchController = TextEditingController();
+  final _categoryScrollController = ScrollController();
 
   // ==========================================================
   // DATA KERANJANG
@@ -83,9 +85,10 @@ class _kasirPageState extends State<kasirPage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(13),
           ),
-          child: Container(
-            width: 160,
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 5),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -212,6 +215,7 @@ class _kasirPageState extends State<kasirPage> {
                   ],
                 ),
               ],
+            ),
             ),
           ),
         );
@@ -508,6 +512,8 @@ class _kasirPageState extends State<kasirPage> {
     TransactionStore.unfinishedOrders.removeListener(_onCashDrawerChanged);
     namaController.dispose();
     kasController.dispose();
+    _searchController.dispose();
+    _categoryScrollController.dispose();
     super.dispose();
   }
 
@@ -879,18 +885,21 @@ class _kasirPageState extends State<kasirPage> {
   // CHECKOUT BAR
   // ==========================================================
 
-  Widget _checkoutBar() {
+  Widget _checkoutBar(bool isCompact) {
     final jumlahItem = _cartController.itemCount;
 
     return Container(
-      height: 65,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      height: isCompact ? 62 : 68,
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 14 : 22,
+        vertical: 10,
+      ),
       decoration: BoxDecoration(
         color: const Color(0xffa8cbe9),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(.08),
-            blurRadius: 5,
+            color: navy.withValues(alpha: 0.12),
+            blurRadius: 8,
             offset: const Offset(0, -2),
           ),
         ],
@@ -898,21 +907,39 @@ class _kasirPageState extends State<kasirPage> {
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              '$jumlahItem Item dipilih',
-              style: TextStyle(
-                color: navy,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$jumlahItem Item dipilih',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: navy,
+                    fontSize: isCompact ? 14 : 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  rupiah(totalPesanan),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: navy.withValues(alpha: 0.8),
+                    fontSize: isCompact ? 11.5 : 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
-
+          const SizedBox(width: 12),
           SizedBox(
-            width: 170,
-            height: 65,
+            width: isCompact ? 140 : 176,
+            height: isCompact ? 42 : 46,
             child: _AnimatedTouch(
-              scale: 0.95,
+              scale: 0.96,
               child: ElevatedButton(
                 onPressed: cart.isEmpty
                     ? null
@@ -936,20 +963,19 @@ class _kasirPageState extends State<kasirPage> {
                   backgroundColor: Colors.white,
                   foregroundColor: navy,
                   disabledBackgroundColor: Colors.white70,
-                  disabledForegroundColor: const Color.fromARGB(
-                    255,
-                    73,
-                    124,
-                    153,
-                  ),
-                  elevation: 10,
+                  disabledForegroundColor: const Color(0xFF497C99),
+                  elevation: 3,
+                  shadowColor: navy.withValues(alpha: 0.2),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
+                    borderRadius: BorderRadius.circular(24),
                   ),
                 ),
-                child: const Text(
+                child: Text(
                   'Check Out',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: isCompact ? 14 : 16,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ),
@@ -962,20 +988,28 @@ class _kasirPageState extends State<kasirPage> {
   // SEARCH
   // ==========================================================
 
-  Widget _search() {
+  Widget _search(bool isCompact) {
     return Container(
-      height: 29,
+      height: isCompact ? 38 : 40,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: navy.withValues(alpha: 0.08),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: TextField(
+        controller: _searchController,
         onChanged: (value) {
           setState(() => searchQuery = value.toLowerCase().trim());
         },
         style: const TextStyle(
           fontFamily: 'Roboto',
-          fontSize: 11,
+          fontSize: 13,
           color: Color(0xff102b40),
         ),
         decoration: InputDecoration(
@@ -983,24 +1017,34 @@ class _kasirPageState extends State<kasirPage> {
           hintStyle: const TextStyle(
             fontFamily: 'Roboto',
             color: Color(0xff9aa7b2),
-            fontSize: 11,
+            fontSize: 12.5,
           ),
           prefixIcon: const Icon(
-            Icons.search,
-            size: 14,
+            Icons.search_rounded,
+            size: 18,
             color: Color(0xff31566e),
           ),
-          prefixIconConstraints: const BoxConstraints(minWidth: 30),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 38,
+          ),
           suffixIcon: searchQuery.isNotEmpty
               ? IconButton(
                   padding: EdgeInsets.zero,
-                  icon: const Icon(Icons.close, size: 14),
+                  icon: const Icon(Icons.close_rounded, size: 16),
                   color: navy,
-                  onPressed: () => setState(() => searchQuery = ''),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {
+                      searchQuery = '';
+                    });
+                  },
                 )
               : null,
+          isDense: true,
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 7),
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 10,
+          ),
         ),
       ),
     );
@@ -1015,71 +1059,90 @@ class _kasirPageState extends State<kasirPage> {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final isCompact = width < 600;
-        final horizontalPadding = isCompact ? 12.0 : 20.0;
+        final isTablet = width >= 600 && width < 1024;
+        final horizontalPadding = isCompact
+            ? 14.0
+            : isTablet
+                ? 20.0
+                : 26.0;
 
         return Column(
           children: [
             Padding(
               padding: EdgeInsets.fromLTRB(
                 horizontalPadding,
-                isCompact ? 10 : 14,
+                isCompact ? 12 : 16,
                 horizontalPadding,
                 0,
               ),
-              child: Column(
-                children: [
-                  Row(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1280),
+                  child: Column(
                     children: [
-                      SizedBox(
-                        height: 32,
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            setState(() => showJenisPesanan = true);
-                          },
-                          icon: const Icon(Icons.arrow_back, size: 14),
-                          label: const Text('Kembali'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xffa8cbe9),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            textStyle: const TextStyle(
-                              fontFamily: 'Roboto',
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
+                      Row(
+                        children: [
+                          SizedBox(
+                            height: isCompact ? 38 : 40,
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  showJenisPesanan = true;
+                                });
+                              },
+                              icon: const Icon(
+                                Icons.arrow_back_rounded,
+                                size: 16,
+                              ),
+                              label: const Text('Kembali'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xffa8cbe9),
+                                foregroundColor: navy,
+                                elevation: 0,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isCompact ? 12 : 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(22),
+                                ),
+                                textStyle: const TextStyle(
+                                  fontFamily: 'Roboto',
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 10),
+                          Expanded(child: _search(isCompact)),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(child: _search()),
+                      const SizedBox(height: 12),
+                      _categories(),
                     ],
                   ),
-                  const SizedBox(height: 9),
-                  _categories(),
-                ],
+                ),
               ),
             ),
             Expanded(
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
                   horizontalPadding,
-                  10,
+                  12,
                   horizontalPadding,
                   12,
                 ),
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1160),
+                    constraints: const BoxConstraints(
+                      maxWidth: 1280,
+                    ),
                     child: _productGrid(),
                   ),
                 ),
               ),
             ),
-            if (cart.isNotEmpty) _checkoutBar(),
+            if (cart.isNotEmpty) _checkoutBar(isCompact),
           ],
         );
       },
@@ -1092,8 +1155,10 @@ class _kasirPageState extends State<kasirPage> {
 
   Widget _categories() {
     return SizedBox(
-      height: 25,
+      height: 36,
       child: ListView(
+        key: const PageStorageKey<String>('kasir-categories'),
+        controller: _categoryScrollController,
         scrollDirection: Axis.horizontal,
         children: [
           _category(Icons.grid_view_rounded, 'Semua Menu'),
@@ -1114,36 +1179,50 @@ class _kasirPageState extends State<kasirPage> {
     final bool active = selectedCategory == title;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      margin: const EdgeInsets.only(right: 6),
+      duration: const Duration(milliseconds: 180),
+      margin: const EdgeInsets.only(right: 8),
       child: Material(
         color: active ? Colors.white : const Color(0xffa8c8e5),
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
-          onTap: () => setState(() => selectedCategory = title),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          onTap: () {
+            setState(() {
+              selectedCategory = title;
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 13,
+              vertical: 7,
+            ),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: active ? navy : const Color(0xffa8c8e5),
-                width: active ? 1.2 : 1,
+                color: active
+                    ? navy
+                    : const Color(0xffa8cbe9),
+                width: active ? 1.3 : 1,
               ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 10, color: active ? navy : Colors.white),
-                const SizedBox(width: 4),
+                Icon(
+                  icon,
+                  size: 14,
+                  color: navy,
+                ),
+                const SizedBox(width: 6),
                 Text(
                   title,
                   style: TextStyle(
                     fontFamily: 'Roboto',
-                    fontSize: 9,
-                    color: active ? navy : Colors.white,
-                    fontWeight: active ? FontWeight.bold : FontWeight.w500,
+                    fontSize: 11.5,
+                    color: navy,
+                    fontWeight: active
+                        ? FontWeight.w800
+                        : FontWeight.w600,
                   ),
                 ),
               ],
@@ -1155,7 +1234,7 @@ class _kasirPageState extends State<kasirPage> {
   }
 
   // ==========================================================
-  // PRODUCT GRID
+  // GRID PRODUK (proporsional untuk HP, Tablet, dan Laptop)
   // ==========================================================
 
   Widget _productGrid() {
@@ -1164,7 +1243,22 @@ class _kasirPageState extends State<kasirPage> {
       builder: (context, products, child) {
         return LayoutBuilder(
           builder: (context, box) {
-            final columns = box.maxWidth < 520 ? 1 : 2;
+            final width = box.maxWidth;
+            final int columns;
+            final double cardHeight;
+            if (width < 580) {
+              columns = 1;
+              cardHeight = 104;
+            } else if (width < 920) {
+              columns = 2;
+              cardHeight = 108;
+            } else if (width < 1260) {
+              columns = 3;
+              cardHeight = 110;
+            } else {
+              columns = 4;
+              cardHeight = 112;
+            }
 
             final filteredProducts = products.where((product) {
               if (product['is_active'] == false) return false;
@@ -1193,8 +1287,9 @@ class _kasirPageState extends State<kasirPage> {
                   'Menu tidak ditemukan',
                   style: TextStyle(
                     fontFamily: 'Roboto',
-                    color: navy.withOpacity(.65),
-                    fontSize: 12,
+                    color: navy.withValues(alpha: 0.65),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               );
@@ -1203,12 +1298,13 @@ class _kasirPageState extends State<kasirPage> {
             return GridView.builder(
               physics: const AlwaysScrollableScrollPhysics(),
               itemCount: filteredProducts.length,
-              padding: EdgeInsets.zero,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              padding: const EdgeInsets.only(bottom: 8),
+              gridDelegate:
+                  SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: columns,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                mainAxisExtent: 135,
+                crossAxisSpacing: 14,
+                mainAxisSpacing: 14,
+                mainAxisExtent: cardHeight,
               ),
               itemBuilder: (context, index) {
                 final product = filteredProducts[index];
@@ -1220,7 +1316,7 @@ class _kasirPageState extends State<kasirPage> {
                     : 0;
 
                 return _AnimatedTouch(
-                  scale: 0.98,
+                  scale: 0.985,
                   child: ProductCard(
                     name: 'Celcious ${product['name']}',
                     price: (product['price'] as num).toDouble(),
