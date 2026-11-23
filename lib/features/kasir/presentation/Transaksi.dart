@@ -34,6 +34,7 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
 
   List<Map<String, dynamic>> pesanan = [];
   Timer? _pollingTimer;
+  bool _isSyncing = false;
 
   @override
   void initState() {
@@ -41,8 +42,8 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
     TransactionStore.unfinishedOrders.addListener(_muatPesananTersimpan);
     _muatPesananTersimpan();
     _sinkronisasiPesananDariServer();
-    // Sinkronisasi otomatis setiap 4 detik agar pesanan dari customer web langsung muncul di kasir
-    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    // Sinkronisasi otomatis setiap 7 detik (dengan guard agar tidak menumpuk di jaringan mobile)
+    _pollingTimer = Timer.periodic(const Duration(seconds: 7), (_) {
       if (mounted) _sinkronisasiPesananDariServer();
     });
   }
@@ -109,8 +110,10 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
   }
 
   Future<void> _sinkronisasiPesananDariServer() async {
+    if (_isSyncing) return;
+    _isSyncing = true;
     try {
-      final res = await ApiService.get('transaksi');
+      final res = await ApiService.get('transaksi', query: {'limit': '40'});
       final list = res['data'];
       if (list is List) {
         final serverOrders = <Map<String, dynamic>>[];
@@ -260,6 +263,8 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
       }
     } catch (e) {
       debugPrint('Gagal sinkronisasi pesanan dari server: $e');
+    } finally {
+      _isSyncing = false;
     }
   }
 

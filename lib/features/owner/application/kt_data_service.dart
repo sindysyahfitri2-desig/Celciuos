@@ -91,10 +91,24 @@ class KtDataService {
 
       if (shiftMap == null && trxList.isEmpty) return null;
 
+      final kasir2 = shiftMap?['kasir2'];
       final kasir1 = shiftMap?['kasir1'];
-      final kasir = (kasir1 is Map && (kasir1['nama']?.toString().trim().isNotEmpty ?? false))
-          ? kasir1['nama'].toString()
+      final activeKasir = (kasir2 is Map && (kasir2['nama']?.toString().trim().isNotEmpty ?? false))
+          ? kasir2
+          : (kasir1 is Map ? kasir1 : null);
+      final kasir = (activeKasir != null && (activeKasir['nama']?.toString().trim().isNotEmpty ?? false))
+          ? activeKasir['nama'].toString()
           : namaKasirDefault;
+
+      String? fotoKasir;
+      final rawFotoUrl = activeKasir?['foto_url']?.toString().trim();
+      final rawFoto = activeKasir?['foto']?.toString().trim();
+      if (rawFoto != null && rawFoto.isNotEmpty) {
+        final fileName = rawFoto.split('/').last.split('\\').last;
+        fotoKasir = '${ApiService.baseUrl}/foto-staf/$fileName';
+      } else if (rawFotoUrl != null && rawFotoUrl.isNotEmpty) {
+        fotoKasir = rawFotoUrl;
+      }
 
       final dibuka = DateTime.tryParse(shiftMap?['dibuka_pada']?.toString() ?? '')?.toLocal();
       final modalAwal = double.tryParse(shiftMap?['kas_awal']?.toString() ?? '') ?? 0.0;
@@ -191,7 +205,7 @@ class KtDataService {
         rentangJam: sore ? '15.00-20.00' : '05.00-15.00',
         namaKasir: kasir,
         statusShift: shiftMap == null ? 'Tidak Aktif' : 'Berjalan',
-        fotoKasirAsset: 'assets/images/kasir.png',
+        fotoKasirAsset: fotoKasir,
         modalAwal: modalAwal,
         serahTerima: dibuka == null ? '-' : '${formatJam(dibuka)} wib',
         penjualanTunai: tunai,

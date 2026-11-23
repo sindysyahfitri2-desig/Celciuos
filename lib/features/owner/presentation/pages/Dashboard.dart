@@ -62,6 +62,7 @@ class _DashboardOwnerState extends State<DashboardOwner> {
   List<OwnerNotificationItem> _notifications = const [];
   final Set<String> _readNotificationIds = {};
   Timer? _notifTimer;
+  bool _loadingNotif = false;
 
   static const menuTitles = [
     'Dashboard',
@@ -81,7 +82,7 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     OwnerProfileStore.photoBytes.addListener(_onOwnerProfileChanged);
     OwnerProfileStore.photoUrl.addListener(_onOwnerProfileChanged);
     _muatNotifikasi();
-    _notifTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+    _notifTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       if (mounted) _muatNotifikasi();
     });
   }
@@ -100,11 +101,17 @@ class _DashboardOwnerState extends State<DashboardOwner> {
       .length;
 
   Future<void> _muatNotifikasi() async {
-    final items = await OwnerNotificationService.fetchAll();
-    if (!mounted) return;
-    setState(() {
-      _notifications = items;
-    });
+    if (_loadingNotif) return;
+    _loadingNotif = true;
+    try {
+      final items = await OwnerNotificationService.fetchAll();
+      if (!mounted) return;
+      setState(() {
+        _notifications = items;
+      });
+    } finally {
+      _loadingNotif = false;
+    }
   }
 
   Future<void> _bukaPanelNotifikasi() async {
@@ -1817,7 +1824,7 @@ class _OwnerLaporanLivePageState extends State<_OwnerLaporanLivePage> {
   _PeriodeLaporanOwner _periode = _PeriodeLaporanOwner.hariIni;
   bool _loading = true;
   LaporanPreviewData? _previewData;
-  String _judulLaporan = 'Laporan Laba Rugi & Keuangan Harian';
+  String _judulLaporan = 'LAPORAN TRANSAKSI CELCIOUS COFFEE';
   String _tanggalLaporan = '';
 
   static const _bulan = [
@@ -1878,15 +1885,15 @@ class _OwnerLaporanLivePageState extends State<_OwnerLaporanLivePage> {
     switch (target) {
       case _PeriodeLaporanOwner.hariIni:
         dari = DateTime(now.year, now.month, now.day);
-        judul = 'Laporan Laba Rugi & Keuangan Harian';
+        judul = 'LAPORAN TRANSAKSI CELCIOUS COFFEE';
         labelPeriode = '${now.day} ${_bulan[now.month - 1]} ${now.year}';
       case _PeriodeLaporanOwner.bulanIni:
         dari = DateTime(now.year, now.month, 1);
-        judul = 'Laporan Laba Rugi & Keuangan Bulanan';
+        judul = 'LAPORAN TRANSAKSI BULANAN CELCIOUS COFFEE';
         labelPeriode = '${_bulan[now.month - 1]} ${now.year}';
       case _PeriodeLaporanOwner.semua:
         dari = DateTime(2024, 1, 1);
-        judul = 'Laporan Laba Rugi & Keuangan Keseluruhan';
+        judul = 'LAPORAN TRANSAKSI KESELURUHAN CELCIOUS COFFEE';
         labelPeriode = 'Semua Periode s.d. ${now.day} ${_bulan[now.month - 1]} ${now.year}';
     }
 
@@ -1927,8 +1934,24 @@ class _OwnerLaporanLivePageState extends State<_OwnerLaporanLivePage> {
             (t['midtrans_order_id'] != null ? 'QRIS' : 'Cash');
         final ket = pelanggan.isNotEmpty ? '$kode - $pelanggan ($kasir)' : '$kode - $kasir';
 
+        final rawWaktu = (t['dibayar_pada'] ?? t['tanggal'])?.toString() ?? '';
+        final dtLocal = DateTime.tryParse(rawWaktu)?.toLocal();
+        final jamText = dtLocal != null
+            ? '${dtLocal.hour.toString().padLeft(2, '0')}:${dtLocal.minute.toString().padLeft(2, '0')}'
+            : '-';
+
+        final details = (t['detail_transaksi'] as List? ?? const []).whereType<Map>();
+        final qtySum = details.fold<int>(
+          0,
+          (sum, d) => sum + (int.tryParse('${d['jumlah'] ?? 0}') ?? 0),
+        );
+
         return LaporanPreviewRow(
-          tanggal: _formatTglRow((t['dibayar_pada'] ?? t['tanggal'])?.toString()),
+          tanggal: rawWaktu.isNotEmpty ? rawWaktu : _formatTglRow(rawWaktu),
+          idPemesanan: kode,
+          jam: jamText,
+          namaKasir: kasir,
+          jumlahPemesanan: qtySum > 0 ? qtySum : 1,
           keterangan: ket,
           metode: metode,
           nominal: _toDouble(t['total']),
@@ -1964,14 +1987,20 @@ class _OwnerLaporanLivePageState extends State<_OwnerLaporanLivePage> {
       // Nama kasir aktif atau dari transaksi terbaru
       final shiftWrap = res[3]['data'];
       String namaKasir = 'Kasir';
+      String? namaKasirSiang;
+      String? namaKasirMalam;
       if (shiftWrap is Map && shiftWrap['shift'] is Map) {
         final shift = shiftWrap['shift'] as Map;
         final kasir2 = shift['kasir2'];
         final kasir1 = shift['kasir1'];
+        if (kasir1 is Map && (kasir1['nama']?.toString().trim().isNotEmpty ?? false)) {
+          namaKasirSiang = kasir1['nama'].toString().trim();
+        }
         if (kasir2 is Map && (kasir2['nama']?.toString().trim().isNotEmpty ?? false)) {
-          namaKasir = kasir2['nama'].toString();
-        } else if (kasir1 is Map && (kasir1['nama']?.toString().trim().isNotEmpty ?? false)) {
-          namaKasir = kasir1['nama'].toString();
+          namaKasirMalam = kasir2['nama'].toString().trim();
+          namaKasir = namaKasirMalam;
+        } else if (namaKasirSiang != null) {
+          namaKasir = namaKasirSiang;
         }
       } else if (trxRaw.isNotEmpty) {
         final firstPengguna = trxRaw.first['pengguna'];
@@ -2034,6 +2063,8 @@ class _OwnerLaporanLivePageState extends State<_OwnerLaporanLivePage> {
           pajakPersen: ppnPersen > 0 ? ppnPersen : 11,
           pajakNominal: totalPpn,
           namaKasir: namaKasir,
+          namaKasirSiang: namaKasirSiang,
+          namaKasirMalam: namaKasirMalam,
           namaOwner: widget.namaOwner,
           alamatToko: alamatToko,
         );

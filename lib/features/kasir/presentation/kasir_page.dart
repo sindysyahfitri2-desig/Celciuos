@@ -442,7 +442,7 @@ class _kasirPageState extends State<kasirPage> {
     ProdukData.loadFromApi();
     TransactionStore.syncStoreRates();
     _produkSyncTimer = Timer.periodic(
-      const Duration(seconds: 15),
+      const Duration(seconds: 45),
       (_) {
         ProdukData.loadFromApi();
         TransactionStore.syncStoreRates();

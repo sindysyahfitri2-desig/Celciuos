@@ -47,13 +47,14 @@ class _ProdukPageState extends State<ProdukPage> {
 
   String? _activeCategory; // null = Semua
   Timer? _syncTimer;
+  bool _isRefreshing = false;
 
   @override
   void initState() {
     super.initState();
     _refreshProducts();
     _syncTimer = Timer.periodic(
-      const Duration(seconds: 10),
+      const Duration(seconds: 30),
       (_) => _refreshProducts(),
     );
   }
@@ -67,8 +68,14 @@ class _ProdukPageState extends State<ProdukPage> {
   }
 
   Future<void> _refreshProducts() async {
-    await ProdukData.loadFromApi();
-    if (mounted) setState(() {});
+    if (_isRefreshing) return;
+    _isRefreshing = true;
+    try {
+      await ProdukData.loadFromApi();
+      if (mounted) setState(() {});
+    } finally {
+      _isRefreshing = false;
+    }
   }
 
   String _rupiah(Object? value) {

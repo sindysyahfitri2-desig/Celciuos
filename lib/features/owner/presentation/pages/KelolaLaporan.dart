@@ -1,10 +1,10 @@
-﻿import 'package:excel/excel.dart' as xl;
 import 'package:file_saver/file_saver.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 
+import 'package:kasir_celcious_coffe/data/api_service.dart';
+import 'package:kasir_celcious_coffe/features/reports/application/celcious_report_export.dart';
+import 'package:kasir_celcious_coffe/features/reports/application/report_service.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 
 // ============================================================
@@ -16,10 +16,8 @@ const Color _navyBar = Color(0xFF102A45);
 const Color _logoBlue = Color(0xFF39648B);
 const Color _pageBg = Color(0xFFDCE9F4);
 const Color _muted = Color(0xFF64788B);
-const Color _tableBorder = Color(0xFF9FB0C2);
-const Color _rowDivider = Color(0xFFDDE5EE);
-const Color _subtotalBg = Color(0xFFF3F7FB);
-const Color _netIncomeBg = Color(0xFFE9F1F9);
+const Color _tableBorder = Color(0xFF8EA4B8);
+const Color _subtotalBg = Color(0xFFEDF4FA);
 const Color _lightBlueBtn = Color(0xFFA8CBE9);
 
 Future<void> _saveExportFile({
@@ -72,7 +70,7 @@ const List<BoxShadow> _kSoftShadow = [
 ];
 
 // ============================================================
-// MODEL DATA (tetap kompatibel dengan pemanggilan lama)
+// MODEL DATA (kompatibel dengan pemanggilan sebelumnya)
 // ============================================================
 
 /// Satu baris transaksi untuk laporan.
@@ -82,15 +80,23 @@ class LaporanPreviewRow {
     required this.keterangan,
     required this.metode,
     required this.nominal,
+    this.idPemesanan,
+    this.jam,
+    this.namaKasir,
+    this.jumlahPemesanan = 1,
   });
 
   final String tanggal;
   final String keterangan;
   final String metode;
   final num nominal;
+  final String? idPemesanan;
+  final String? jam;
+  final String? namaKasir;
+  final int jumlahPemesanan;
 }
 
-/// Item baris rincian pendapatan atau beban pada laporan laba rugi.
+/// Item baris rincian pendapatan atau beban (dipertahankan untuk kompatibilitas).
 class LaporanNominalItem {
   const LaporanNominalItem({
     required this.label,
@@ -114,10 +120,11 @@ class LaporanPreviewData {
     this.pajakPersen = 0,
     this.pajakNominal,
     this.namaKasir = 'Kasir',
-    this.namaOwner = 'Owner',
-    this.alamatToko =
-        'Jl. Arah Kampung Satu, Mekar Sawit, Kec. Sawit Seberang, '
-        'Kab. Langkat, Sumatera Utara',
+    this.namaKasirSiang,
+    this.namaKasirMalam,
+    this.namaOwner = kCelciousDefaultOwner,
+    this.alamatToko = kCelciousAddress,
+    this.kontakToko = kCelciousContact,
     this.noDokumen,
     this.sysId,
   });
@@ -133,105 +140,61 @@ class LaporanPreviewData {
   final double pajakPersen;
   final num? pajakNominal;
   final String namaKasir;
+  final String? namaKasirSiang;
+  final String? namaKasirMalam;
   final String namaOwner;
   final String alamatToko;
+  final String kontakToko;
   final String? noDokumen;
   final String? sysId;
 }
 
-/// Ringkasan terhitung yang dipakai bersama untuk thumbnail, pratinjau, PDF & Excel.
-class ComputedFinancialReport {
-  const ComputedFinancialReport({
-    required this.storeName,
-    required this.address,
-    required this.docNo,
-    required this.shortPeriod,
-    required this.fullPeriod,
-    required this.reportTitle,
-    required this.revenueItems,
-    required this.totalRevenue,
-    required this.expenseItems,
-    required this.totalExpense,
-    required this.profitBeforeTax,
-    required this.taxPercent,
-    required this.taxAmount,
-    required this.netIncome,
-    required this.locationDate,
-    required this.cashierName,
-    required this.ownerName,
-    required this.sysId,
-    required this.rows,
-  });
+/// Alias agar pemanggilan lama yang memakai `ComputedFinancialReport` tetap valid.
+typedef ComputedFinancialReport = CelciousTransactionReportData;
 
-  final String storeName;
-  final String address;
-  final String docNo;
-  final String shortPeriod;
-  final String fullPeriod;
-  final String reportTitle;
-  final List<LaporanNominalItem> revenueItems;
-  final num totalRevenue;
-  final List<LaporanNominalItem> expenseItems;
-  final num totalExpense;
-  final num profitBeforeTax;
-  final double taxPercent;
-  final num taxAmount;
-  final num netIncome;
-  final String locationDate;
-  final String cashierName;
-  final String ownerName;
-  final String sysId;
-  final List<LaporanPreviewRow> rows;
-}
-
-const List<String> _bulanPendek = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'Mei',
-  'Jun',
-  'Jul',
-  'Agu',
-  'Sep',
-  'Okt',
-  'Nov',
-  'Des',
-];
-
-const List<String> _bulanPanjang = [
-  'Januari',
-  'Februari',
-  'Maret',
-  'April',
-  'Mei',
-  'Juni',
-  'Juli',
-  'Agustus',
-  'September',
-  'Oktober',
-  'November',
-  'Desember',
-];
-
-String _formatAngka(num v) {
-  final neg = v < 0;
-  final s = v.abs().round().toString();
-  final buf = StringBuffer();
-  for (var i = 0; i < s.length; i++) {
-    if (i > 0 && (s.length - i) % 3 == 0) buf.write('.');
-    buf.write(s[i]);
-  }
-  return '${neg ? '-' : ''}$buf';
-}
-
-String _rupiah(num v) => 'Rp ${_formatAngka(v)}';
-
-String _safeFileName(String judul) {
-  final s = judul
+String _safeFileName(String judul, String periode) {
+  final s = '${judul}_$periode'
       .replaceAll(RegExp(r'[^a-zA-Z0-9_-]+'), '_')
-      .replaceAll(RegExp(r'_+'), '_');
-  return s.isEmpty ? 'Laporan_Laba_Rugi' : s;
+      .replaceAll(RegExp(r'_+'), '_')
+      .replaceAll(RegExp(r'^_|_$'), '');
+  return s.isEmpty ? 'Laporan_Transaksi_Celcious_Coffee' : s;
+}
+
+String _extractJamText(LaporanPreviewRow row) {
+  final rawJam = (row.jam ?? '').trim();
+  if (rawJam.isNotEmpty && rawJam != '-' && rawJam != '--:--') {
+    return rawJam;
+  }
+  final parsed = DateTime.tryParse(row.tanggal)?.toLocal();
+  if (parsed != null) {
+    return '${parsed.hour.toString().padLeft(2, '0')}:'
+        '${parsed.minute.toString().padLeft(2, '0')}';
+  }
+  final m = RegExp(r'(\d{1,2}[:.]\d{2})').firstMatch(row.tanggal);
+  if (m != null) return m.group(1)!.replaceAll('.', ':');
+  return '-';
+}
+
+String _extractIdPemesanan(LaporanPreviewRow row) {
+  final id = (row.idPemesanan ?? '').trim();
+  if (id.isNotEmpty) return id;
+  final ket = row.keterangan.trim();
+  if (ket.contains(' - ')) {
+    final left = ket.split(' - ').first.trim();
+    if (left.isNotEmpty) return left;
+  }
+  return ket.isEmpty ? '-' : ket;
+}
+
+String _extractKasir(LaporanPreviewRow row, String fallback) {
+  final k = (row.namaKasir ?? '').trim();
+  if (k.isNotEmpty) return k;
+  final ket = row.keterangan.trim();
+  if (ket.contains(' - ')) {
+    final right = ket.split(' - ').last.trim();
+    if (right.isNotEmpty) return right;
+  }
+  return fallback;
 }
 
 ComputedFinancialReport _computeReport({
@@ -240,676 +203,87 @@ ComputedFinancialReport _computeReport({
   required String tanggalLaporan,
 }) {
   final now = DateTime.now();
-  final d2 = now.day.toString().padLeft(2, '0');
-  final m2 = now.month.toString().padLeft(2, '0');
-  final y4 = now.year.toString();
-
   final rows = data?.rows ?? const <LaporanPreviewRow>[];
-  final sumRows = rows.fold<num>(0, (s, r) => s + r.nominal);
+  final fallbackKasir =
+      (data?.namaKasir.trim().isNotEmpty == true) ? data!.namaKasir.trim() : 'Kasir';
 
-  // Bangun rincian pendapatan
-  final revenueItems = <LaporanNominalItem>[];
-  if (data != null && data.pendapatanItems.isNotEmpty) {
-    revenueItems.addAll(data.pendapatanItems);
-  } else {
-    final tunai = data?.totalTunai ??
-        rows
-            .where((r) =>
-                r.metode.toLowerCase().contains('cash') ||
-                r.metode.toLowerCase().contains('tunai'))
-            .fold<num>(0, (s, r) => s + r.nominal);
-    final nonTunai = data?.totalNonTunai ??
-        rows
-            .where((r) =>
-                !r.metode.toLowerCase().contains('cash') &&
-                !r.metode.toLowerCase().contains('tunai'))
-            .fold<num>(0, (s, r) => s + r.nominal);
+  final siangList = <CelciousShiftTransactionRow>[];
+  final malamList = <CelciousShiftTransactionRow>[];
 
-    if (tunai > 0 || nonTunai > 0) {
-      if (tunai > 0) {
-        revenueItems.add(
-          LaporanNominalItem(
-            label: 'Penjualan Kopi & Minuman (Tunai)',
-            nominal: tunai,
-          ),
-        );
-      }
-      if (nonTunai > 0) {
-        revenueItems.add(
-          LaporanNominalItem(
-            label: 'Penjualan Non-Tunai / QRIS',
-            nominal: nonTunai,
-          ),
-        );
-      }
+  for (final row in rows) {
+    final id = _extractIdPemesanan(row);
+    final jam = _extractJamText(row);
+    final kasir = _extractKasir(row, fallbackKasir);
+    final qty = row.jumlahPemesanan <= 0 ? 1 : row.jumlahPemesanan;
+    if (CelciousReportExport.isShiftMalam(jam: jam, tanggal: row.tanggal)) {
+      malamList.add(
+        CelciousShiftTransactionRow(
+          no: malamList.length + 1,
+          idPemesanan: id,
+          jam: jam,
+          namaKasir: kasir,
+          jumlahPemesanan: qty,
+          totalHarga: row.nominal,
+        ),
+      );
     } else {
-      final omzet = data?.totalOmzet ?? sumRows;
-      revenueItems.addAll([
-        LaporanNominalItem(
-          label: 'Penjualan Kopi & Minuman',
-          nominal: omzet,
+      siangList.add(
+        CelciousShiftTransactionRow(
+          no: siangList.length + 1,
+          idPemesanan: id,
+          jam: jam,
+          namaKasir: kasir,
+          jumlahPemesanan: qty,
+          totalHarga: row.nominal,
         ),
-        const LaporanNominalItem(
-          label: 'Penjualan Makanan / Snack',
-          nominal: 0,
-        ),
-      ]);
+      );
     }
   }
 
-  final totalRevenue = revenueItems.fold<num>(0, (s, e) => s + e.nominal);
+  final totalSiang = siangList.fold<num>(0, (s, e) => s + e.totalHarga);
+  final totalMalam = malamList.fold<num>(0, (s, e) => s + e.totalHarga);
 
-  // Bangun rincian beban
-  final expenseItems = <LaporanNominalItem>[];
-  if (data != null && data.bebanItems.isNotEmpty) {
-    expenseItems.addAll(data.bebanItems);
-  } else {
-    expenseItems.add(
-      const LaporanNominalItem(
-        label: 'Beban Operasional / Perlengkapan Bar',
-        nominal: 0,
-      ),
-    );
-  }
+  final periodDateText = tanggalLaporan.trim().isEmpty
+      ? CelciousReportExport.formatTanggalIndonesia(now)
+      : tanggalLaporan.trim();
 
-  final totalExpense = expenseItems.fold<num>(0, (s, e) => s + e.nominal);
-  final profitBeforeTax = totalRevenue - totalExpense;
-  final taxPercent = data?.pajakPersen ?? 0;
-  final taxAmount = data?.pajakNominal != null
-      ? data!.pajakNominal!.round()
-      : (profitBeforeTax > 0
-            ? (profitBeforeTax * (taxPercent / 100)).round()
-            : 0);
-  final netIncome = profitBeforeTax - taxAmount;
+  final cleanedTitle = judul.trim();
+  final reportTitle = cleanedTitle.isEmpty ||
+          cleanedTitle.toLowerCase().contains('laba rugi')
+      ? 'LAPORAN TRANSAKSI CELCIOUS COFFEE'
+      : cleanedTitle.toUpperCase();
 
-  final shortPeriod =
-      tanggalLaporan.trim().isEmpty
-          ? '$d2 ${_bulanPendek[now.month - 1]} $y4'
-          : tanggalLaporan.trim();
-  final longDate = '${now.day} ${_bulanPanjang[now.month - 1]} $y4';
-  final fullPeriod = tanggalLaporan.trim().isEmpty
-      ? '$longDate / Tahun $y4'
-      : '${tanggalLaporan.trim()} / Tahun $y4';
-
-  final docNo = (data?.noDokumen?.trim().isNotEmpty == true)
-      ? data!.noDokumen!.trim()
-      : 'LK-CC/$y4/$m2/$d2';
-  final sysId = (data?.sysId?.trim().isNotEmpty == true)
-      ? data!.sysId!.trim()
-      : 'CC-$y4$m2$d2';
-
-  final cashierName = (data?.namaKasir.trim().isNotEmpty == true)
-      ? data!.namaKasir.trim()
-      : 'Kasir';
-  final ownerName = (data?.namaOwner.trim().isNotEmpty == true)
-      ? data!.namaOwner.trim()
-      : 'Owner';
-
-  final reportTitle = judul.trim().isEmpty ||
-          judul.trim().toLowerCase() == 'laporan transaksi' ||
-          judul.trim().toLowerCase() == 'laporan keuangan'
-      ? 'LAPORAN LABA RUGI & KEUANGAN HARIAN'
-      : judul.trim().toUpperCase();
-
-  return ComputedFinancialReport(
-    storeName: 'CELCIOUS COFFEE INDONESIA',
-    address: data?.alamatToko ??
-        'Jl. Arah Kampung Satu, Mekar Sawit, Kec. Sawit Seberang, '
-            'Kab. Langkat, Sumatera Utara',
-    docNo: docNo,
-    shortPeriod: shortPeriod,
-    fullPeriod: fullPeriod,
+  return CelciousTransactionReportData(
+    storeName: kCelciousStoreName,
+    address: (data?.alamatToko.trim().isNotEmpty == true)
+        ? data!.alamatToko.trim()
+        : kCelciousAddress,
+    contactLine: (data?.kontakToko.trim().isNotEmpty == true)
+        ? data!.kontakToko.trim()
+        : kCelciousContact,
     reportTitle: reportTitle,
-    revenueItems: revenueItems,
-    totalRevenue: totalRevenue,
-    expenseItems: expenseItems,
-    totalExpense: totalExpense,
-    profitBeforeTax: profitBeforeTax,
-    taxPercent: taxPercent,
-    taxAmount: taxAmount,
-    netIncome: netIncome,
-    locationDate: 'Langkat, $longDate',
-    cashierName: cashierName,
-    ownerName: ownerName,
-    sysId: sysId,
-    rows: rows,
-  );
-}
-
-// ============================================================
-// EXPORT PDF & EXCEL
-// ============================================================
-
-Future<Uint8List> _buildPdfBytes(ComputedFinancialReport r) async {
-  final doc = pw.Document();
-  final navyPdf = PdfColor.fromInt(0xFF0B2540);
-  final navyBarPdf = PdfColor.fromInt(0xFF102A45);
-  final mutedPdf = PdfColor.fromInt(0xFF64788B);
-  final borderPdf = PdfColor.fromInt(0xFF9FB0C2);
-  final rowDivPdf = PdfColor.fromInt(0xFFDDE5EE);
-  final subBgPdf = PdfColor.fromInt(0xFFF3F7FB);
-  final netBgPdf = PdfColor.fromInt(0xFFE9F1F9);
-
-  pw.Widget amountRow(
-    String label,
-    num amount, {
-    bool indent = false,
-    bool bold = false,
-    bool italic = false,
-    bool centerLabel = false,
-    bool dashZero = false,
-    PdfColor? bg,
-    bool strongBottom = false,
-  }) {
-    final amountText =
-        dashZero && amount == 0 ? '-' : _formatAngka(amount);
-    return pw.Container(
-      decoration: pw.BoxDecoration(
-        color: bg,
-        border: pw.Border(
-          bottom: pw.BorderSide(
-            color: strongBottom ? navyPdf : rowDivPdf,
-            width: strongBottom ? 1.2 : 0.6,
-          ),
-        ),
-      ),
-      child: pw.Row(
-        children: [
-          pw.Expanded(
-            child: pw.Padding(
-              padding: pw.EdgeInsets.fromLTRB(
-                indent ? 24 : 10,
-                7,
-                10,
-                7,
-              ),
-              child: pw.Text(
-                label,
-                textAlign:
-                    centerLabel ? pw.TextAlign.center : pw.TextAlign.left,
-                style: pw.TextStyle(
-                  fontSize: 9.5,
-                  fontWeight:
-                      bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-                  fontStyle:
-                      italic ? pw.FontStyle.italic : pw.FontStyle.normal,
-                  color: bold ? navyPdf : PdfColors.black,
-                ),
-              ),
-            ),
-          ),
-          pw.Container(
-            width: 130,
-            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: pw.BoxDecoration(
-              border: pw.Border(
-                left: pw.BorderSide(color: rowDivPdf, width: 0.6),
-              ),
-            ),
-            child: pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text(
-                  'Rp',
-                  style: pw.TextStyle(
-                    fontSize: 9.5,
-                    fontWeight:
-                        bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-                    color: bold ? navyPdf : mutedPdf,
-                  ),
-                ),
-                pw.Text(
-                  amountText,
-                  style: pw.TextStyle(
-                    fontSize: 9.5,
-                    fontWeight:
-                        bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-                    color: bold ? navyPdf : PdfColors.black,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget sectionBar(String title) {
-    return pw.Container(
-      width: double.infinity,
-      color: navyBarPdf,
-      padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-      alignment: pw.Alignment.center,
-      child: pw.Text(
-        title,
-        style: pw.TextStyle(
-          color: PdfColors.white,
-          fontSize: 9.5,
-          fontWeight: pw.FontWeight.bold,
-          letterSpacing: 0.8,
-        ),
-      ),
-    );
-  }
-
-  pw.Widget sigBox(String roleHeader, String roleSub, String name, String desc) {
-    return pw.Expanded(
-      child: pw.Container(
-        padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        decoration: pw.BoxDecoration(
-          border: pw.Border.all(color: rowDivPdf, width: 0.9),
-        ),
-        child: pw.Column(
-          children: [
-            pw.Text(
-              roleHeader,
-              style: pw.TextStyle(
-                fontSize: 9,
-                fontWeight: pw.FontWeight.bold,
-                color: navyPdf,
-              ),
-            ),
-            pw.SizedBox(height: 2),
-            pw.Text(
-              roleSub,
-              style: pw.TextStyle(fontSize: 8.5, color: mutedPdf),
-            ),
-            pw.SizedBox(height: 36),
-            pw.Container(width: 110, height: 1, color: navyPdf),
-            pw.SizedBox(height: 6),
-            pw.Text(
-              name.toUpperCase(),
-              style: pw.TextStyle(
-                fontSize: 9.5,
-                fontWeight: pw.FontWeight.bold,
-                color: navyPdf,
-              ),
-            ),
-            pw.SizedBox(height: 2),
-            pw.Text(
-              desc,
-              style: pw.TextStyle(fontSize: 8, color: mutedPdf),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  doc.addPage(
-    pw.Page(
-      pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.all(28),
-      build: (ctx) => pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Container(
-                width: 48,
-                height: 48,
-                decoration: pw.BoxDecoration(
-                  color: PdfColor.fromInt(0xFF39648B),
-                  shape: pw.BoxShape.circle,
-                ),
-                alignment: pw.Alignment.center,
-                child: pw.Text(
-                  'CELCIOUS\nCOFFEE',
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(
-                    color: PdfColors.white,
-                    fontSize: 7,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              ),
-              pw.SizedBox(width: 14),
-              pw.Expanded(
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(
-                      r.storeName,
-                      style: pw.TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: pw.FontWeight.bold,
-                        color: navyPdf,
-                      ),
-                    ),
-                    pw.SizedBox(height: 3),
-                    pw.Text(
-                      r.address,
-                      style: pw.TextStyle(fontSize: 8.5, color: mutedPdf),
-                    ),
-                    pw.SizedBox(height: 6),
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text(
-                          'No. Dokumen: ${r.docNo}',
-                          style: pw.TextStyle(
-                            fontSize: 8.5,
-                            fontWeight: pw.FontWeight.bold,
-                            color: navyPdf,
-                          ),
-                        ),
-                        pw.Text(
-                          'Periode: ${r.shortPeriod}',
-                          style: pw.TextStyle(
-                            fontSize: 8.5,
-                            fontWeight: pw.FontWeight.bold,
-                            color: navyPdf,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          pw.SizedBox(height: 10),
-          pw.Divider(color: navyPdf, thickness: 1.2),
-          pw.SizedBox(height: 8),
-          pw.Center(
-            child: pw.Text(
-              r.reportTitle,
-              textAlign: pw.TextAlign.center,
-              style: pw.TextStyle(
-                fontSize: 12.5,
-                fontWeight: pw.FontWeight.bold,
-                color: navyPdf,
-              ),
-            ),
-          ),
-          pw.SizedBox(height: 4),
-          pw.Center(
-            child: pw.Text(
-              'Periode: ${r.fullPeriod}',
-              style: pw.TextStyle(
-                fontSize: 9,
-                fontWeight: pw.FontWeight.bold,
-                color: mutedPdf,
-              ),
-            ),
-          ),
-          pw.SizedBox(height: 8),
-          pw.Divider(color: navyPdf, thickness: 1.2),
-          pw.SizedBox(height: 14),
-          pw.Text(
-            '1. RINCIAN LABA RUGI OPERASIONAL',
-            style: pw.TextStyle(
-              fontSize: 10.5,
-              fontWeight: pw.FontWeight.bold,
-              color: navyPdf,
-            ),
-          ),
-          pw.SizedBox(height: 8),
-          pw.Container(
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: borderPdf, width: 0.9),
-            ),
-            child: pw.Column(
-              children: [
-                sectionBar('PENDAPATAN'),
-                pw.Container(
-                  width: double.infinity,
-                  padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 7,
-                  ),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border(
-                      bottom: pw.BorderSide(color: rowDivPdf, width: 0.6),
-                    ),
-                  ),
-                  child: pw.Text(
-                    'Penjualan Makanan dan Minuman',
-                    style: pw.TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: pw.FontWeight.bold,
-                      color: navyPdf,
-                    ),
-                  ),
-                ),
-                for (final item in r.revenueItems)
-                  amountRow(item.label, item.nominal, indent: true),
-                amountRow(
-                  'JUMLAH PENDAPATAN',
-                  r.totalRevenue,
-                  bold: true,
-                  centerLabel: true,
-                  bg: subBgPdf,
-                ),
-                sectionBar('BEBAN / PENGELUARAN'),
-                for (final item in r.expenseItems)
-                  amountRow(item.label, item.nominal, indent: true),
-                amountRow(
-                  'JUMLAH BEBAN',
-                  r.totalExpense,
-                  bold: true,
-                  centerLabel: true,
-                  bg: subBgPdf,
-                ),
-                amountRow(
-                  'Laba (Rugi) Sebelum Pajak',
-                  r.profitBeforeTax,
-                  bold: true,
-                ),
-                amountRow(
-                  'Pajak / PPN (${r.taxPercent.toStringAsFixed(0)}%)',
-                  r.taxAmount,
-                  italic: true,
-                  dashZero: true,
-                ),
-                amountRow(
-                  'LABA BERSIH SETELAH PAJAK (NET INCOME)',
-                  r.netIncome,
-                  bold: true,
-                  bg: netBgPdf,
-                  strongBottom: true,
-                ),
-              ],
-            ),
-          ),
-          pw.SizedBox(height: 10),
-          pw.Text(
-            '* Catatan: Data keuangan di atas disusun berdasarkan pencatatan '
-            'kas harian Celcious Coffee Langkat yang sah.',
-            style: pw.TextStyle(
-              fontSize: 8,
-              fontStyle: pw.FontStyle.italic,
-              color: mutedPdf,
-            ),
-          ),
-          pw.Spacer(),
-          pw.Text(
-            r.locationDate,
-            style: pw.TextStyle(fontSize: 9, color: navyPdf),
-          ),
-          pw.SizedBox(height: 10),
-          pw.Row(
-            children: [
-              sigBox(
-                'DIBUAT OLEH,',
-                'Kasir / Staf Operasional',
-                r.cashierName,
-                'Staf Kasir Celcious',
-              ),
-              pw.SizedBox(width: 16),
-              sigBox(
-                'DISETUJUI & DISAHKAN,',
-                'Manager / Owner',
-                r.ownerName,
-                'Owner / Pemilik Celcious Coffee',
-              ),
-            ],
-          ),
-          pw.SizedBox(height: 16),
-          pw.Container(
-            padding: const pw.EdgeInsets.only(top: 8),
-            decoration: pw.BoxDecoration(
-              border: pw.Border(
-                top: pw.BorderSide(color: rowDivPdf, width: 0.8),
-              ),
-            ),
-            child: pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text(
-                  'Dokumen Sah Internal Celcious Coffee',
-                  style: pw.TextStyle(fontSize: 8, color: mutedPdf),
-                ),
-                pw.Text(
-                  'Halaman 1 dari 1',
-                  style: pw.TextStyle(fontSize: 8, color: mutedPdf),
-                ),
-                pw.Text(
-                  'SYS-ID: ${r.sysId}',
-                  style: pw.TextStyle(fontSize: 8, color: mutedPdf),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    periodDateText: periodDateText,
+    siangRows: siangList,
+    malamRows: malamList,
+    totalSiang: totalSiang,
+    totalMalam: totalMalam,
+    kasirSiang: CelciousReportExport.resolveCashierName(
+      siangList.map((e) => e.namaKasir),
+      explicit: data?.namaKasirSiang,
+      fallback: kCelciousDefaultKasirSiang,
     ),
+    kasirMalam: CelciousReportExport.resolveCashierName(
+      malamList.map((e) => e.namaKasir),
+      explicit: data?.namaKasirMalam,
+      fallback: kCelciousDefaultKasirMalam,
+    ),
+    ownerName: CelciousReportExport.resolveOwnerName(data?.namaOwner),
+    locationDate: 'Langkat, $periodDateText',
   );
-
-  return doc.save();
-}
-
-Uint8List _encodeExcel(ComputedFinancialReport r) {
-  final excel = xl.Excel.createExcel();
-  excel.rename('Sheet1', 'Laporan');
-  final sheet = excel['Laporan'];
-
-  void writeMerged(int row, String text, {bool bold = false, int size = 11}) {
-    final start = xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row);
-    final end = xl.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row);
-    sheet.merge(start, end);
-    final cell = sheet.cell(start);
-    cell.value = xl.TextCellValue(text);
-    cell.cellStyle = xl.CellStyle(
-      bold: bold,
-      fontSize: size,
-      horizontalAlign: xl.HorizontalAlign.Center,
-    );
-  }
-
-  void writeLine(int row, String label, num? amount, {bool bold = false}) {
-    final c0 = sheet.cell(
-      xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row),
-    );
-    final c1 = sheet.cell(
-      xl.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row),
-    );
-    sheet.merge(
-      xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row),
-      xl.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row),
-    );
-    c0.value = xl.TextCellValue(label);
-    c0.cellStyle = xl.CellStyle(bold: bold);
-    c1.cellStyle = xl.CellStyle(bold: bold);
-
-    final c2 = sheet.cell(
-      xl.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row),
-    );
-    if (amount != null) {
-      c2.value = xl.TextCellValue(_rupiah(amount));
-      c2.cellStyle = xl.CellStyle(
-        bold: bold,
-        horizontalAlign: xl.HorizontalAlign.Right,
-      );
-    }
-  }
-
-  var row = 0;
-  writeMerged(row++, r.storeName, bold: true, size: 14);
-  writeMerged(row++, r.address, size: 10);
-  writeMerged(row++, r.reportTitle, bold: true, size: 12);
-  writeMerged(row++, 'Periode: ${r.fullPeriod}', size: 10);
-  row++;
-
-  writeLine(row++, 'PENDAPATAN', null, bold: true);
-  for (final item in r.revenueItems) {
-    writeLine(row++, '  ${item.label}', item.nominal);
-  }
-  writeLine(row++, 'JUMLAH PENDAPATAN', r.totalRevenue, bold: true);
-  row++;
-
-  writeLine(row++, 'BEBAN / PENGELUARAN', null, bold: true);
-  for (final item in r.expenseItems) {
-    writeLine(row++, '  ${item.label}', item.nominal);
-  }
-  writeLine(row++, 'JUMLAH BEBAN', r.totalExpense, bold: true);
-  row++;
-
-  writeLine(row++, 'Laba (Rugi) Sebelum Pajak', r.profitBeforeTax, bold: true);
-  writeLine(
-    row++,
-    'Pajak / PPN (${r.taxPercent.toStringAsFixed(0)}%)',
-    r.taxAmount,
-  );
-  writeLine(
-    row++,
-    'LABA BERSIH SETELAH PAJAK (NET INCOME)',
-    r.netIncome,
-    bold: true,
-  );
-
-  sheet.setColumnWidth(0, 32);
-  sheet.setColumnWidth(1, 20);
-  sheet.setColumnWidth(2, 22);
-
-  // Sheet 2: Rincian seluruh transaksi lunas pada periode laporan
-  if (r.rows.isNotEmpty) {
-    final trxSheet = excel['Rincian Transaksi'];
-    final headers = ['Tanggal', 'Keterangan / Order', 'Metode', 'Nominal'];
-    for (var col = 0; col < headers.length; col++) {
-      final cell = trxSheet.cell(
-        xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 0),
-      );
-      cell.value = xl.TextCellValue(headers[col]);
-      cell.cellStyle = xl.CellStyle(bold: true);
-    }
-
-    for (var i = 0; i < r.rows.length; i++) {
-      final item = r.rows[i];
-      final rowIdx = i + 1;
-      trxSheet
-          .cell(xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIdx))
-          .value = xl.TextCellValue(item.tanggal);
-      trxSheet
-          .cell(xl.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIdx))
-          .value = xl.TextCellValue(item.keterangan);
-      trxSheet
-          .cell(xl.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIdx))
-          .value = xl.TextCellValue(item.metode);
-      final nomCell = trxSheet.cell(
-        xl.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIdx),
-      );
-      nomCell.value = xl.TextCellValue(_rupiah(item.nominal));
-      nomCell.cellStyle = xl.CellStyle(
-        horizontalAlign: xl.HorizontalAlign.Right,
-      );
-    }
-
-    trxSheet.setColumnWidth(0, 20);
-    trxSheet.setColumnWidth(1, 34);
-    trxSheet.setColumnWidth(2, 14);
-    trxSheet.setColumnWidth(3, 18);
-  }
-
-  final bytes = excel.encode();
-  if (bytes == null) throw Exception('File Excel gagal dibuat.');
-  return Uint8List.fromList(bytes);
 }
 
 // ============================================================
-// HALAMAN KELOLA LAPORAN
+// HALAMAN KELOLA LAPORAN (ADMIN / OWNER)
 // ============================================================
 
 class KelolaLaporanContent extends StatefulWidget {
@@ -917,8 +291,8 @@ class KelolaLaporanContent extends StatefulWidget {
     super.key,
     this.onDownload,
     this.previewData,
-    this.judulLaporan = 'Laporan Laba Rugi & Keuangan Harian',
-    this.tanggalLaporan = '11 November 2026',
+    this.judulLaporan = 'LAPORAN TRANSAKSI CELCIOUS COFFEE',
+    this.tanggalLaporan = '',
   });
 
   final VoidCallback? onDownload;
@@ -932,21 +306,30 @@ class KelolaLaporanContent extends StatefulWidget {
 
 class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
   final TextEditingController _searchController = TextEditingController();
+  DateTime _selectedDate = DateTime.now();
+  bool _userPickedDate = false;
+  bool _loadingRemote = false;
+  List<LaporanPreviewRow>? _remoteRows;
 
-  bool get _isMatch {
-    final keyword = _searchController.text.trim().toLowerCase();
-    if (keyword.isEmpty) return true;
-    return widget.judulLaporan.toLowerCase().contains(keyword) ||
-        widget.tanggalLaporan.toLowerCase().contains(keyword) ||
-        'laba rugi'.contains(keyword) ||
-        'celcious'.contains(keyword);
+  @override
+  void initState() {
+    super.initState();
+    // Jika parent sudah mengirim previewData live (misal dari _OwnerLaporanLivePage),
+    // gunakan data tersebut terlebih dahulu; hanya fetch mandiri bila belum dikirim parent.
+    if (widget.previewData == null) {
+      _syncFromBackend();
+    }
   }
 
-  ComputedFinancialReport get _report => _computeReport(
-    data: widget.previewData,
-    judul: widget.judulLaporan,
-    tanggalLaporan: widget.tanggalLaporan,
-  );
+  @override
+  void didUpdateWidget(covariant KelolaLaporanContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.previewData != oldWidget.previewData ||
+        widget.tanggalLaporan != oldWidget.tanggalLaporan) {
+      _userPickedDate = false;
+      _remoteRows = null;
+    }
+  }
 
   @override
   void dispose() {
@@ -954,12 +337,117 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
     super.dispose();
   }
 
+  Future<void> _syncFromBackend() async {
+    try {
+      final token = await ApiService.getToken();
+      if (token == null || token.trim().isEmpty) return;
+      if (mounted) setState(() => _loadingRemote = true);
+      final dayStart = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+      );
+      final snapshot = await ReportService.fetch(
+        dari: dayStart,
+        sampai: dayStart,
+        cashierFallback: 'Kasir',
+      );
+      final fetched = snapshot.transactionRows
+          .where((t) => (t['status'] ?? '').toLowerCase() == 'lunas')
+          .map((t) {
+            final nominal = CelciousReportExport.parseNominal(t['total']);
+            final qty = int.tryParse(t['jumlah'] ?? '1') ?? 1;
+            final id = t['id'] ?? '-';
+            final kasir = t['kasir'] ?? 'Kasir';
+            return LaporanPreviewRow(
+              tanggal: t['tanggal'] ?? '',
+              jam: t['jam'] ?? '-',
+              idPemesanan: id,
+              namaKasir: kasir,
+              jumlahPemesanan: qty <= 0 ? 1 : qty,
+              keterangan: '$id - $kasir',
+              metode: t['pembayaran'] ?? '-',
+              nominal: nominal,
+            );
+          })
+          .toList();
+      if (mounted) {
+        setState(() {
+          _remoteRows = fetched;
+          _loadingRemote = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingRemote = false);
+    }
+  }
+
+  String get _activeTanggalText {
+    if (!_userPickedDate && widget.tanggalLaporan.trim().isNotEmpty) {
+      return widget.tanggalLaporan.trim();
+    }
+    return CelciousReportExport.formatTanggalIndonesia(_selectedDate);
+  }
+
+  LaporanPreviewData? get _effectivePreviewData {
+    if (!_userPickedDate && widget.previewData != null) {
+      return widget.previewData;
+    }
+    if (_remoteRows == null) return widget.previewData;
+    final base = widget.previewData;
+    return LaporanPreviewData(
+      rows: _remoteRows!,
+      namaKasir: base?.namaKasir ?? 'Kasir',
+      namaKasirSiang: base?.namaKasirSiang,
+      namaKasirMalam: base?.namaKasirMalam,
+      namaOwner: base?.namaOwner ?? kCelciousDefaultOwner,
+      alamatToko: base?.alamatToko ?? kCelciousAddress,
+      kontakToko: base?.kontakToko ?? kCelciousContact,
+      noDokumen: base?.noDokumen,
+      sysId: base?.sysId,
+    );
+  }
+
+  ComputedFinancialReport get _report => _computeReport(
+    data: _effectivePreviewData,
+    judul: widget.judulLaporan,
+    tanggalLaporan: _activeTanggalText,
+  );
+
+  bool get _isMatch {
+    final keyword = _searchController.text.trim().toLowerCase();
+    if (keyword.isEmpty) return true;
+    final r = _report;
+    return r.reportTitle.toLowerCase().contains(keyword) ||
+        r.periodDateText.toLowerCase().contains(keyword) ||
+        r.kasirSiang.toLowerCase().contains(keyword) ||
+        r.kasirMalam.toLowerCase().contains(keyword) ||
+        'transaksi'.contains(keyword) ||
+        'celcious'.contains(keyword);
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2030),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _selectedDate = picked;
+      _userPickedDate = true;
+      _remoteRows = null;
+    });
+    await _syncFromBackend();
+  }
+
   void _openPreview() {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => LaporanDocumentPreviewPage(
           report: _report,
-          judul: widget.judulLaporan,
+          judul: _report.reportTitle,
           onExported: widget.onDownload,
         ),
       ),
@@ -996,7 +484,13 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
                       children: [
                         _title(isPhone),
                         const SizedBox(height: 14),
-                        _searchField(),
+                        Row(
+                          children: [
+                            Expanded(child: _searchField()),
+                            const SizedBox(width: 8),
+                            _datePickerButton(compact: true),
+                          ],
+                        ),
                       ],
                     )
                   else
@@ -1004,12 +498,25 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
                       children: [
                         _title(isPhone),
                         const Spacer(),
+                        _datePickerButton(compact: false),
+                        const SizedBox(width: 10),
                         SizedBox(
-                          width: isTablet ? 230 : 270,
+                          width: isTablet ? 220 : 260,
                           child: _searchField(),
                         ),
                       ],
                     ),
+                  if (_loadingRemote) ...[
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: const LinearProgressIndicator(
+                        minHeight: 3,
+                        color: _navy,
+                        backgroundColor: Colors.white70,
+                      ),
+                    ),
+                  ],
                   SizedBox(height: isPhone ? 18 : 24),
                   if (_isMatch)
                     Align(
@@ -1017,10 +524,10 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
                       child: _ReportDocumentCard(
                         report: report,
                         cardWidth: isPhone
-                            ? 162.0
+                            ? 188.0
                             : isTablet
-                                ? 174.0
-                                : 186.0,
+                                ? 210.0
+                                : 226.0,
                         onTap: _openPreview,
                       ),
                     )
@@ -1056,6 +563,43 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+
+  Widget _datePickerButton({required bool compact}) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: _pickDate,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          height: 40,
+          padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: _kSoftShadow,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.calendar_today_rounded, size: 15, color: _navy),
+              if (!compact) ...[
+                const SizedBox(width: 8),
+                Text(
+                  _activeTanggalText,
+                  style: const TextStyle(
+                    color: _navy,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -1119,7 +663,7 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
 }
 
 // ============================================================
-// KARTU PRATINJAU DOKUMEN (sebelum diklik: desain sama dengan isi)
+// KARTU PRATINJAU DOKUMEN (desain identik dengan isi saat diklik)
 // ============================================================
 
 class _ReportDocumentCard extends StatefulWidget {
@@ -1178,7 +722,6 @@ class _ReportDocumentCardState extends State<_ReportDocumentCard> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Thumbnail dokumen formal (kompak, identik dengan tampilan saat diklik)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(7, 7, 7, 6),
                   child: AspectRatio(
@@ -1192,12 +735,14 @@ class _ReportDocumentCardState extends State<_ReportDocumentCard> {
                       clipBehavior: Clip.antiAlias,
                       child: IgnorePointer(
                         child: FittedBox(
-                          fit: BoxFit.contain,
+                          fit: BoxFit.fitWidth,
                           alignment: Alignment.topCenter,
+                          clipBehavior: Clip.hardEdge,
                           child: SizedBox(
-                            width: 620,
+                            width: 660,
                             child: _FinancialReportDocument(
                               report: widget.report,
+                              thumbnailPreview: true,
                             ),
                           ),
                         ),
@@ -1205,9 +750,8 @@ class _ReportDocumentCardState extends State<_ReportDocumentCard> {
                     ),
                   ),
                 ),
-                // Informasi singkat di bawah thumbnail
                 Container(
-                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+                  padding: const EdgeInsets.fromLTRB(9, 7, 9, 9),
                   decoration: const BoxDecoration(
                     color: Color(0xFFEAF3FB),
                     borderRadius: BorderRadius.vertical(
@@ -1243,13 +787,13 @@ class _ReportDocumentCardState extends State<_ReportDocumentCard> {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: _navy,
-                                fontSize: 9.8,
+                                fontSize: 10,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
                             const SizedBox(height: 1),
                             Text(
-                              widget.report.shortPeriod,
+                              'Periode ${widget.report.periodDateText}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -1280,28 +824,32 @@ class _ReportDocumentCardState extends State<_ReportDocumentCard> {
 }
 
 // ============================================================
-// KOMPONEN DOKUMEN LAPORAN LABA RUGI (dipakai sebelum & sesudah klik)
+// KOMPONEN DOKUMEN LAPORAN TRANSAKSI PER SHIFT (BERLOGO)
 // ============================================================
 
 class _FinancialReportDocument extends StatelessWidget {
-  const _FinancialReportDocument({required this.report});
+  const _FinancialReportDocument({
+    required this.report,
+    this.thumbnailPreview = false,
+  });
 
   final ComputedFinancialReport report;
+  final bool thumbnailPreview;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(30, 26, 30, 20),
+      padding: const EdgeInsets.fromLTRB(30, 26, 30, 24),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
           // --------------------------------------------------
-          // KOP SURAT / HEADER PERUSAHAAN
+          // KOP SURAT CELCIOUS COFFEE + LOGO
           // --------------------------------------------------
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
                 width: 60,
@@ -1312,480 +860,324 @@ class _FinancialReportDocument extends StatelessWidget {
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: const AppBrandingLogo(
+                  height: 60,
                   fit: BoxFit.cover,
                   fallbackIcon: Icons.local_cafe_rounded,
                   fallbackIconSize: 28,
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
                       report.storeName,
+                      textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: _navy,
-                        fontSize: 16,
+                        fontSize: 18,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 0.3,
+                        letterSpacing: 0.6,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       report.address,
+                      textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: _muted,
                         fontSize: 10.5,
                         height: 1.35,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: RichText(
-                            text: TextSpan(
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                color: _muted,
-                              ),
-                              children: [
-                                const TextSpan(
-                                  text: 'No. Dokumen: ',
-                                  style: TextStyle(
-                                    color: _navy,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                TextSpan(text: report.docNo),
-                              ],
-                            ),
-                          ),
-                        ),
-                        RichText(
-                          text: TextSpan(
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              color: _muted,
-                            ),
-                            children: [
-                              const TextSpan(
-                                text: 'Periode: ',
-                                style: TextStyle(
-                                  color: _navy,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              TextSpan(text: report.shortPeriod),
-                            ],
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 2),
+                    Text(
+                      report.contactLine,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: _muted,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 74),
             ],
           ),
 
           const SizedBox(height: 14),
-          Container(height: 1.6, color: _navy),
+          Container(height: 2, color: _navy),
           const SizedBox(height: 14),
 
           // --------------------------------------------------
-          // JUDUL LAPORAN
+          // JUDUL & PERIODE LAPORAN
           // --------------------------------------------------
-          Center(
-            child: Column(
-              children: [
-                Text(
-                  report.reportTitle,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: _navy,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.4,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  'Periode: ${report.fullPeriod}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF334B61),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+          Text(
+            report.reportTitle,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: _navy,
+              fontSize: 14.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Periode ${report.periodDateText}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF334B61),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
             ),
           ),
 
-          const SizedBox(height: 14),
-          Container(height: 1.6, color: _navy),
+          const SizedBox(height: 18),
+
+          // --------------------------------------------------
+          // 1. SIFT SIANG
+          // --------------------------------------------------
+          _ShiftReportTable(
+            title:
+                '1. Sift Siang ( Pukul 11:00 - 16:00 ) : ${report.kasirSiang}',
+            rows: thumbnailPreview
+                ? report.siangRows.take(5).toList()
+                : report.siangRows,
+            totalAmount: report.totalSiang,
+            placeholderRows: thumbnailPreview ? 5 : 6,
+          ),
+
           const SizedBox(height: 20),
 
           // --------------------------------------------------
-          // 1. RINCIAN LABA RUGI OPERASIONAL
+          // 2. SIFT MALAM
           // --------------------------------------------------
-          const Text(
-            '1. RINCIAN LABA RUGI OPERASIONAL',
-            style: TextStyle(
-              color: _navy,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.2,
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: _tableBorder, width: 1),
-            ),
-            child: Column(
-              children: [
-                _sectionBar('PENDAPATAN'),
-                _groupHeaderRow('Penjualan Makanan dan Minuman'),
-                for (final item in report.revenueItems)
-                  _dataRow(
-                    label: item.label,
-                    amount: item.nominal,
-                    indented: true,
-                  ),
-                _dataRow(
-                  label: 'JUMLAH PENDAPATAN',
-                  amount: report.totalRevenue,
-                  bold: true,
-                  centerLabel: true,
-                  background: _subtotalBg,
-                ),
-                _sectionBar('BEBAN / PENGELUARAN'),
-                for (final item in report.expenseItems)
-                  _dataRow(
-                    label: item.label,
-                    amount: item.nominal,
-                    indented: true,
-                  ),
-                _dataRow(
-                  label: 'JUMLAH BEBAN',
-                  amount: report.totalExpense,
-                  bold: true,
-                  centerLabel: true,
-                  background: _subtotalBg,
-                ),
-                _dataRow(
-                  label: 'Laba (Rugi) Sebelum Pajak',
-                  amount: report.profitBeforeTax,
-                  bold: true,
-                ),
-                _dataRow(
-                  label:
-                      'Pajak / PPN (${report.taxPercent.toStringAsFixed(0)}%)',
-                  amount: report.taxAmount,
-                  italic: true,
-                  dashZero: true,
-                ),
-                _dataRow(
-                  label: 'LABA BERSIH SETELAH PAJAK (NET INCOME)',
-                  amount: report.netIncome,
-                  bold: true,
-                  background: _netIncomeBg,
-                  strongBottom: true,
-                ),
-              ],
-            ),
+          _ShiftReportTable(
+            title:
+                '2. Sift Malam ( Pukul 16:00 - 00:00 ) : ${report.kasirMalam}',
+            rows: thumbnailPreview
+                ? report.malamRows.take(5).toList()
+                : report.malamRows,
+            totalAmount: report.totalMalam,
+            placeholderRows: thumbnailPreview ? 5 : 6,
           ),
 
-          const SizedBox(height: 10),
-          const Text(
-            '* Catatan: Data keuangan di atas disusun berdasarkan pencatatan '
-            'kas harian Celcious Coffee Langkat yang sah.',
-            style: TextStyle(
-              color: _muted,
-              fontSize: 9.8,
-              fontStyle: FontStyle.italic,
-              height: 1.35,
-            ),
-          ),
-
-          const SizedBox(height: 44),
+          const SizedBox(height: 36),
 
           // --------------------------------------------------
-          // TANDA TANGAN
+          // TANDA TANGAN (Owner, Kasir Siang, Kasir Malam)
           // --------------------------------------------------
-          Text(
-            report.locationDate,
-            style: const TextStyle(
-              color: Color(0xFF2B4156),
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 12),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: _signatureBox(
-                  title: 'DIBUAT OLEH,',
-                  subtitle: 'Kasir / Staf Operasional',
-                  name: report.cashierName,
-                  roleCaption: 'Staf Kasir Celcious',
+              const Text(
+                'Mengetahui :',
+                style: TextStyle(
+                  color: _navy,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: _signatureBox(
-                  title: 'DISETUJUI & DISAHKAN,',
-                  subtitle: 'Manager / Owner',
-                  name: report.ownerName,
-                  roleCaption: 'Owner / Pemilik Celcious Coffee',
+              Text(
+                report.locationDate,
+                style: const TextStyle(
+                  color: _navy,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
-
-          const SizedBox(height: 28),
-
-          // --------------------------------------------------
-          // FOOTER DOKUMEN
-          // --------------------------------------------------
-          Container(
-            padding: const EdgeInsets.only(top: 10),
-            decoration: const BoxDecoration(
-              border: Border(
-                top: BorderSide(color: _rowDivider, width: 1),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Expanded(
-                  flex: 4,
-                  child: Text(
-                    'Dokumen Sah Internal Celcious Coffee',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: _muted, fontSize: 9.5),
-                  ),
-                ),
-                const Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Halaman 1 dari 1',
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: _muted, fontSize: 9.5),
-                  ),
-                ),
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    'SYS-ID: ${report.sysId}',
-                    textAlign: TextAlign.right,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: _muted, fontSize: 9.5),
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(height: 52),
+          Row(
+            children: [
+              _signatureColumn('(${report.ownerName})', 'Owner'),
+              _signatureColumn('(${report.kasirSiang})', 'Kasir Siang'),
+              _signatureColumn('(${report.kasirMalam})', 'Kasir Malam'),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _sectionBar(String title) {
-    return Container(
-      width: double.infinity,
-      color: _navyBar,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      alignment: Alignment.center,
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.0,
-        ),
-      ),
-    );
-  }
-
-  Widget _groupHeaderRow(String title) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          bottom: BorderSide(color: _rowDivider, width: 0.9),
-        ),
-      ),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: _navy,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-
-  Widget _dataRow({
-    required String label,
-    required num amount,
-    bool indented = false,
-    bool bold = false,
-    bool italic = false,
-    bool centerLabel = false,
-    bool dashZero = false,
-    Color? background,
-    bool strongBottom = false,
-  }) {
-    final amountText = dashZero && amount == 0 ? '-' : _formatAngka(amount);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: background ?? Colors.white,
-        border: Border(
-          bottom: BorderSide(
-            color: strongBottom ? _navy : _rowDivider,
-            width: strongBottom ? 1.5 : 0.9,
-          ),
-        ),
-      ),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  indented ? 28 : 12,
-                  9,
-                  12,
-                  9,
-                ),
-                child: Align(
-                  alignment:
-                      centerLabel ? Alignment.center : Alignment.centerLeft,
-                  child: Text(
-                    label,
-                    textAlign:
-                        centerLabel ? TextAlign.center : TextAlign.left,
-                    style: TextStyle(
-                      color: bold
-                          ? _navy
-                          : italic
-                              ? _muted
-                              : const Color(0xFF1D3247),
-                      fontSize: 11,
-                      fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
-                      fontStyle: italic ? FontStyle.italic : FontStyle.normal,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Container(
-              width: 145,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              decoration: const BoxDecoration(
-                border: Border(
-                  left: BorderSide(color: _rowDivider, width: 0.9),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Rp',
-                    style: TextStyle(
-                      color: bold ? _navy : _muted,
-                      fontSize: 11,
-                      fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                  Text(
-                    amountText,
-                    style: TextStyle(
-                      color: bold ? _navy : const Color(0xFF1D3247),
-                      fontSize: 11.5,
-                      fontWeight: bold ? FontWeight.w900 : FontWeight.w600,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _signatureBox({
-    required String title,
-    required String subtitle,
-    required String name,
-    required String roleCaption,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: _rowDivider, width: 1),
-      ),
+  Widget _signatureColumn(String name, String role) {
+    return Expanded(
       child: Column(
         children: [
           Text(
-            title,
+            name,
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: _navy,
-              fontSize: 10.5,
+              fontSize: 11.5,
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 3),
           Text(
-            subtitle,
+            role,
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: _muted,
-              fontSize: 9.5,
-            ),
-          ),
-          const SizedBox(height: 44),
-          Container(width: 130, height: 1.2, color: _navy),
-          const SizedBox(height: 8),
-          Text(
-            name.toUpperCase(),
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: _navy,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.4,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            roleCaption,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: _muted,
-              fontSize: 9.2,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ShiftReportTable extends StatelessWidget {
+  const _ShiftReportTable({
+    required this.title,
+    required this.rows,
+    required this.totalAmount,
+    this.placeholderRows = 6,
+  });
+
+  final String title;
+  final List<CelciousShiftTransactionRow> rows;
+  final num totalAmount;
+  final int placeholderRows;
+
+  @override
+  Widget build(BuildContext context) {
+    final emptyZero = rows.isEmpty && totalAmount == 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: _navy,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Table(
+          border: TableBorder.all(color: _tableBorder, width: 0.9),
+          columnWidths: const {
+            0: FixedColumnWidth(40),
+            1: FlexColumnWidth(2.1),
+            2: FixedColumnWidth(62),
+            3: FlexColumnWidth(2.0),
+            4: FlexColumnWidth(1.6),
+            5: FlexColumnWidth(2.0),
+          },
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          children: [
+            TableRow(
+              decoration: const BoxDecoration(color: _navyBar),
+              children: [
+                for (final label in const [
+                  'No',
+                  'ID Pemesanan',
+                  'Jam',
+                  'Nama Kasir',
+                  'Jumlah Pemesanan',
+                  'Total Harga',
+                ])
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10.2,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            if (rows.isEmpty)
+              for (var i = 0; i < placeholderRows; i++)
+                TableRow(
+                  children: [
+                    for (var c = 0; c < 6; c++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 8,
+                        ),
+                        child: Text(
+                          c == 5 ? 'Rp.' : '',
+                          style: const TextStyle(
+                            color: _muted,
+                            fontSize: 10.5,
+                          ),
+                        ),
+                      ),
+                  ],
+                )
+            else
+              for (final item in rows)
+                TableRow(
+                  children: [
+                    _cell('${item.no}', align: TextAlign.center),
+                    _cell(item.idPemesanan),
+                    _cell(item.jam, align: TextAlign.center),
+                    _cell(item.namaKasir),
+                    _cell('${item.jumlahPemesanan}', align: TextAlign.center),
+                    _cell(
+                      CelciousReportExport.formatRupiah(item.totalHarga),
+                      align: TextAlign.right,
+                      bold: true,
+                    ),
+                  ],
+                ),
+            TableRow(
+              decoration: const BoxDecoration(color: _subtotalBg),
+              children: [
+                _cell('Total', align: TextAlign.center, bold: true),
+                const SizedBox.shrink(),
+                const SizedBox.shrink(),
+                const SizedBox.shrink(),
+                const SizedBox.shrink(),
+                _cell(
+                  emptyZero
+                      ? 'Rp.'
+                      : CelciousReportExport.formatRupiah(totalAmount),
+                  align: emptyZero ? TextAlign.left : TextAlign.right,
+                  bold: true,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _cell(
+    String text, {
+    TextAlign align = TextAlign.left,
+    bool bold = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 8),
+      child: Text(
+        text,
+        textAlign: align,
+        style: TextStyle(
+          color: bold ? _navy : const Color(0xFF1D3247),
+          fontSize: 10.5,
+          fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
       ),
     );
   }
@@ -1821,9 +1213,13 @@ class _LaporanDocumentPreviewPageState
     if (_exportingPdf) return;
     setState(() => _exportingPdf = true);
     try {
-      final bytes = await _buildPdfBytes(widget.report);
+      final logoBytes = await CelciousReportExport.loadBrandLogoBytes();
+      final bytes = await CelciousReportExport.buildTransactionReportPdf(
+        widget.report,
+        logoBytes: logoBytes,
+      );
       await _saveExportFile(
-        name: _safeFileName(widget.judul),
+        name: _safeFileName(widget.judul, widget.report.periodDateText),
         bytes: bytes,
         fileExtension: 'pdf',
         mimeType: MimeType.pdf,
@@ -1841,9 +1237,13 @@ class _LaporanDocumentPreviewPageState
     if (_exportingExcel) return;
     setState(() => _exportingExcel = true);
     try {
-      final bytes = _encodeExcel(widget.report);
+      final logoBytes = await CelciousReportExport.loadBrandLogoBytes();
+      final bytes = CelciousReportExport.buildTransactionReportExcel(
+        widget.report,
+        logoBytes: logoBytes,
+      );
       await _saveExportFile(
-        name: _safeFileName(widget.judul),
+        name: _safeFileName(widget.judul, widget.report.periodDateText),
         bytes: bytes,
         fileExtension: 'xlsx',
         mimeType: MimeType.microsoftExcel,
@@ -1981,7 +1381,7 @@ class _LaporanDocumentPreviewPageState
       body: LayoutBuilder(
         builder: (context, constraints) {
           final pad = isPhone ? 12.0 : 28.0;
-          final availableW = (constraints.maxWidth - pad * 2).clamp(260.0, 740.0);
+          final availableW = (constraints.maxWidth - pad * 2).clamp(260.0, 760.0);
 
           return SingleChildScrollView(
             padding: EdgeInsets.all(pad),
@@ -1995,12 +1395,12 @@ class _LaporanDocumentPreviewPageState
                   boxShadow: _kCardShadow,
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: availableW < 580
+                child: availableW < 600
                     ? FittedBox(
                         fit: BoxFit.fitWidth,
                         alignment: Alignment.topCenter,
                         child: SizedBox(
-                          width: 620,
+                          width: 660,
                           child: _FinancialReportDocument(
                             report: widget.report,
                           ),

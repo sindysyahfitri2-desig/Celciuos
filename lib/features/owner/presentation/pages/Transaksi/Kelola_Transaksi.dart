@@ -674,8 +674,18 @@ class ProfilKasirCard extends StatelessWidget {
                 child: SizedBox(
                   width: 84,
                   height: 74,
-                  child: fotoAsset == null
+                  child: (fotoAsset == null || fotoAsset!.trim().isEmpty)
                       ? _fotoKosong()
+                      : (fotoAsset!.startsWith('http://') ||
+                            fotoAsset!.startsWith('https://'))
+                      ? Image.network(
+                          fotoAsset!,
+                          fit: BoxFit.cover,
+                          headers: fotoAsset!.toLowerCase().contains('ngrok')
+                              ? const {'ngrok-skip-browser-warning': 'true'}
+                              : null,
+                          errorBuilder: (_, __, ___) => _fotoKosong(),
+                        )
                       : Image.asset(
                           fotoAsset!,
                           fit: BoxFit.cover,

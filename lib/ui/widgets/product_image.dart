@@ -18,6 +18,9 @@ class ProductImage extends StatelessWidget {
       return Image.memory(
         image as Uint8List,
         fit: fit,
+        cacheWidth: 240,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.low,
         errorBuilder: (context, error, stackTrace) => _placeholder(),
       );
     }
@@ -25,11 +28,17 @@ class ProductImage extends StatelessWidget {
     if (image is String && (image as String).isNotEmpty) {
       final src = (image as String).trim();
       if (src.startsWith('http://') || src.startsWith('https://')) {
+        final isNgrok = src.toLowerCase().contains('ngrok');
         return Image.network(
           src,
           key: ValueKey(src),
           fit: fit,
-          headers: const {'ngrok-skip-browser-warning': 'true'},
+          cacheWidth: 240,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.low,
+          headers: isNgrok
+              ? const {'ngrok-skip-browser-warning': 'true'}
+              : null,
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) return child;
             return const Center(
@@ -51,6 +60,9 @@ class ProductImage extends StatelessWidget {
         src,
         key: ValueKey(src),
         fit: fit,
+        cacheWidth: 240,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.low,
         errorBuilder: (context, error, stackTrace) => _placeholder(),
       );
     }

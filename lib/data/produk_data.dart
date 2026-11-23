@@ -445,51 +445,76 @@ class ProdukData {
   // MEMUAT PRODUK DARI BACKEND API
   // ==========================================================
 
+  static Future<void>? _activeLoad;
+  static String _lastApiSignature = '';
+
   static Future<void> loadFromApi({
     bool throwOnError = false,
   }) async {
+    final ongoing = _activeLoad;
+    if (ongoing != null) {
+      await ongoing;
+      return;
+    }
+
+    Future<void> run() async {
+      try {
+        final res = await ApiService.get('produk');
+        final data = res['data'];
+
+        if (data is! List) return;
+
+        final hasil = data.whereType<Map>().map((item) {
+          final p = Map<String, dynamic>.from(item);
+
+          final nama = p['nama_produk']?.toString() ?? '';
+
+          final kategori = p['kategori'];
+
+          final kategoriAsli = kategori is Map
+              ? kategori['nama_kategori']?.toString() ?? ''
+              : kategori?.toString() ?? '';
+
+          final kategoriFinal = kategoriBaru(
+            nama,
+            kategoriAsli,
+          );
+
+          return <String, dynamic>{
+            'id_produk': p['id_produk'],
+            'name': nama,
+            'price': double.tryParse(
+                  p['harga']?.toString() ?? '0',
+                ) ??
+                0,
+            'category': kategoriFinal,
+            'image': _resolveServerImage(p, nama),
+            'gambar': p['gambar'],
+            'is_active': p['status'] == 'aktif',
+          };
+        }).toList();
+
+        final signature = jsonEncode(hasil);
+        if (signature != _lastApiSignature) {
+          _lastApiSignature = signature;
+          produk.value = hasil;
+        }
+      } catch (e) {
+        debugPrint('Gagal memuat produk dari API: $e');
+
+        if (throwOnError) {
+          rethrow;
+        }
+      }
+    }
+
+    final future = run();
+    _activeLoad = future;
     try {
-      final res = await ApiService.get('produk');
-      final data = res['data'];
-
-      if (data is! List) return;
-
-      final hasil = data.whereType<Map>().map((item) {
-        final p = Map<String, dynamic>.from(item);
-
-        final nama = p['nama_produk']?.toString() ?? '';
-
-        final kategori = p['kategori'];
-
-        final kategoriAsli = kategori is Map
-            ? kategori['nama_kategori']?.toString() ?? ''
-            : kategori?.toString() ?? '';
-
-        final kategoriFinal = kategoriBaru(
-          nama,
-          kategoriAsli,
-        );
-
-        return <String, dynamic>{
-          'id_produk': p['id_produk'],
-          'name': nama,
-          'price': double.tryParse(
-                p['harga']?.toString() ?? '0',
-              ) ??
-              0,
-          'category': kategoriFinal,
-          'image': _resolveServerImage(p, nama),
-          'gambar': p['gambar'],
-          'is_active': p['status'] == 'aktif',
-        };
-      }).toList();
-
-      produk.value = hasil;
-    } catch (e) {
-      debugPrint('Gagal memuat produk dari API: $e');
-
-      if (throwOnError) {
-        rethrow;
+      await future;
+    } finally {
+      if (identical(_activeLoad, future)) {
+        _activeLoad = null;
       }
     }
   }

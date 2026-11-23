@@ -14,12 +14,28 @@ class ApiService {
   static void resetClientForTesting() => _client = http.Client();
 
   // Alamat base URL backend Laravel:
+  // - Bisa dioverride saat build: --dart-define=API_BASE_URL=http://192.168.x.x:8000/api
   // - Saat dijalankan di Web lokal (localhost/127.0.0.1), langsung ke 127.0.0.1:8000 (< 0.2 detik!)
   // - Saat dijalankan di HP Android / domain publik, gunakan ngrok / domain hosting.
+  static const String _envBaseUrl = String.fromEnvironment('API_BASE_URL');
   static const String _remoteBaseUrl =
       'https://clatter-distant-sterling.ngrok-free.dev/api';
 
+  static const Duration _getTimeout = Duration(seconds: 15);
+  static const Duration _writeTimeout = Duration(seconds: 20);
+  static const Duration _uploadTimeout = Duration(seconds: 30);
+
+  static String? _cachedToken;
+  static bool _tokenLoaded = false;
+  static Map<String, dynamic>? _cachedUser;
+  static bool _userLoaded = false;
+
   static String get baseUrl {
+    if (_envBaseUrl.isNotEmpty) {
+      return _envBaseUrl.endsWith('/')
+          ? _envBaseUrl.substring(0, _envBaseUrl.length - 1)
+          : _envBaseUrl;
+    }
     if (kIsWeb) {
       final host = Uri.base.host.toLowerCase();
       if (host == 'localhost' || host == '127.0.0.1') {
@@ -41,27 +57,48 @@ class ApiService {
     required String token,
     required Map<String, dynamic> user,
   }) async {
+    _cachedToken = token;
+    _tokenLoaded = true;
+    _cachedUser = Map<String, dynamic>.from(user);
+    _userLoaded = true;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
     await prefs.setString(_userKey, jsonEncode(user));
   }
 
-  /// Ambil token yang tersimpan
+  /// Ambil token yang tersimpan (di-cache di memori agar tidak baca disk berulang)
   static Future<String?> getToken() async {
+    if (_tokenLoaded) return _cachedToken;
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_tokenKey);
+    _cachedToken = prefs.getString(_tokenKey);
+    _tokenLoaded = true;
+    return _cachedToken;
   }
 
-  /// Ambil data user yang sedang login
+  /// Ambil data user yang sedang login (di-cache di memori)
   static Future<Map<String, dynamic>?> getUser() async {
+    if (_userLoaded) {
+      return _cachedUser == null
+          ? null
+          : Map<String, dynamic>.from(_cachedUser!);
+    }
     final prefs = await SharedPreferences.getInstance();
     final userStr = prefs.getString(_userKey);
-    if (userStr == null) return null;
-    return jsonDecode(userStr) as Map<String, dynamic>;
+    _userLoaded = true;
+    if (userStr == null) {
+      _cachedUser = null;
+      return null;
+    }
+    _cachedUser = jsonDecode(userStr) as Map<String, dynamic>;
+    return Map<String, dynamic>.from(_cachedUser!);
   }
 
   /// Hapus token dan data user saat logout
   static Future<void> clearAuth() async {
+    _cachedToken = null;
+    _tokenLoaded = true;
+    _cachedUser = null;
+    _userLoaded = true;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     await prefs.remove(_userKey);
@@ -73,9 +110,11 @@ class ApiService {
 
   static Future<Map<String, String>> _headers({bool json = true}) async {
     final token = await getToken();
+    final isNgrok = baseUrl.toLowerCase().contains('ngrok');
     final headers = <String, String>{
       'Accept': 'application/json',
-      'ngrok-skip-browser-warning': 'true',
+      if (!kIsWeb) 'Accept-Encoding': 'gzip',
+      if (isNgrok) 'ngrok-skip-browser-warning': 'true',
     };
     if (json) headers['Content-Type'] = 'application/json';
     if (token != null && token.isNotEmpty) {
@@ -97,10 +136,9 @@ class ApiService {
       uri = uri.replace(queryParameters: query);
     }
 
-    final response = await _client.get(
-      uri,
-      headers: await _headers(json: false),
-    );
+    final response = await _client
+        .get(uri, headers: await _headers(json: false))
+        .timeout(_getTimeout);
     return _handleResponse(response);
   }
 
@@ -110,12 +148,9 @@ class ApiService {
     Map<String, dynamic> body,
   ) async {
     final uri = Uri.parse('$baseUrl/$endpoint');
-    final response = await _client.post(
-      // <-- harus http.post
-      uri,
-      headers: await _headers(),
-      body: jsonEncode(body),
-    );
+    final response = await _client
+        .post(uri, headers: await _headers(), body: jsonEncode(body))
+        .timeout(_writeTimeout);
     return _handleResponse(response);
   }
 
@@ -125,11 +160,9 @@ class ApiService {
     Map<String, dynamic> body,
   ) async {
     final uri = Uri.parse('$baseUrl/$endpoint');
-    final response = await _client.put(
-      uri,
-      headers: await _headers(),
-      body: jsonEncode(body),
-    );
+    final response = await _client
+        .put(uri, headers: await _headers(), body: jsonEncode(body))
+        .timeout(_writeTimeout);
     return _handleResponse(response);
   }
 
@@ -139,21 +172,18 @@ class ApiService {
     Map<String, dynamic> body,
   ) async {
     final uri = Uri.parse('$baseUrl/$endpoint');
-    final response = await _client.patch(
-      uri,
-      headers: await _headers(),
-      body: jsonEncode(body),
-    );
+    final response = await _client
+        .patch(uri, headers: await _headers(), body: jsonEncode(body))
+        .timeout(_writeTimeout);
     return _handleResponse(response);
   }
 
   /// DELETE Request (menghapus data)
   static Future<Map<String, dynamic>> delete(String endpoint) async {
     final uri = Uri.parse('$baseUrl/$endpoint');
-    final response = await _client.delete(
-      uri,
-      headers: await _headers(json: false),
-    );
+    final response = await _client
+        .delete(uri, headers: await _headers(json: false))
+        .timeout(_getTimeout);
     return _handleResponse(response);
   }
 
@@ -182,7 +212,7 @@ class ApiService {
       );
     }
 
-    final streamed = await request.send();
+    final streamed = await request.send().timeout(_uploadTimeout);
     final response = await http.Response.fromStream(streamed);
     return _handleResponse(response);
   }

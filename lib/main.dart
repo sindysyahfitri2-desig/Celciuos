@@ -31,14 +31,16 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _initialize() async {
-    await TransactionStore.initialize();
-    await ProdukData.initialize();
-    await AppBrandingStore.initialize();
-    await OwnerProfileStore.initialize();
-    await PaymentMethodsStore.initialize();
-    await ReceiptSettingsStore.initialize();
-    await StickerSettingsStore.initialize();
-    await KitchenReceiptSettingsStore.initialize();
+    await Future.wait([
+      TransactionStore.initialize(),
+      ProdukData.initialize(),
+      AppBrandingStore.initialize(),
+      OwnerProfileStore.initialize(),
+      PaymentMethodsStore.initialize(),
+      ReceiptSettingsStore.initialize(),
+      StickerSettingsStore.initialize(),
+      KitchenReceiptSettingsStore.initialize(),
+    ]);
   }
 
   void _retryInitialization() {
