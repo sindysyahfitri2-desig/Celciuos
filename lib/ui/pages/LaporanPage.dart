@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:kasir_celcious_coffe/data/api_service.dart';
 import 'package:kasir_celcious_coffe/features/reports/application/report_service.dart';
 import '../../data/transaction_store.dart';
 import 'package:excel/excel.dart' hide Border;
@@ -1820,7 +1821,9 @@ class _LaporanPageState extends State<LaporanPage> {
   Future<bool> _downloadExcel(bool kasLaci, String namaFile) async {
     try {
       final workbook = Excel.createExcel();
-      final sheet = workbook[kasLaci ? 'Kas Laci' : 'Laporan Keuangan'];
+      final sheetName = kasLaci ? 'Kas Laci' : 'Laporan Keuangan';
+      workbook.rename('Sheet1', sheetName);
+      final sheet = workbook[sheetName];
       sheet.appendRow(
         kasLaci
             ? [
@@ -1875,6 +1878,12 @@ class _LaporanPageState extends State<LaporanPage> {
         fileExtension: 'xlsx',
         mimeType: MimeType.microsoftExcel,
       );
+      try {
+        await ApiService.post('laporan', {
+          'jenis_laporan': kasLaci ? 'Laporan Kas Laci Kasir' : 'Laporan Keuangan Kasir',
+          'periode': tanggal == 'Semua' ? '$bulan $tahun' : '$tanggal $bulan $tahun',
+        });
+      } catch (_) {}
       if (!mounted) {
         return false;
       }

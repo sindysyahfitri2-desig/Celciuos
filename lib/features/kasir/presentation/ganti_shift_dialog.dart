@@ -168,7 +168,9 @@ class _GantiShiftDialogState extends State<_GantiShiftDialog> {
           ),
         ],
       ),
-    ).whenComplete(() => c.dispose());
+    ).whenComplete(
+      () => Future.delayed(const Duration(milliseconds: 300), c.dispose),
+    );
   }
 
   Future<void> _simpan() async {
@@ -352,45 +354,72 @@ class _GantiShiftDialogState extends State<_GantiShiftDialog> {
                         ),
                       )
                     else if (_kasir.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(20),
-                        child: Center(
-                          child: Text(
-                            'Tidak ada kasir lain.',
-                            style: TextStyle(
-                              color: _muted,
-                              fontSize: 13,
-                            ),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: _pageBg.withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: _navy.withValues(alpha: 0.15),
                           ),
                         ),
+                        child: const Column(
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              color: _navy,
+                              size: 28,
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Tidak ada kasir lain yang aktif.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: _navy,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Anda dapat langsung menutup shift hari ini agar laporan kas laci & keuangan tercatat rapi.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: _muted,
+                                fontSize: 11.5,
+                                height: 1.35,
+                              ),
+                            ),
+                          ],
+                        ),
                       )
-                    else
+                    else ...[
                       ..._kasir.map(_buildKasirCard),
-
-                    const SizedBox(height: 10),
-
-                    // KONFIRMASI
-                    CheckboxListTile(
-                      value: _yakin,
-                      onChanged: _submitting
-                          ? null
-                          : (v) {
-                              setState(() {
-                                _yakin = v ?? false;
-                              });
-                            },
-                      activeColor: _navy,
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      title: const Text(
-                        'Saya yakin ingin mengganti shift kasir.',
-                        style: TextStyle(
-                          color: _muted,
-                          fontSize: 12,
+                      const SizedBox(height: 10),
+                      // KONFIRMASI
+                      CheckboxListTile(
+                        value: _yakin,
+                        onChanged: _submitting
+                            ? null
+                            : (v) {
+                                setState(() {
+                                  _yakin = v ?? false;
+                                });
+                              },
+                        activeColor: _navy,
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        title: const Text(
+                          'Saya yakin ingin mengganti shift kasir.',
+                          style: TextStyle(
+                            color: _muted,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -398,59 +427,115 @@ class _GantiShiftDialogState extends State<_GantiShiftDialog> {
 
             // TOMBOL
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
-              child: Row(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _submitting
-                          ? null
-                          : () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _navy,
-                        side: const BorderSide(color: _navy),
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(7),
-                        ),
-                      ),
-                      child: const Text('Batal'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _dipilih != null &&
-                              _yakin &&
-                              !_submitting
-                          ? _simpan
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _navy,
-                        disabledBackgroundColor: Colors.grey.shade300,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(7),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _submitting
+                              ? null
+                              : () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _navy,
+                            side: const BorderSide(color: _navy),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(7),
+                            ),
+                          ),
+                          child: const Text('Batal'),
                         ),
                       ),
-                      child: _submitting
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _kasir.isEmpty && !_loading
+                            ? ElevatedButton.icon(
+                                onPressed: _submitting
+                                    ? null
+                                    : () => Navigator.pop(
+                                          context,
+                                          <String, dynamic>{
+                                            '__tutup_shift__': true,
+                                          },
+                                        ),
+                                icon: const Icon(Icons.logout_rounded, size: 17),
+                                label: const Text('Tutup Shift'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFD85C5C),
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(7),
+                                  ),
+                                ),
+                              )
+                            : ElevatedButton(
+                                onPressed: _dipilih != null &&
+                                        _yakin &&
+                                        !_submitting
+                                    ? _simpan
+                                    : null,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _navy,
+                                  disabledBackgroundColor: Colors.grey.shade300,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(7),
+                                  ),
+                                ),
+                                child: _submitting
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text('Simpan'),
                               ),
-                            )
-                          : const Text('Simpan'),
-                    ),
+                      ),
+                    ],
                   ),
+                  if (_kasir.isNotEmpty && !_loading) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton.icon(
+                        onPressed: _submitting
+                            ? null
+                            : () => Navigator.pop(
+                                  context,
+                                  <String, dynamic>{'__tutup_shift__': true},
+                                ),
+                        icon: const Icon(
+                          Icons.logout_rounded,
+                          size: 16,
+                          color: Color(0xFFD85C5C),
+                        ),
+                        label: const Text(
+                          'Atau Tutup Shift & Keluar Sekarang (1 Shift)',
+                          style: TextStyle(
+                            color: Color(0xFFD85C5C),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

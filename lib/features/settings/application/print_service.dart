@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:kasir_celcious_coffe/data/api_service.dart';
-import 'package:kasir_celcious_coffe/data/qris_store.dart';
+import 'package:kasir_celcious_coffe/data/app_branding_store.dart';
+import 'package:kasir_celcious_coffe/data/kitchen_receipt_settings_store.dart';
 import 'package:kasir_celcious_coffe/data/receipt_settings_store.dart';
 import 'package:kasir_celcious_coffe/data/sticker_settings_store.dart';
 import 'package:pdf/pdf.dart';
@@ -22,9 +24,26 @@ class PrintService {
 
   static const kPrinterDapur = 'celcious_printer_dapur';
   static const kPrinterStruk = 'celcious_printer_struk';
+  static const kInstagramUrl =
+      'https://www.instagram.com/celcious.cs?bqrl=MTBwY2FubTg4bXNyZA==';
+  static const kInstagramHandle = '@celcious.cs';
   static const kDefaultAlamatToko =
       'Dusun vak111 kampun, Mekar Sawit, Kec. Sawit Seberang, '
       'Kabupaten Langkat, Sumatera Utara 20852';
+
+  static Future<pw.MemoryImage?> _loadStoreLogo() async {
+    try {
+      final custom = AppBrandingStore.logoBytes.value;
+      if (custom != null && custom.isNotEmpty) {
+        return pw.MemoryImage(custom);
+      }
+      final asset = await rootBundle.load('assets/images/Logo.jpeg');
+      return pw.MemoryImage(asset.buffer.asUint8List());
+    } catch (e) {
+      debugPrint('Gagal memuat logo struk: $e');
+      return null;
+    }
+  }
 
   // ---------- util ----------
   static String _dua(int n) => n.toString().padLeft(2, '0');
@@ -130,6 +149,7 @@ class PrintService {
         kat == 'latte' ||
         kat == 'sanger' ||
         kat == 'refresh' ||
+        kat == 'best selling' ||
         kat == 'minuman' ||
         kat == 'drink') {
       return true;
@@ -144,6 +164,8 @@ class PrintService {
       'nasi',
       'indomie',
       'mie',
+      'kwetiau',
+      'tiaw',
       'rice bowl',
       'spagetti',
       'spaghetti',
@@ -159,12 +181,24 @@ class PrintService {
       'roti',
       'snack',
       'food',
+      'dimsum',
+      'dumpling',
+      'sosis',
+      'nugget',
+      'otak',
+      'croisant',
+      'croissant',
+      'cromboloni',
+      'mix ',
     ];
     for (final k in kataMakanan) {
       if (nama.contains(k)) return false;
     }
     return nama.isNotEmpty;
   }
+
+  /// Deteksi item makanan (untuk Struk Dapur / Kitchen Ticket).
+  static bool isMakananItem(Map d) => !isMinumanItem(d);
 
   /// Cek apakah transaksi / order memiliki minimal 1 item minuman.
   static bool adaMinuman(Map t) {
@@ -175,6 +209,17 @@ class PrintService {
     }
     final list = (t['detail_transaksi'] ?? t['items'] ?? t['cart']) as List? ?? [];
     return list.whereType<Map>().any(isMinumanItem);
+  }
+
+  /// Cek apakah transaksi / order memiliki minimal 1 item makanan.
+  static bool adaMakanan(Map t) {
+    final raw = t['rawTransaksi'];
+    if (raw is Map && raw['detail_transaksi'] is List) {
+      final list = (raw['detail_transaksi'] as List).whereType<Map>();
+      return list.any(isMakananItem);
+    }
+    final list = (t['detail_transaksi'] ?? t['items'] ?? t['cart']) as List? ?? [];
+    return list.whereType<Map>().any(isMakananItem);
   }
 
   /// Konversi data order/receipt (lokal maupun server) menjadi payload standar cetak.
@@ -367,10 +412,9 @@ class PrintService {
             ],
           );
 
-      pw.MemoryImage? qr;
-      if (on('qrCode')) {
-        final b = await QrisStore.loadImageBytes();
-        if (b != null) qr = pw.MemoryImage(b);
+      pw.MemoryImage? logo;
+      if (on('storeLogo')) {
+        logo = await _loadStoreLogo();
       }
 
       final fmt = PdfPageFormat.roll57.copyWith(
@@ -386,6 +430,19 @@ class PrintService {
         build: (_) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           children: [
+            if (logo != null) ...[
+              pw.Center(
+                child: pw.ClipOval(
+                  child: pw.Image(
+                    logo,
+                    width: 44,
+                    height: 44,
+                    fit: pw.BoxFit.cover,
+                  ),
+                ),
+              ),
+              pw.SizedBox(height: 5),
+            ],
             pw.Center(
                 child: pw.Text(_latin('${toko['nama_toko'] ?? 'Celcious Coffee'}'),
                     style: pw.TextStyle(font: bold, fontSize: 11))),
@@ -430,9 +487,33 @@ class PrintService {
             if (on('total')) baris('TOTAL', _rp(t['total']), tebal: true),
             if (t['metode_pembayaran'] is Map)
               baris('Bayar', '${t['metode_pembayaran']['nama_metode']}'),
-            if (qr != null) ...[
+            if (on('qrCode')) ...[
               pw.SizedBox(height: 8),
-              pw.Center(child: pw.Image(qr, width: 90, height: 90)),
+              pw.Center(
+                child: pw.BarcodeWidget(
+                  barcode: pw.Barcode.qrCode(
+                    errorCorrectLevel: pw.BarcodeQRCorrectionLevel.medium,
+                  ),
+                  data: kInstagramUrl,
+                  width: 68,
+                  height: 68,
+                  color: PdfColors.black,
+                  backgroundColor: PdfColors.white,
+                ),
+              ),
+              pw.SizedBox(height: 3),
+              pw.Center(
+                child: pw.Text(
+                  'Follow Instagram Kami',
+                  style: pw.TextStyle(font: reg, fontSize: 6.5),
+                ),
+              ),
+              pw.Center(
+                child: pw.Text(
+                  kInstagramHandle,
+                  style: pw.TextStyle(font: bold, fontSize: 7.5),
+                ),
+              ),
             ],
             pw.SizedBox(height: 6),
             pw.Center(
@@ -450,23 +531,70 @@ class PrintService {
   }
 
   // =====================================================
-  // STRUK DAPUR (sesuai format: Order No, Meja/Customer, Pesanan | Jlh Pesanan)
+  // STRUK DAPUR (khusus item makanan — terima receiptData maupun payload order server)
   // =====================================================
   static Future<void> cetakStrukDapur(Map<String, dynamic> receiptData) async {
     try {
+      await KitchenReceiptSettingsStore.initialize();
+      final opsi = KitchenReceiptSettingsStore.options.value;
+      if (opsi['enabled'] == false) return;
+      bool on(String k) => opsi[k] ?? true;
+
+      final payload = receiptData['detail_transaksi'] is List ||
+              receiptData['rawTransaksi'] is Map
+          ? buildPrintPayloadFromOrder(receiptData)
+          : null;
+
       final bold = pw.Font.helveticaBold();
       final reg = pw.Font.helvetica();
-      final orderId = '${receiptData['orderId'] ?? '-'}';
-      final customerName = '${receiptData['customerName'] ?? ''}'.trim();
-      final orderType = '${receiptData['orderType'] ?? 'Dine In'}'.trim();
-      final subHeader = customerName.isNotEmpty
-          ? '$orderType - $customerName'
-          : orderType;
+      final orderId = payload != null
+          ? '${payload['kode'] ?? payload['id_transaksi'] ?? '-'}'
+          : '${receiptData['orderId'] ?? receiptData['kode'] ?? '-'}';
+      final customerName = payload != null
+          ? '${payload['nama_pelanggan'] ?? ''}'.trim()
+          : '${receiptData['customerName'] ?? receiptData['nama'] ?? ''}'.trim();
+      final orderType = payload != null
+          ? '${payload['tipe_pesanan'] ?? 'Dine In'}'.trim()
+          : '${receiptData['orderType'] ?? receiptData['tipe'] ?? 'Dine In'}'.trim();
+      final rawTime = payload != null
+          ? payload['tanggal']
+          : (receiptData['orderedAt'] ?? receiptData['tanggal']);
+      final tgl = rawTime is DateTime
+          ? rawTime.toLocal()
+          : (DateTime.tryParse('${rawTime ?? ''}')?.toLocal() ?? DateTime.now());
+      final waktuLabel =
+          '${_dua(tgl.day)}/${_dua(tgl.month)}/${tgl.year} ${_dua(tgl.hour)}:${_dua(tgl.minute)}';
 
-      final items = (receiptData['items'] as List? ?? const [])
-          .whereType<Map>()
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
+      final subParts = <String>[
+        if (on('orderType') && orderType.isNotEmpty) orderType,
+        if (on('customerName') && customerName.isNotEmpty) customerName,
+      ];
+      final subHeader = subParts.join(' - ');
+
+      final List<Map<String, dynamic>> rawItems;
+      if (payload != null) {
+        rawItems = (payload['detail_transaksi'] as List? ?? const [])
+            .whereType<Map>()
+            .where(isMakananItem)
+            .map((d) => <String, dynamic>{
+                  'name': (d['produk'] is Map
+                          ? d['produk']['nama_produk']?.toString()
+                          : null) ??
+                      'Menu',
+                  'quantity': _int(d['jumlah']),
+                  'catatan': (d['varian'] ?? '').toString(),
+                })
+            .toList();
+      } else {
+        rawItems = (receiptData['items'] as List? ?? const [])
+            .whereType<Map>()
+            .where(isMakananItem)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+
+      if (rawItems.isEmpty) return;
+      final items = rawItems;
 
       final fmt = PdfPageFormat.roll57.copyWith(
         marginLeft: 4 * PdfPageFormat.mm,
@@ -482,15 +610,32 @@ class PrintService {
           build: (_) => pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text(
-                _latin('Order #$orderId'),
-                style: pw.TextStyle(font: bold, fontSize: 13),
+              pw.Center(
+                child: pw.Text(
+                  'STRUK DAPUR',
+                  style: pw.TextStyle(font: bold, fontSize: 10),
+                ),
               ),
-              pw.SizedBox(height: 2),
-              pw.Text(
-                _latin(subHeader),
-                style: pw.TextStyle(font: reg, fontSize: 9),
-              ),
+              pw.SizedBox(height: 4),
+              if (on('orderNumber'))
+                pw.Text(
+                  _latin('Order #$orderId'),
+                  style: pw.TextStyle(font: bold, fontSize: 12.5),
+                ),
+              if (subHeader.isNotEmpty) ...[
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  _latin(subHeader),
+                  style: pw.TextStyle(font: reg, fontSize: 9),
+                ),
+              ],
+              if (on('orderTime')) ...[
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  waktuLabel,
+                  style: pw.TextStyle(font: reg, fontSize: 8),
+                ),
+              ],
               pw.SizedBox(height: 6),
               pw.Container(height: 1.2, color: PdfColors.black),
               pw.SizedBox(height: 6),
@@ -501,10 +646,11 @@ class PrintService {
                     'Pesanan',
                     style: pw.TextStyle(font: bold, fontSize: 9),
                   ),
-                  pw.Text(
-                    'Jlh Pesanan',
-                    style: pw.TextStyle(font: bold, fontSize: 9),
-                  ),
+                  if (on('itemQuantity'))
+                    pw.Text(
+                      'Jlh Pesanan',
+                      style: pw.TextStyle(font: bold, fontSize: 9),
+                    ),
                 ],
               ),
               pw.SizedBox(height: 6),
@@ -520,7 +666,8 @@ class PrintService {
                             _latin('${item['name'] ?? 'Menu'}'),
                             style: pw.TextStyle(font: bold, fontSize: 9),
                           ),
-                          if ('${item['catatan'] ?? ''}'.trim().isNotEmpty)
+                          if (on('itemNotes') &&
+                              '${item['catatan'] ?? ''}'.trim().isNotEmpty)
                             pw.Text(
                               _latin('Catatan: ${item['catatan']}'),
                               style: pw.TextStyle(font: reg, fontSize: 7.5),
@@ -528,11 +675,13 @@ class PrintService {
                         ],
                       ),
                     ),
-                    pw.SizedBox(width: 8),
-                    pw.Text(
-                      '${item['quantity'] ?? 1}',
-                      style: pw.TextStyle(font: bold, fontSize: 9.5),
-                    ),
+                    if (on('itemQuantity')) ...[
+                      pw.SizedBox(width: 8),
+                      pw.Text(
+                        '${item['quantity'] ?? 1}',
+                        style: pw.TextStyle(font: bold, fontSize: 9.5),
+                      ),
+                    ],
                   ],
                 ),
                 pw.SizedBox(height: 5),
@@ -584,7 +733,7 @@ class PrintService {
       'tanggal': dateIso,
       'subtotal': receiptData['subtotal'] ?? 0,
       'ppn': receiptData['tax'] ?? 0,
-      'biaya_layanan': 0,
+      'biaya_layanan': receiptData['biaya_layanan'] ?? 0,
       'diskon': receiptData['discount'] ?? 0,
       'total': receiptData['total'] ?? 0,
       'pengguna': {'nama': receiptData['cashierName']?.toString() ?? 'Kasir'},

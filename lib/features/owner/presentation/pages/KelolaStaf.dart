@@ -104,6 +104,7 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
     final nameCtrl = TextEditingController(text: staff.name);
 
     Uint8List? newPhoto;
+    String newPhotoName = 'foto.jpg';
     bool photoChanged = false;
 
     final screenW = MediaQuery.of(context).size.width;
@@ -124,6 +125,7 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
               final b = await img.readAsBytes();
               setDState(() {
                 newPhoto = b;
+                newPhotoName = img.name.isNotEmpty ? img.name : 'foto.jpg';
                 photoChanged = true;
               });
             }
@@ -132,8 +134,11 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
           ImageProvider? provider;
           if (newPhoto != null) {
             provider = MemoryImage(newPhoto!);
-          } else if (staff.photoUrl != null) {
-            provider = NetworkImage(staff.photoUrl!);
+          } else if (staff.photoUrl != null && staff.photoUrl!.isNotEmpty) {
+            provider = NetworkImage(
+              staff.photoUrl!,
+              headers: const {'ngrok-skip-browser-warning': 'true'},
+            );
           }
 
           return Dialog(
@@ -244,12 +249,12 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
     );
 
     if (ok != true) {
-      nameCtrl.dispose();
+      Future.delayed(const Duration(milliseconds: 300), nameCtrl.dispose);
       return;
     }
 
     final nm = nameCtrl.text.trim();
-    nameCtrl.dispose();
+    Future.delayed(const Duration(milliseconds: 300), nameCtrl.dispose);
 
     if (nm.isEmpty) {
       _snack('Nama staf tidak boleh kosong.', error: true);
@@ -262,6 +267,7 @@ class _KontrolStafPageState extends State<KontrolStafPage> {
       ri,
       newName: nm,
       photoBytes: photoChanged ? newPhoto : null,
+      photoFileName: newPhotoName,
     );
 
     if (success) {
@@ -817,11 +823,15 @@ class _StaffCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   child: Container(
                     color: _kPlaceholder,
-                    child: staff.photoUrl != null
+                    child: staff.photoUrl != null && staff.photoUrl!.isNotEmpty
                         ? Image.network(
                             staff.photoUrl!,
+                            key: ValueKey(staff.photoUrl),
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _avatar(),
+                            headers: const {
+                              'ngrok-skip-browser-warning': 'true',
+                            },
+                            errorBuilder: (_, _, _) => _avatar(),
                           )
                         : _avatar(),
                   ),

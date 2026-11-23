@@ -9,6 +9,7 @@ import 'package:kasir_celcious_coffe/ui/pages/home_page.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/Navigation.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/product_cart.dart';
+import 'package:kasir_celcious_coffe/ui/widgets/product_image.dart';
 
 import 'checkout_page.dart';
 import 'widgets/cash_drawer_panel.dart';
@@ -46,6 +47,7 @@ class _kasirPageState extends State<kasirPage> {
   bool _showCashDrawerPanel = false;
   DateTime _today = DateTime.now();
   Timer? _dateRefreshTimer;
+  Timer? _produkSyncTimer;
 
   bool showWelcome = true;
   bool showJenisPesanan = false;
@@ -103,16 +105,9 @@ class _kasirPageState extends State<kasirPage> {
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.asset(
-                          product['image'] ?? '',
+                        child: ProductImage(
+                          image: product['image'],
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(
-                              Icons.local_cafe,
-                              color: Colors.white,
-                              size: 28,
-                            );
-                          },
                         ),
                       ),
                     ),
@@ -124,7 +119,7 @@ class _kasirPageState extends State<kasirPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Celcious ${product['name']}',
+                            '${product['name'] ?? ''}',
                             style: const TextStyle(
                               color: Color(0xff102b40),
                               fontSize: 17,
@@ -254,16 +249,9 @@ class _kasirPageState extends State<kasirPage> {
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.asset(
-                          product['image'] ?? '',
+                        child: ProductImage(
+                          image: product['image'],
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(
-                              Icons.local_cafe,
-                              color: Colors.white,
-                              size: 28,
-                            );
-                          },
                         ),
                       ),
                     ),
@@ -275,7 +263,7 @@ class _kasirPageState extends State<kasirPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Celcious ${product['name']}',
+                            '${product['name'] ?? ''}',
                             style: const TextStyle(
                               color: Color(0xff102b40),
                               fontSize: 12,
@@ -451,6 +439,15 @@ class _kasirPageState extends State<kasirPage> {
         namaKasir = u['nama']?.toString() ?? namaKasir;
       });
     });
+    ProdukData.loadFromApi();
+    TransactionStore.syncStoreRates();
+    _produkSyncTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) {
+        ProdukData.loadFromApi();
+        TransactionStore.syncStoreRates();
+      },
+    );
   }
 
   void _onCartChanged() {
@@ -504,6 +501,7 @@ class _kasirPageState extends State<kasirPage> {
   @override
   void dispose() {
     _dateRefreshTimer?.cancel();
+    _produkSyncTimer?.cancel();
     _cartController
       ..removeListener(_onCartChanged)
       ..dispose();
@@ -552,6 +550,30 @@ class _kasirPageState extends State<kasirPage> {
   Future<void> _gantiShift() async {
     final user = await showGantiShiftDialog(context, idKasirSaatIni: _idKasir);
     if (user == null || !mounted) return;
+
+    // Jika kasir memilih langsung tutup shift (staf tinggal 1 atau tutup lebih awal)
+    if (user['__tutup_shift__'] == true) {
+      await _konfirmasiLogout();
+      return;
+    }
+
+    // Catat pergantian shift ke-2 di backend agar audit shift & laporan konsisten
+    try {
+      await CashierShiftService.gantiShift();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Gagal mencatat pergantian shift: ${e.toString().replaceAll('Exception: ', '')}',
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
     setState(() {
       shiftKe = 2;
       namaKasir = user['nama'].toString();
@@ -691,33 +713,39 @@ class _kasirPageState extends State<kasirPage> {
 
               SizedBox(width: isMobile ? 7 : 9),
 
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Celcious Coffee',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: isMobile
-                          ? 14
-                          : isTablet
-                          ? 16
-                          : 17,
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Celcious Coffee',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: isMobile
+                            ? 14
+                            : isTablet
+                            ? 16
+                            : 17,
+                      ),
                     ),
-                  ),
-                  Text(
-                    _formatHeaderDate(_today),
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(.55),
-                      fontSize: isMobile ? 9 : 10,
+                    Text(
+                      _formatHeaderDate(_today),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(.55),
+                        fontSize: isMobile ? 9.5 : 10.5,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
 
-              const Spacer(),
+              const SizedBox(width: 8),
 
               if (namaKasir.isNotEmpty) ...[
                 Material(
@@ -806,19 +834,28 @@ class _kasirPageState extends State<kasirPage> {
             ),
           ),
 
-          // PANEL KAS LACI MENGAMBANG
+          // PANEL KAS LACI MENGAMBANG (adaptif tidak keluar layar di HP & Tablet)
           Positioned(
             top: 10,
             right: 12,
+            left: MediaQuery.sizeOf(context).width < 520 ? 12 : null,
             child: SafeArea(
-              child: Material(
-                color: Colors.transparent,
-                elevation: 12,
-                borderRadius: BorderRadius.circular(16),
-                child: AnimatedOpacity(
-                  opacity: 1,
-                  duration: const Duration(milliseconds: 200),
-                  child: const CashDrawerPanel(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 420,
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.78,
+                ),
+                child: SingleChildScrollView(
+                  child: Material(
+                    color: Colors.transparent,
+                    elevation: 12,
+                    borderRadius: BorderRadius.circular(16),
+                    child: AnimatedOpacity(
+                      opacity: 1,
+                      duration: const Duration(milliseconds: 200),
+                      child: const CashDrawerPanel(),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1153,6 +1190,25 @@ class _kasirPageState extends State<kasirPage> {
   // CATEGORIES
   // ==========================================================
 
+  IconData _iconKategori(String kategori) {
+    switch (kategori.toLowerCase()) {
+      case 'americano':
+      case 'sanger':
+      case 'latte':
+        return Icons.coffee_rounded;
+      case 'refresh':
+        return Icons.local_bar_rounded;
+      case 'best selling':
+        return Icons.star_rounded;
+      case 'non coffee':
+        return Icons.local_drink_rounded;
+      case 'food':
+        return Icons.lunch_dining_rounded;
+      default:
+        return Icons.local_cafe_rounded;
+    }
+  }
+
   Widget _categories() {
     return SizedBox(
       height: 36,
@@ -1162,10 +1218,8 @@ class _kasirPageState extends State<kasirPage> {
         scrollDirection: Axis.horizontal,
         children: [
           _category(Icons.grid_view_rounded, 'Semua Menu'),
-          _category(Icons.local_drink_rounded, 'Non-Coffee'),
-          _category(Icons.coffee_rounded, 'Coffee'),
-          _category(Icons.lunch_dining_rounded, 'Food'),
-          _category(Icons.icecream_rounded, 'Snack'),
+          for (final kat in ProdukData.kategoriProduk)
+            _category(_iconKategori(kat), kat),
         ],
       ),
     );
@@ -1273,12 +1327,7 @@ class _kasirPageState extends State<kasirPage> {
                 return false;
               }
               if (selectedCategory == 'Semua Menu') return true;
-              if (selectedCategory == 'Coffee') return category == 'coffee';
-              if (selectedCategory == 'Non-Coffee')
-                return category == 'non-coffee';
-              if (selectedCategory == 'Food') return category == 'food';
-              if (selectedCategory == 'Snack') return category == 'snack';
-              return true;
+              return category == selectedCategory.toLowerCase();
             }).toList();
 
             if (filteredProducts.isEmpty) {
@@ -1318,7 +1367,7 @@ class _kasirPageState extends State<kasirPage> {
                 return _AnimatedTouch(
                   scale: 0.985,
                   child: ProductCard(
-                    name: 'Celcious ${product['name']}',
+                    name: '${product['name'] ?? ''}',
                     price: (product['price'] as num).toDouble(),
                     image: product['image'],
                     category: product['category']?.toString() ?? '',

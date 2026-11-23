@@ -86,6 +86,18 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
     }
   }
 
+  Future<void> _cetakDapurOrder(Map<String, dynamic> data) async {
+    try {
+      final payload = PrintService.buildPrintPayloadFromOrder(data);
+      await PrintService.cetakStrukDapur(payload);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal cetak struk dapur: $e')),
+      );
+    }
+  }
+
   double _parseDouble(dynamic v) {
     if (v is num) return v.toDouble();
     return double.tryParse(v?.toString() ?? '') ?? 0.0;
@@ -1009,6 +1021,34 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
     );
   }
 
+  Widget _tombolCetakDapur(
+    Map<String, dynamic> data, {
+    bool mobile = false,
+    bool large = false,
+  }) {
+    return SizedBox(
+      height: mobile ? 29 : (large ? 34 : 31),
+      child: OutlinedButton.icon(
+        onPressed: () => _cetakDapurOrder(data),
+        icon: Icon(Icons.restaurant_menu_rounded, size: mobile ? 12 : 14),
+        label: Text(
+          'Struk Dapur',
+          style: TextStyle(
+            fontSize: mobile ? 8.5 : (large ? 11 : 10),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xff9a5000),
+          side: const BorderSide(color: Color(0xffe0963b), width: 1.2),
+          backgroundColor: const Color(0xfffff7eb),
+          padding: EdgeInsets.symmetric(horizontal: mobile ? 8 : 11),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+    );
+  }
+
   // ============================================================
   // CARD LAPTOP / TABLET
   // ============================================================
@@ -1016,6 +1056,7 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
   Widget _cardDesktop(Map<String, dynamic> data, bool pending) {
     final isSelfOrder = data['isSelfOrder'] == true;
     final adaMinuman = PrintService.adaMinuman(data);
+    final adaMakanan = PrintService.adaMakanan(data);
 
     return Row(
       children: [
@@ -1111,6 +1152,7 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
                 if (!pending) ...[
                   _tombolCetakStruk(data, large: true),
                   if (adaMinuman) _tombolCetakStiker(data, large: true),
+                  if (adaMakanan) _tombolCetakDapur(data, large: true),
                 ],
 
                 _tombolSelesai(data, large: true),
@@ -1131,6 +1173,7 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
   Widget _cardMobile(Map<String, dynamic> data, bool pending) {
     final isSelfOrder = data['isSelfOrder'] == true;
     final adaMinuman = PrintService.adaMinuman(data);
+    final adaMakanan = PrintService.adaMakanan(data);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1230,6 +1273,7 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
             children: [
               _tombolCetakStruk(data, mobile: true),
               if (adaMinuman) _tombolCetakStiker(data, mobile: true),
+              if (adaMakanan) _tombolCetakDapur(data, mobile: true),
             ],
           ),
         ],

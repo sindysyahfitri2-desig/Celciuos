@@ -2,8 +2,12 @@ import 'package:kasir_celcious_coffe/data/api_service.dart';
 
 class DashboardService {
   Future<Map<String, dynamic>> ambilDashboard() async {
+    final now = DateTime.now();
+    final todayIso =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     final response = await ApiService.get(
       'transaksi',
+      query: {'tanggal': todayIso, 'status_bayar': 'lunas'},
     ).timeout(const Duration(seconds: 15));
     final rawTransactions = response['data'];
     if (rawTransactions is! List) {
@@ -12,7 +16,6 @@ class DashboardService {
       );
     }
 
-    final now = DateTime.now();
     final startOfToday = DateTime(now.year, now.month, now.day);
     final endOfToday = startOfToday.add(const Duration(days: 1));
     var omzetHariIni = 0.0;
@@ -25,10 +28,11 @@ class DashboardService {
       if (rawTransaction is! Map) continue;
       final transaction = Map<String, dynamic>.from(rawTransaction);
       final status = transaction['status_bayar']?.toString().toLowerCase();
-      if (status == 'dibatalkan') continue;
+      if (status != 'lunas') continue;
 
       final tanggal = DateTime.tryParse(
-        transaction['tanggal']?.toString() ?? '',
+        (transaction['dibayar_pada'] ?? transaction['tanggal'])?.toString() ??
+            '',
       )?.toLocal();
       if (tanggal == null ||
           tanggal.isBefore(startOfToday) ||
@@ -40,14 +44,18 @@ class DashboardService {
       omzetHariIni += total;
       omzetPerJam[tanggal.hour] += total;
       totalTransaksi++;
-      if (status != 'lunas') continue;
 
       final rawMetode = transaction['metode_pembayaran'];
       final metodeData = rawMetode is Map
           ? Map<String, dynamic>.from(rawMetode)
           : const <String, dynamic>{};
-      final metode = (metodeData['nama_metode'] ?? 'Tunai').toString().trim();
-      final namaMetode = metode.isEmpty ? 'Tunai' : metode;
+      final fallbackMetode = transaction['midtrans_order_id'] != null
+          ? 'QRIS'
+          : 'Cash';
+      final metode = (metodeData['nama_metode'] ?? fallbackMetode)
+          .toString()
+          .trim();
+      final namaMetode = metode.isEmpty ? fallbackMetode : metode;
 
       if (_isTunai(namaMetode)) {
         totalTunai += total;

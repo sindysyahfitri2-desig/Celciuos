@@ -105,14 +105,16 @@ class _ModalKeuntunganPanelState extends State<ModalKeuntunganPanel> {
             ? Column(children: [
                 for (final k in kartu) ...[k, const SizedBox(height: 12)],
               ])
-            : Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < kartu.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 14),
-                    Expanded(child: kartu[i]),
+            : IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < kartu.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 14),
+                      Expanded(child: kartu[i]),
+                    ],
                   ],
-                ],
+                ),
               ),
 
         if (hpp == null) ...[

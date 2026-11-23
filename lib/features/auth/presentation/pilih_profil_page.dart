@@ -17,6 +17,7 @@ class PilihProfilPage extends StatefulWidget {
 class _PilihProfilPageState extends State<PilihProfilPage> {
   List<Map<String, dynamic>> _kasir = [];
   bool _loading = true;
+  bool _loggingIn = false;
 
   int? hoveredIndex;
 
@@ -244,7 +245,8 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
       },
     );
 
-    c.dispose();
+    // Tunda dispose agar animasi tutup dialog selesai dulu (mencegah error flash di layar)
+    Future.delayed(const Duration(milliseconds: 350), c.dispose);
     return result;
   }
 
@@ -253,12 +255,16 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
   // ==========================================
 
   Future<void> _login(Map<String, dynamic> k) async {
+    if (_loggingIn) return;
+
     final pin = await _askPin(
       context,
       k['nama'].toString(),
     );
 
     if (pin == null || pin.isEmpty) return;
+
+    setState(() => _loggingIn = true);
 
     try {
       final res = await ApiService.post('login-pin', {
@@ -291,13 +297,11 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
         );
       }
 
-      // SINKRONISASI SHIFT
-      try {
-        await CashierShiftService.syncFromBackend();
-      } catch (_) {}
-
-      // LOAD PRODUK
-      await ProdukData.loadFromApi();
+      // Jalankan sinkronisasi shift & muat produk SECARA PARALEL agar login cepat (< 1 detik)
+      await Future.wait([
+        CashierShiftService.syncFromBackend().catchError((_) {}),
+        ProdukData.loadFromApi().catchError((_) {}),
+      ]);
 
       if (!mounted) return;
 
@@ -317,6 +321,8 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
       );
     } catch (e) {
       if (!mounted) return;
+
+      setState(() => _loggingIn = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -573,6 +579,27 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
               ),
             ),
           ),
+          if (_loggingIn)
+            Container(
+              color: Colors.black.withValues(alpha: 0.45),
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 12),
+                    Text(
+                      'Masuk ke Kasir...',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );

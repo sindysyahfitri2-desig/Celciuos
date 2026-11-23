@@ -13,10 +13,21 @@ class ApiService {
   @visibleForTesting
   static void resetClientForTesting() => _client = http.Client();
 
-  // Alamat base URL backend Laravel kamu (default lokal 127.0.0.1:8000)
-  // Bisa disesuaikan jika memakai ngrok atau domain lain
-  static const String baseUrl =
+  // Alamat base URL backend Laravel:
+  // - Saat dijalankan di Web lokal (localhost/127.0.0.1), langsung ke 127.0.0.1:8000 (< 0.2 detik!)
+  // - Saat dijalankan di HP Android / domain publik, gunakan ngrok / domain hosting.
+  static const String _remoteBaseUrl =
       'https://clatter-distant-sterling.ngrok-free.dev/api';
+
+  static String get baseUrl {
+    if (kIsWeb) {
+      final host = Uri.base.host.toLowerCase();
+      if (host == 'localhost' || host == '127.0.0.1') {
+        return 'http://127.0.0.1:8000/api';
+      }
+    }
+    return _remoteBaseUrl;
+  }
 
   static const String _tokenKey = 'celcious_auth_token';
   static const String _userKey = 'celcious_user_data';

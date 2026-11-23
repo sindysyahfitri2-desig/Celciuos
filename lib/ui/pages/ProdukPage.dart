@@ -1,20 +1,38 @@
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import '../../data/produk_data.dart';
 import '../widgets/product_image.dart';
 
-const _navy = Color(0xff082640);
-const _pageBackground = Color(0xffdce9f4);
-const _mutedText = Color(0xff667b8d);
-const _priceBlue = Color(0xff24547b);
-const _chipBlue = Color(0xffa9cce6);
-const _imageBackground = Color(0xffd3cee5);
+// ============================================================
+// HALAMAN PRODUK KASIR
+// Tampilan seragam dengan Kelola Produk Owner (7 kategori resmi,
+// kartu putih membulat, foto live dari database), khusus akses Kasir
+// (lihat katalog & ubah status tersedia/habis, tanpa tambah/edit/hapus).
+// ============================================================
 
-// Ukuran kartu mengikuti desain awal.
-const double _cardHeight = 108;
-const double _cardPadding = 8;
-const double _imageSize = _cardHeight - (_cardPadding * 2);
+const _navy = Color(0xFF082640);
+const _pageBackground = Color(0xFFDCE9F4);
+const _lightBlue = Color(0xFFA8CBE9);
+const _mutedText = Color(0xFF667B8D);
+const _imageBackground = Color(0xFFD5D0E5);
+
+List<BoxShadow> _shadow() => const [
+  BoxShadow(
+    color: Color(0x33000000),
+    blurRadius: 4,
+    offset: Offset(2, 3),
+  ),
+];
+
+List<BoxShadow> _shadowSmall() => const [
+  BoxShadow(
+    color: Color(0x26000000),
+    blurRadius: 3,
+    offset: Offset(1, 2),
+  ),
+];
 
 class ProdukPage extends StatefulWidget {
   const ProdukPage({super.key});
@@ -24,26 +42,39 @@ class ProdukPage extends StatefulWidget {
 }
 
 class _ProdukPageState extends State<ProdukPage> {
-  final TextEditingController _searchController =
-      TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
+  final ScrollController _categoryScrollController = ScrollController();
 
-  String? _selectedCategory;
+  String? _activeCategory; // null = Semua
+  Timer? _syncTimer;
 
-  static const List<_CategoryItem> _categories = [
-    _CategoryItem('Coffee', Icons.local_cafe_outlined),
-    _CategoryItem('Non-Coffee', Icons.local_drink_outlined),
-    _CategoryItem('Food', Icons.ramen_dining_outlined),
-    _CategoryItem('Snack', Icons.cookie_outlined),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _refreshProducts();
+    _syncTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _refreshProducts(),
+    );
+  }
 
   @override
   void dispose() {
+    _syncTimer?.cancel();
     _searchController.dispose();
+    _categoryScrollController.dispose();
     super.dispose();
   }
 
+  Future<void> _refreshProducts() async {
+    await ProdukData.loadFromApi();
+    if (mounted) setState(() {});
+  }
+
   String _rupiah(Object? value) {
-    final amount = value is num ? value.toInt() : 0;
+    final amount = value is num
+        ? value.toInt()
+        : int.tryParse(value?.toString().replaceAll('.', '') ?? '') ?? 0;
 
     final formatted = amount.toString().replaceAllMapped(
       RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
@@ -61,45 +92,60 @@ class _ProdukPageState extends State<ProdukPage> {
         child: ValueListenableBuilder<List<Map<String, dynamic>>>(
           valueListenable: ProdukData.produk,
           builder: (context, products, child) {
-            final normalizedSearch =
-                _searchController.text.trim().toLowerCase();
+            final query = _searchController.text.trim().toLowerCase();
 
             final visibleProducts = products.where((product) {
               final name = product['name']?.toString() ?? '';
-              final category =
-                  product['category']?.toString() ?? '';
+              final category = product['category']?.toString() ?? '';
 
               final matchesSearch =
-                  name.toLowerCase().contains(normalizedSearch);
+                  query.isEmpty ||
+                  name.toLowerCase().contains(query) ||
+                  category.toLowerCase().contains(query);
 
               final matchesCategory =
-                  _selectedCategory == null ||
-                  category.toLowerCase() ==
-                      _selectedCategory!.toLowerCase();
+                  _activeCategory == null ||
+                  category.toLowerCase() == _activeCategory!.toLowerCase();
 
               return matchesSearch && matchesCategory;
             }).toList();
 
             return LayoutBuilder(
               builder: (context, constraints) {
-                final compact = constraints.maxWidth < 520;
-                final pad = compact ? 12.0 : 16.0;
+                final width = constraints.maxWidth;
+                final isPhone = width < 600;
+                final isTablet = width >= 600 && width < 1024;
+                final pad = isPhone
+                    ? 14.0
+                    : isTablet
+                    ? 20.0
+                    : 26.0;
 
                 return Padding(
-                  padding: EdgeInsets.fromLTRB(pad, 14, pad, 18),
+                  padding: EdgeInsets.fromLTRB(pad, 16, pad, 18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _searchField(),
-                      const SizedBox(height: 14),
-                      _categoryFilters(),
-                      const SizedBox(height: 14),
+                      _header(isPhone),
+                      const SizedBox(height: 16),
+                      _categoryPills(),
+                      const SizedBox(height: 16),
                       Expanded(
-                        child: visibleProducts.isEmpty
-                            ? SingleChildScrollView(
-                                child: _emptyState(),
-                              )
-                            : _productGrid(visibleProducts),
+                        child: RefreshIndicator(
+                          color: _navy,
+                          onRefresh: _refreshProducts,
+                          child: visibleProducts.isEmpty
+                              ? ListView(
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  children: [_emptyState()],
+                                )
+                              : _productGrid(
+                                  visibleProducts,
+                                  isPhone: isPhone,
+                                  isTablet: isTablet,
+                                ),
+                        ),
                       ),
                     ],
                   ),
@@ -113,32 +159,61 @@ class _ProdukPageState extends State<ProdukPage> {
   }
 
   // ============================================================
-  // SEARCH
+  // HEADER + SEARCH (Sama seperti Kontrol Product di Owner)
   // ============================================================
 
+  Widget _header(bool isPhone) {
+    final title = Text(
+      'Daftar Produk',
+      style: TextStyle(
+        color: _navy,
+        fontSize: isPhone ? 22 : 28,
+        fontWeight: FontWeight.w900,
+        letterSpacing: -0.4,
+      ),
+    );
+
+    if (isPhone) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          title,
+          const SizedBox(height: 10),
+          _searchField(),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(child: title),
+        const SizedBox(width: 16),
+        SizedBox(width: 240, child: _searchField()),
+      ],
+    );
+  }
+
   Widget _searchField() {
-    return SizedBox(
+    return Container(
       height: 38,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: _shadowSmall(),
+      ),
       child: TextField(
         controller: _searchController,
         onChanged: (_) => setState(() {}),
-        style: TextStyle(
-          color: _navy,
-          fontSize: 12,
-        ),
+        style: const TextStyle(color: _navy, fontSize: 12),
         decoration: InputDecoration(
-          hintText: 'Cari menu',
-          hintStyle: TextStyle(
-            color: const Color(0xff91a9bd),
-            fontSize: 12,
-          ),
+          hintText: 'Cari produk...',
+          hintStyle: const TextStyle(color: Color(0xFF91A9BD), fontSize: 12),
           prefixIcon: const Icon(
             Icons.search_rounded,
-            color: Color(0xff7896ae),
+            color: Color(0xFF7896AE),
             size: 18,
           ),
-          prefixIconConstraints:
-              const BoxConstraints(minWidth: 40),
+          prefixIconConstraints: const BoxConstraints(minWidth: 38),
           suffixIcon: _searchController.text.isEmpty
               ? null
               : IconButton(
@@ -148,269 +223,237 @@ class _ProdukPageState extends State<ProdukPage> {
                     _searchController.clear();
                     setState(() {});
                   },
-                  icon: const Icon(
-                    Icons.close_rounded,
-                    size: 16,
-                  ),
+                  icon: const Icon(Icons.close_rounded, size: 16, color: _navy),
                 ),
-          contentPadding: EdgeInsets.zero,
-          filled: true,
-          fillColor: const Color(0xfff8fbff),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(24),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(24),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(24),
-            borderSide: const BorderSide(
-              color: Color(0xff9bbdd6),
-              width: 1,
-            ),
-          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 9),
+          border: InputBorder.none,
         ),
       ),
     );
   }
 
   // ============================================================
-  // FILTER KATEGORI
+  // KATEGORI PILLS (7 KATEGORI RESMI — SAMA DENGAN OWNER)
   // ============================================================
 
-  Widget _categoryFilters() {
-    final allSelected = _selectedCategory == null;
+  Widget _categoryPills() {
+    final items = <String?>[null, ...ProdukData.kategoriProduk];
 
     return SizedBox(
-      height: 28,
-      child: ListView(
+      height: 36,
+      child: ListView.separated(
+        controller: _categoryScrollController,
         scrollDirection: Axis.horizontal,
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () {
-              setState(() => _selectedCategory = null);
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.storefront_rounded,
-                    color: _navy,
-                    size: 13,
+        itemCount: items.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final category = items[index];
+          final label = category ?? 'Semua';
+          final selected =
+              (category == null && _activeCategory == null) ||
+              (category != null &&
+                  _activeCategory?.toLowerCase() == category.toLowerCase());
+
+          return Material(
+            color: selected ? Colors.white : _lightBlue,
+            borderRadius: BorderRadius.circular(20),
+            elevation: selected ? 2 : 1,
+            shadowColor: const Color(0x33000000),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => setState(() => _activeCategory = category),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: selected ? _navy : Colors.transparent,
+                    width: 1.4,
                   ),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Semua Menu',
-                    style: TextStyle(
+                ),
+                child: Center(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
                       color: _navy,
-                      fontSize: 10,
-                      fontWeight: allSelected
-                          ? FontWeight.w700
-                          : FontWeight.w500,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
-                ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          for (final category in _categories) ...[
-            _categoryChip(category),
-            const SizedBox(width: 8),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _categoryChip(_CategoryItem category) {
-    final selected = _selectedCategory == category.name;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedCategory =
-              selected ? null : category.name;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: 28,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? Colors.white : _chipBlue,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? _navy : Colors.transparent,
-            width: 1.2,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              category.icon,
-              size: 12,
-              color: selected ? _navy : Colors.white,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              category.name,
-              style: TextStyle(
-                color: selected ? _navy : Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
   // ============================================================
-  // GRID PRODUK
+  // GRID PRODUK RESPONSIF (Sama seperti Owner)
   // ============================================================
 
-  Widget _productGrid(List<Map<String, dynamic>> products) {
-    return LayoutBuilder(
-      builder: (context, box) {
-        final width = box.maxWidth;
+  Widget _productGrid(
+    List<Map<String, dynamic>> products, {
+    required bool isPhone,
+    required bool isTablet,
+  }) {
+    final columns = isPhone
+        ? 1
+        : isTablet
+        ? 2
+        : 3;
 
-        final columns = width >= 1150
-            ? 3
-            : width >= 520
-                ? 3
-                : 1;
-
-        return GridView.builder(
-          physics: const AlwaysScrollableScrollPhysics(),
-          itemCount: products.length,
-          gridDelegate:
-              SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            mainAxisExtent: _cardHeight,
-          ),
-          itemBuilder: (context, index) {
-            return _productCard(products[index]);
-          },
-        );
+    return GridView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: products.length,
+      padding: const EdgeInsets.only(bottom: 12),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        mainAxisExtent: 98,
+      ),
+      itemBuilder: (context, index) {
+        return _productCard(products[index]);
       },
     );
   }
 
   // ============================================================
-  // KARTU PRODUK + TOGGLE AKTIF/NONAKTIF
+  // KARTU PRODUK (Seragam dengan Owner, khusus akses toggle Kasir)
   // ============================================================
 
   Widget _productCard(Map<String, dynamic> product) {
     final name = product['name']?.toString() ?? 'Produk';
     final isActive = product['is_active'] != false;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeInOut,
-      padding: const EdgeInsets.all(_cardPadding),
-      decoration: BoxDecoration(
-        color: isActive
-            ? Colors.white
-            : const Color(0xffe0e0e0),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: _imageSize,
-            height: _imageSize,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: ColorFiltered(
-                colorFilter: isActive
-                    ? const ColorFilter.mode(
-                        Colors.transparent,
-                        BlendMode.multiply,
-                      )
-                    : const ColorFilter.matrix([
-                        0.2126, 0.7152, 0.0722, 0, 0,
-                        0.2126, 0.7152, 0.0722, 0, 0,
-                        0.2126, 0.7152, 0.0722, 0, 0,
-                        0, 0, 0, 1, 0,
-                      ]),
-                child: ColoredBox(
-                  color: _imageBackground,
-                  child: ProductImage(
-                    image: product['image'],
-                  ),
-                ),
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 260;
+        final imageSize = compact ? 64.0 : 82.0;
+
+        return Opacity(
+          opacity: isActive ? 1 : 0.58,
+          child: Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: _shadow(),
             ),
-          ),
-
-          const SizedBox(width: 14),
-
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: isActive
-                        ? _navy
-                        : const Color(0xff888888),
-                    fontSize: 15,
-                    height: 1.2,
-                    fontWeight: FontWeight.w700,
+                Container(
+                  width: imageSize,
+                  height: imageSize,
+                  decoration: BoxDecoration(
+                    color: _imageBackground,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: ColorFiltered(
+                    colorFilter: isActive
+                        ? const ColorFilter.mode(
+                            Colors.transparent,
+                            BlendMode.multiply,
+                          )
+                        : const ColorFilter.matrix([
+                            0.2126, 0.7152, 0.0722, 0, 0,
+                            0.2126, 0.7152, 0.0722, 0, 0,
+                            0.2126, 0.7152, 0.0722, 0, 0,
+                            0, 0, 0, 1, 0,
+                          ]),
+                    child: ProductImage(
+                      image: product['image'],
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  _rupiah(product['price']),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: isActive
-                        ? _priceBlue
-                        : const Color(0xff999999),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _navy,
+                          fontSize: compact ? 11 : 12.5,
+                          fontWeight: FontWeight.w900,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _rupiah(product['price']),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _navy,
+                          fontSize: compact ? 9.5 : 10.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 42,
+                            height: 24,
+                            child: Transform.scale(
+                              scale: 0.78,
+                              alignment: Alignment.centerLeft,
+                              child: Switch(
+                                value: isActive,
+                                onChanged: (value) async {
+                                  try {
+                                    await ProdukData.setProductActive(
+                                      product,
+                                      isActive: value,
+                                    );
+                                  } catch (error) {
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Gagal mengubah status produk: $error',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                activeThumbColor: Colors.white,
+                                activeTrackColor: _navy,
+                                inactiveThumbColor: Colors.white,
+                                inactiveTrackColor: Colors.grey.shade400,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            isActive ? 'Tersedia' : 'Habis / Nonaktif',
+                            style: TextStyle(
+                              color: isActive ? _navy : _mutedText,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-
-          const SizedBox(width: 8),
-
-          _ProductToggle(
-            value: isActive,
-            onChanged: (value) async {
-              try {
-                await ProdukData.setProductActive(
-                  product,
-                  isActive: value,
-                );
-              } catch (error) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Gagal mengubah status produk: $error')),
-                );
-              }
-            },
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -421,109 +464,36 @@ class _ProdukPageState extends State<ProdukPage> {
   Widget _emptyState() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        vertical: 40,
-        horizontal: 16,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 44, horizontal: 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        boxShadow: _shadowSmall(),
       ),
       child: Column(
         children: [
-          const Icon(
-            Icons.search_off_rounded,
-            color: _mutedText,
-            size: 32,
-          ),
-          const SizedBox(height: 8),
-          Text(
+          const Icon(Icons.inventory_2_outlined, color: _mutedText, size: 40),
+          const SizedBox(height: 10),
+          const Text(
             'Produk tidak ditemukan',
             style: TextStyle(
               color: _navy,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Coba kata kunci atau kategori lainnya.',
+            _searchController.text.trim().isNotEmpty
+                ? 'Coba kata kunci pencarian lainnya.'
+                : _activeCategory != null
+                ? 'Belum ada produk di kategori $_activeCategory.'
+                : 'Belum ada produk yang tersedia.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: _mutedText,
-              fontSize: 11,
-            ),
+            style: const TextStyle(color: _mutedText, fontSize: 12),
           ),
         ],
       ),
     );
   }
-}
-
-// ============================================================
-// TOGGLE SWITCH UIVERSE STYLE
-// ============================================================
-
-class _ProductToggle extends StatelessWidget {
-  const _ProductToggle({
-    required this.value,
-    required this.onChanged,
-  });
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => onChanged(!value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        width: 52,
-        height: 25,
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          color: value
-              ? const Color(0xff7cade0)
-              : const Color(0xffcecece),
-          borderRadius: BorderRadius.circular(40),
-        ),
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          alignment: value
-              ? Alignment.centerRight
-              : Alignment.centerLeft,
-          child: Container(
-            width: 21,
-            height: 21,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.20),
-                  blurRadius: 5,
-                  offset: const Offset(1, 2),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================
-// MODEL KATEGORI
-// ============================================================
-
-class _CategoryItem {
-  const _CategoryItem(this.name, this.icon);
-
-  final String name;
-  final IconData icon;
 }

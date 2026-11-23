@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:kasir_celcious_coffe/data/api_service.dart';
 import 'package:kasir_celcious_coffe/data/app_branding_store.dart';
+import 'package:kasir_celcious_coffe/data/kitchen_receipt_settings_store.dart';
 import 'package:kasir_celcious_coffe/data/owner_profile_store.dart';
 import 'package:kasir_celcious_coffe/data/payment_methods_store.dart';
 import 'package:kasir_celcious_coffe/data/qris_store.dart';
@@ -15,6 +16,7 @@ import 'package:kasir_celcious_coffe/features/settings/application/backup_servic
 import 'package:kasir_celcious_coffe/features/settings/application/settings_service.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 import 'package:kasir_celcious_coffe/features/settings/application/print_service.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 String _formatPercent(double rate) =>
     (rate * 100).toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
@@ -54,8 +56,11 @@ class _PengaturanPageState extends State<PengaturanPage> {
 
   bool strukAktif = true;
   bool stikerAktif = true;
+  bool strukDapurAktif = true;
   bool _showReceiptManagement = false;
+  Map<String, dynamic>? _transaksiTerakhir;
   bool _showStickerManagement = false;
+  bool _showKitchenReceiptManagement = false;
   bool _showProfileManagement = false;
 
   Uint8List? _pickedOwnerPhoto;
@@ -71,7 +76,6 @@ class _PengaturanPageState extends State<PengaturanPage> {
   final TextEditingController _newPasswordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
-  final TextEditingController _newPaymentController = TextEditingController();
 
   final TextEditingController captionController = TextEditingController(
     text: 'Selamat menikmati, semoga harimu menyenangkan ☕',
@@ -131,6 +135,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
     _muatFotoQris();
     _muatPengaturanStruk();
     _muatPengaturanStiker();
+    _muatPengaturanStrukDapur();
     _muatPengaturanBackend();
   }
 
@@ -142,6 +147,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
       setState(() {
         _showReceiptManagement = false;
         _showStickerManagement = false;
+        _showKitchenReceiptManagement = false;
         _showProfileManagement = true;
         _ownerNameController.text = OwnerProfileStore.ownerName.value;
       });
@@ -286,6 +292,21 @@ class _PengaturanPageState extends State<PengaturanPage> {
     }
   }
 
+  Future<void> _muatPengaturanStrukDapur() async {
+    try {
+      await KitchenReceiptSettingsStore.initialize();
+
+      if (!mounted) return;
+
+      setState(() {
+        strukDapurAktif =
+            KitchenReceiptSettingsStore.options.value['enabled'] ?? true;
+      });
+    } catch (error) {
+      debugPrint('Gagal memuat pengaturan struk dapur: $error');
+    }
+  }
+
   // ==========================================================
   // MUAT PENGATURAN DARI BACKEND
   // ==========================================================
@@ -315,9 +336,10 @@ class _PengaturanPageState extends State<PengaturanPage> {
           }
           if (data['biaya_layanan_persen'] != null) {
             final svc =
-                double.tryParse(data['biaya_layanan_persen'].toString()) ?? 2;
-            pelayananController.text = svc.toStringAsFixed(0);
+                double.tryParse(data['biaya_layanan_persen'].toString()) ?? 0;
+            pelayananController.text = _formatPercent(svc / 100);
             biayaPelayanan = '${pelayananController.text}%';
+            TransactionStore.saveServiceFeeRate(svc / 100);
           }
           if (data['printer_struk'] != null) {
             strukAktif = data['printer_struk'] == 'aktif';
@@ -363,6 +385,20 @@ class _PengaturanPageState extends State<PengaturanPage> {
     } catch (e) {
       debugPrint('Gagal memuat pengaturan toko dari backend: $e');
     }
+
+    // Muat transaksi lunas terakhir untuk pratinjau & tes cetak struk agar sesuai data real
+    try {
+      final trxRes = await ApiService.get(
+        'transaksi',
+        query: {'status_bayar': 'lunas', 'limit': '1'},
+      );
+      final list = trxRes['data'];
+      if (list is List && list.isNotEmpty && list.first is Map && mounted) {
+        setState(() {
+          _transaksiTerakhir = Map<String, dynamic>.from(list.first as Map);
+        });
+      }
+    } catch (_) {}
   }
 
   // ==========================================================
@@ -405,6 +441,26 @@ class _PengaturanPageState extends State<PengaturanPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Gagal menyimpan pengaturan stiker: $error')),
+      );
+    }
+  }
+
+  Future<void> _simpanOpsiStrukDapur(String key, bool value) async {
+    try {
+      await KitchenReceiptSettingsStore.setOption(key, value);
+
+      if (!mounted) return;
+
+      setState(() {
+        if (key == 'enabled') strukDapurAktif = value;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menyimpan pengaturan struk dapur: $error'),
+        ),
       );
     }
   }
@@ -479,7 +535,6 @@ class _PengaturanPageState extends State<PengaturanPage> {
     _oldPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
-    _newPaymentController.dispose();
     super.dispose();
   }
 
@@ -534,6 +589,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
   Future<void> simpanPengaturan() async {
     try {
       final ppnValue = await SettingsService.saveTaxRate(ppnController.text);
+      final formatted = _formatPercent(ppnValue / 100);
 
       if (!mounted) return;
 
@@ -542,12 +598,12 @@ class _PengaturanPageState extends State<PengaturanPage> {
             ? 'Nama Toko'
             : namaTokoController.text.trim();
 
-        ppn = '${ppnValue}%';
-        biayaPelayanan = '${pelayananController.text.trim()}%';
+        ppnController.text = formatted;
+        ppn = '$formatted%';
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pengaturan berhasil disimpan')),
+        SnackBar(content: Text('PPN berhasil disimpan ($formatted%)')),
       );
     } on FormatException catch (error) {
       if (!mounted) return;
@@ -561,6 +617,40 @@ class _PengaturanPageState extends State<PengaturanPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Gagal menyimpan PPN: $error')));
+    }
+  }
+
+  Future<void> simpanBiayaPelayanan() async {
+    try {
+      final svcValue = await SettingsService.saveServiceFeeRate(
+        pelayananController.text,
+      );
+      final formatted = _formatPercent(svcValue / 100);
+
+      if (!mounted) return;
+
+      setState(() {
+        pelayananController.text = formatted;
+        biayaPelayanan = '$formatted%';
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Biaya pelayanan berhasil disimpan ($formatted%)'),
+        ),
+      );
+    } on FormatException catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menyimpan biaya pelayanan: $error')),
+      );
     }
   }
 
@@ -639,29 +729,39 @@ class _PengaturanPageState extends State<PengaturanPage> {
     ).showSnackBar(const SnackBar(content: Text('Caption stiker disimpan')));
   }
 
-  Map<String, dynamic> get _contohTransaksi => {
-    'id_transaksi': 0,
-    'kode': 'A201',
-    'nama_pelanggan': 'desi',
-    'tipe_pesanan': 'Dine In',
-    'tanggal': DateTime.now().toIso8601String(),
-    'subtotal': '20000',
-    'ppn': '2200',
-    'biaya_layanan': '400',
-    'diskon': '0',
-    'total': '22600',
-    'pengguna': {'nama': 'Dessy Manurung', 'username': 'CL0101'},
-    'metode_pembayaran': {'nama_metode': 'Qris'},
-    'detail_transaksi': [
-      {
-        'jumlah': 2,
-        'varian': 'ICE, REGULAR',
-        'harga_satuan': '10000',
-        'subtotal': '20000',
-        'produk': {'nama_produk': 'Americano'},
-      },
-    ],
-  };
+  Map<String, dynamic> get _contohTransaksi {
+    if (_transaksiTerakhir != null) {
+      return _transaksiTerakhir!;
+    }
+    final ppnPersen = double.tryParse(ppnController.text.trim()) ?? 11.0;
+    const subtotal = 20000.0;
+    final pajakNominal = (subtotal * ppnPersen / 100).round();
+    final totalNominal = subtotal.round() + pajakNominal;
+
+    return {
+      'id_transaksi': 0,
+      'kode': 'CC-001',
+      'nama_pelanggan': 'Pelanggan',
+      'tipe_pesanan': 'Dine In',
+      'tanggal': DateTime.now().toIso8601String(),
+      'subtotal': subtotal.toStringAsFixed(0),
+      'ppn': '$pajakNominal',
+      'biaya_layanan': '0',
+      'diskon': '0',
+      'total': '$totalNominal',
+      'pengguna': {'nama': 'Kasir Celcious', 'username': 'kasir'},
+      'metode_pembayaran': {'nama_metode': 'Cash'},
+      'detail_transaksi': [
+        {
+          'jumlah': 1,
+          'varian': 'ICE, REGULAR',
+          'harga_satuan': '20000',
+          'subtotal': '20000',
+          'produk': {'nama_produk': 'Americano'},
+        },
+      ],
+    };
+  }
 
   Future<void> _tesCetakStikerDapur() async {
     await _sinkronTemplateBackend(); // pastikan template terbaru sudah di server
@@ -671,6 +771,37 @@ class _PengaturanPageState extends State<PengaturanPage> {
   Future<void> _tesCetakStruk() async {
     await _sinkronTemplateBackend();
     await PrintService.cetakStruk(_contohTransaksi);
+  }
+
+  Map<String, dynamic> get _contohTransaksiDapur {
+    if (_transaksiTerakhir != null &&
+        PrintService.adaMakanan(_transaksiTerakhir!)) {
+      return _transaksiTerakhir!;
+    }
+    return {
+      'orderId': 'CC-001',
+      'customerName': 'Meja 3 - Nadiyah',
+      'orderType': 'Dine In',
+      'orderedAt': DateTime.now(),
+      'items': [
+        {
+          'name': 'Dimsum',
+          'category': 'Food',
+          'quantity': 2,
+          'catatan': 'Saus pedas dipisah',
+        },
+        {
+          'name': 'Croissant Cromboloni',
+          'category': 'Food',
+          'quantity': 1,
+          'catatan': 'Hangatkan sebentar',
+        },
+      ],
+    };
+  }
+
+  Future<void> _tesCetakStrukDapur() async {
+    await PrintService.cetakStrukDapur(_contohTransaksiDapur);
   }
 
   Future<void> _pilihPrinter(String prefKey, String label) async {
@@ -1092,6 +1223,410 @@ class _PengaturanPageState extends State<PengaturanPage> {
   }
 
   // ==========================================================
+  // KARTU PRATINJAU & HALAMAN KELOLA STRUK DAPUR
+  // ==========================================================
+
+  Widget _strukDapurCard({
+    required Map<String, bool> options,
+    double scale = 1,
+  }) {
+    bool on(String k) => options[k] ?? true;
+    const ink = Color(0xff1e242b);
+    const muted = Color(0xff5a6672);
+
+    final sample = _contohTransaksiDapur;
+    final rawPayload = sample['detail_transaksi'] is List
+        ? sample
+        : null;
+    final orderId = rawPayload != null
+        ? '${rawPayload['kode'] ?? rawPayload['id_transaksi'] ?? 'CC-001'}'
+        : '${sample['orderId'] ?? 'CC-001'}';
+    final customerName = rawPayload != null
+        ? '${rawPayload['nama_pelanggan'] ?? 'Meja 3 - Nadiyah'}'.trim()
+        : '${sample['customerName'] ?? 'Meja 3 - Nadiyah'}'.trim();
+    final orderType = rawPayload != null
+        ? '${rawPayload['tipe_pesanan'] ?? 'Dine In'}'.trim()
+        : '${sample['orderType'] ?? 'Dine In'}'.trim();
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    final waktuLabel =
+        '${two(now.day)}/${two(now.month)}/${now.year} ${two(now.hour)}:${two(now.minute)}';
+
+    final List<Map<String, dynamic>> foodItems;
+    if (rawPayload != null) {
+      foodItems = (rawPayload['detail_transaksi'] as List? ?? const [])
+          .whereType<Map>()
+          .where(PrintService.isMakananItem)
+          .map((d) => <String, dynamic>{
+                'name': (d['produk'] is Map
+                        ? d['produk']['nama_produk']?.toString()
+                        : null) ??
+                    'Menu',
+                'quantity': int.tryParse('${d['jumlah'] ?? 1}') ?? 1,
+                'catatan': '${d['varian'] ?? ''}'.trim(),
+              })
+          .toList();
+    } else {
+      foodItems = (sample['items'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+
+    final subParts = <String>[
+      if (on('orderType') && orderType.isNotEmpty) orderType,
+      if (on('customerName') && customerName.isNotEmpty) customerName,
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(18 * scale),
+      decoration: BoxDecoration(
+        color: const Color(0xfffcfbf6),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xffe4e1d6)),
+        boxShadow: [
+          BoxShadow(
+            color: navy.withValues(alpha: 0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Text(
+              'STRUK DAPUR',
+              style: TextStyle(
+                color: ink,
+                fontSize: 13 * scale,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          SizedBox(height: 8 * scale),
+          if (on('orderNumber'))
+            Text(
+              'Order #$orderId',
+              style: TextStyle(
+                color: ink,
+                fontSize: 16 * scale,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          if (subParts.isNotEmpty) ...[
+            SizedBox(height: 2 * scale),
+            Text(
+              subParts.join(' - '),
+              style: TextStyle(
+                color: ink,
+                fontSize: 12.5 * scale,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          if (on('orderTime')) ...[
+            SizedBox(height: 2 * scale),
+            Text(
+              waktuLabel,
+              style: TextStyle(
+                color: muted,
+                fontSize: 11 * scale,
+              ),
+            ),
+          ],
+          SizedBox(height: 10 * scale),
+          Container(height: 1.5, color: ink),
+          SizedBox(height: 8 * scale),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Pesanan',
+                style: TextStyle(
+                  color: ink,
+                  fontSize: 12 * scale,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (on('itemQuantity'))
+                Text(
+                  'Jlh Pesanan',
+                  style: TextStyle(
+                    color: ink,
+                    fontSize: 12 * scale,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+            ],
+          ),
+          SizedBox(height: 8 * scale),
+          for (final item in foodItems) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${item['name'] ?? 'Menu'}',
+                        style: TextStyle(
+                          color: ink,
+                          fontSize: 13 * scale,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (on('itemNotes') &&
+                          '${item['catatan'] ?? ''}'.trim().isNotEmpty)
+                        Padding(
+                          padding: EdgeInsets.only(top: 2 * scale),
+                          child: Text(
+                            'Catatan: ${item['catatan']}',
+                            style: TextStyle(
+                              color: muted,
+                              fontSize: 11 * scale,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (on('itemQuantity')) ...[
+                  const SizedBox(width: 12),
+                  Text(
+                    '${item['quantity'] ?? 1}',
+                    style: TextStyle(
+                      color: ink,
+                      fontSize: 14 * scale,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            SizedBox(height: 8 * scale),
+          ],
+          const Divider(height: 12, color: Color(0xffd7d3c4)),
+          Center(
+            child: Text(
+              'Khusus pesanan makanan (Food)',
+              style: TextStyle(
+                color: muted,
+                fontSize: 10.5 * scale,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _halamanKelolaStrukDapur({
+    required bool isMobile,
+    required double maxContentWidth,
+  }) {
+    final options = KitchenReceiptSettingsStore.options.value;
+    final bool besar = !isMobile;
+
+    final items = <(String, String)>[
+      ('orderNumber', 'Nomor Order (#CC-001)'),
+      ('customerName', 'Nama / Meja Pelanggan'),
+      ('orderType', 'Tipe Pesanan (Dine In / Take Away)'),
+      ('orderTime', 'Tanggal & Jam Pesanan'),
+      ('itemNotes', 'Catatan / Varian Menu'),
+      ('itemQuantity', 'Kolom Jumlah Pesanan'),
+    ];
+
+    final panel = Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(besar ? 18 : 12),
+      decoration: BoxDecoration(
+        color: _panelNavy,
+        borderRadius: BorderRadius.circular(besar ? 24 : 14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.soup_kitchen_outlined,
+                color: Colors.white,
+                size: besar ? 24 : 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Elemen Tampilan Struk Dapur',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: besar ? 17 : 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Struk dapur otomatis hanya memuat pesanan makanan (kategori Food) dari kasir maupun pemesanan meja pelanggan.',
+            style: TextStyle(
+              color: const Color(0xffc7dbee),
+              fontSize: besar ? 12.5 : 11,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: strukDapurAktif ? _tileNavy : _tileMati,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: strukDapurAktif
+                    ? _biruSwitch.withValues(alpha: 0.65)
+                    : Colors.white12,
+              ),
+            ),
+            child: SwitchListTile(
+              dense: true,
+              title: Text(
+                'Aktifkan Cetak Struk Dapur',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: besar ? 15 : 12.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              value: strukDapurAktif,
+              activeThumbColor: Colors.white,
+              activeTrackColor: _biruSwitch,
+              onChanged: (v) => _simpanOpsiStrukDapur('enabled', v),
+            ),
+          ),
+          for (final (key, label) in items)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: (options[key] ?? true) ? _tileNavy : _tileMati,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: SwitchListTile(
+                dense: true,
+                title: Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: besar ? 15 : 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                value: options[key] ?? true,
+                activeThumbColor: Colors.white,
+                activeTrackColor: _biruSwitch,
+                onChanged: (v) => _simpanOpsiStrukDapur(key, v),
+              ),
+            ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              ElevatedButton.icon(
+                onPressed: strukDapurAktif ? _tesCetakStrukDapur : null,
+                icon: const Icon(Icons.print_outlined, size: 18),
+                label: const Text('Tes Cetak Struk Dapur'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _biruSwitch,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () =>
+                    _pilihPrinter(PrintService.kPrinterDapur, 'dapur'),
+                icon: const Icon(Icons.settings_input_hdmi_outlined, size: 18),
+                label: const Text('Pilih Printer Dapur'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: navy,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final preview = _strukDapurCard(
+      options: options,
+      scale: besar ? 1 : 0.92,
+    );
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: background,
+      child: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(besar ? 28 : 14, 8, besar ? 28 : 14, 28),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxContentWidth),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => setState(
+                          () => _showKitchenReceiptManagement = false,
+                        ),
+                        tooltip: 'Kembali ke Pengaturan',
+                        icon: Icon(Icons.arrow_back_rounded, color: navy),
+                      ),
+                      Expanded(
+                        child: Text(
+                          'Pengaturan Struk Dapur',
+                          style: TextStyle(
+                            color: _judulStruk,
+                            fontSize: besar ? 28 : 19,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (besar)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: panel),
+                        const SizedBox(width: 20),
+                        SizedBox(width: 340, child: preview),
+                      ],
+                    )
+                  else ...[
+                    panel,
+                    const SizedBox(height: 16),
+                    preview,
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ==========================================================
   // BUILD
   // ==========================================================
 
@@ -1138,6 +1673,12 @@ class _PengaturanPageState extends State<PengaturanPage> {
         }
         if (_showStickerManagement) {
           return _halamanKelolaStiker(
+            isMobile: isMobile,
+            maxContentWidth: maxContentWidth,
+          );
+        }
+        if (_showKitchenReceiptManagement) {
+          return _halamanKelolaStrukDapur(
             isMobile: isMobile,
             maxContentWidth: maxContentWidth,
           );
@@ -1221,10 +1762,18 @@ class _PengaturanPageState extends State<PengaturanPage> {
                               deviceSwitch(
                                 label: 'Stiker',
                                 value: stikerAktif,
-                                icon: Icons.print_outlined,
+                                icon: Icons.sell_outlined,
                                 size: contentSize,
                                 onChanged: (value) =>
                                     _simpanOpsiStiker('enabled', value),
+                              ),
+                              deviceSwitch(
+                                label: 'Struk Dapur',
+                                value: strukDapurAktif,
+                                icon: Icons.soup_kitchen_outlined,
+                                size: contentSize,
+                                onChanged: (value) =>
+                                    _simpanOpsiStrukDapur('enabled', value),
                               ),
                             ],
                           ),
@@ -1252,11 +1801,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
                           child: percentageControl(
                             controller: pelayananController,
                             size: contentSize,
-                            onPressed: () {
-                              setState(() {
-                                biayaPelayanan = '${pelayananController.text}%';
-                              });
-                            },
+                            onPressed: simpanBiayaPelayanan,
                           ),
                         ),
 
@@ -1331,6 +1876,31 @@ class _PengaturanPageState extends State<PengaturanPage> {
                           child: TextButton.icon(
                             onPressed: () =>
                                 setState(() => _showStickerManagement = true),
+                            icon: Icon(
+                              Icons.tune_rounded,
+                              size: contentSize + 2,
+                            ),
+                            label: Text(
+                              'Kelola',
+                              style: TextStyle(fontSize: contentSize - 1),
+                            ),
+                            style: TextButton.styleFrom(foregroundColor: navy),
+                          ),
+                        ),
+
+                        // STRUK DAPUR
+                        settingRow(
+                          title: 'Pengaturan Struk Dapur',
+                          titleSize: titleSize,
+                          horizontalPadding: horizontalPadding,
+                          isMobile: isMobile,
+                          onTap: () => setState(
+                            () => _showKitchenReceiptManagement = true,
+                          ),
+                          child: TextButton.icon(
+                            onPressed: () => setState(
+                              () => _showKitchenReceiptManagement = true,
+                            ),
                             icon: Icon(
                               Icons.tune_rounded,
                               size: contentSize + 2,
@@ -2236,7 +2806,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
       ('orderNumber', 'Nomor Antri'),
       ('cashierName', 'Nama Kasir'),
       ('orderTime', 'Waktu Pesan'),
-      ('qrCode', 'QR Code'),
+      ('qrCode', 'QR Instagram (@celcious.cs)'),
       ('total', 'Total Bayar'),
     ];
 
@@ -2662,18 +3232,58 @@ class _PengaturanPageState extends State<PengaturanPage> {
   // ==========================================================
 
   Widget _previewStruk(Map<String, bool> options, {required bool isMobile}) {
+    final trx = _contohTransaksi;
     final storeName = namaTokoController.text.trim().isEmpty
         ? 'Celcious Coffee'
         : namaTokoController.text.trim();
+    final storeAddress = alamatToko.trim().isEmpty
+        ? PrintService.kDefaultAlamatToko
+        : alamatToko.trim();
 
-    final double fontSize = isMobile ? 5.5 : 9;
-    final double logoSize = isMobile ? 43 : 58;
-    final double qrSize = isMobile ? 51 : 84;
-    final double padding = isMobile ? 7 : 20;
+    final kode = '${trx['kode'] ?? trx['id_transaksi'] ?? 'CC-001'}';
+    final kasir = (trx['pengguna'] is Map
+            ? trx['pengguna']['nama']?.toString()
+            : null) ??
+        'Kasir';
+    final pelanggan = '${trx['nama_pelanggan'] ?? ''}'.trim();
+    final tgl =
+        DateTime.tryParse('${trx['tanggal'] ?? ''}')?.toLocal() ??
+        DateTime.now();
+    final tglStr =
+        '${tgl.day.toString().padLeft(2, '0')}/${tgl.month.toString().padLeft(2, '0')}/${tgl.year}';
+    final jamStr =
+        '${tgl.hour.toString().padLeft(2, '0')}:${tgl.minute.toString().padLeft(2, '0')}';
 
-    Widget detail(String label, String value) {
+    final details = (trx['detail_transaksi'] as List? ?? const [])
+        .whereType<Map>()
+        .toList();
+    final subtotal = double.tryParse('${trx['subtotal'] ?? 0}') ?? 0;
+    final ppnVal = double.tryParse('${trx['ppn'] ?? 0}') ?? 0;
+    final layananVal = double.tryParse('${trx['biaya_layanan'] ?? 0}') ?? 0;
+    final diskonVal = double.tryParse('${trx['diskon'] ?? 0}') ?? 0;
+    final totalVal = double.tryParse('${trx['total'] ?? 0}') ?? 0;
+    final metode = (trx['metode_pembayaran'] is Map
+            ? trx['metode_pembayaran']['nama_metode']?.toString()
+            : null) ??
+        'Cash';
+
+    String rp(num v) {
+      final n = v.round();
+      final s = n.abs().toString().replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+        (m) => '${m[1]}.',
+      );
+      return '${n < 0 ? '-' : ''}Rp$s';
+    }
+
+    final double fontSize = isMobile ? 7.5 : 9.5;
+    final double logoSize = isMobile ? 42 : 54;
+    final double qrSize = isMobile ? 64 : 84;
+    final double padding = isMobile ? 10 : 18;
+
+    Widget detail(String label, String value, {bool bold = false}) {
       return Padding(
-        padding: EdgeInsets.symmetric(vertical: isMobile ? 2 : 4),
+        padding: EdgeInsets.symmetric(vertical: isMobile ? 1.5 : 2.5),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2681,16 +3291,20 @@ class _PengaturanPageState extends State<PengaturanPage> {
               child: Text(
                 label,
                 style: TextStyle(
+                  fontFamily: 'monospace',
                   fontSize: fontSize,
-                  color: const Color(0xff3f5261),
+                  fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+                  color: bold ? navy : const Color(0xff2b3e4f),
                 ),
               ),
             ),
             Text(
               value,
               style: TextStyle(
+                fontFamily: 'monospace',
                 fontSize: fontSize,
-                color: const Color(0xff3f5261),
+                fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+                color: bold ? navy : const Color(0xff2b3e4f),
               ),
             ),
           ],
@@ -2703,6 +3317,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
       padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(
         color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
             color: navy.withValues(alpha: 0.12),
@@ -2713,17 +3328,20 @@ class _PengaturanPageState extends State<PengaturanPage> {
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (options['storeLogo'] ?? true)
-            Container(
-              width: logoSize,
-              height: logoSize,
-              clipBehavior: Clip.antiAlias,
-              decoration: const BoxDecoration(shape: BoxShape.circle),
-              child: AppBrandingLogo(fit: BoxFit.cover, height: logoSize),
+          if (options['storeLogo'] ?? true) ...[
+            Center(
+              child: Container(
+                width: logoSize,
+                height: logoSize,
+                clipBehavior: Clip.antiAlias,
+                decoration: const BoxDecoration(shape: BoxShape.circle),
+                child: AppBrandingLogo(fit: BoxFit.cover, height: logoSize),
+              ),
             ),
-
-          if (options['storeLogo'] ?? true) SizedBox(height: isMobile ? 4 : 7),
+            SizedBox(height: isMobile ? 5 : 7),
+          ],
 
           Text(
             storeName,
@@ -2731,73 +3349,143 @@ class _PengaturanPageState extends State<PengaturanPage> {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: const Color(0xff214261),
-              fontSize: isMobile ? 7 : 13,
-              fontWeight: FontWeight.w800,
+              fontFamily: 'monospace',
+              color: navy,
+              fontSize: isMobile ? 10 : 13,
+              fontWeight: FontWeight.w900,
             ),
           ),
-
+          const SizedBox(height: 2),
           Text(
-            alamatToko,
+            storeAddress,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: const Color(0xff6a7b88),
-              fontSize: isMobile ? 5 : 8,
+              fontFamily: 'monospace',
+              color: const Color(0xff526575),
+              fontSize: isMobile ? 6.5 : 8,
+              height: 1.25,
             ),
           ),
 
-          Divider(height: isMobile ? 10 : 18),
+          Divider(height: isMobile ? 12 : 16, thickness: 0.9, color: navy),
 
           if (options['orderNumber'] ?? true)
             Text(
-              'Order #C001',
+              'Order #$kode',
               style: TextStyle(
-                color: const Color(0xff214261),
-                fontSize: isMobile ? 7 : 13,
-                fontWeight: FontWeight.w800,
+                fontFamily: 'monospace',
+                color: navy,
+                fontSize: isMobile ? 9 : 11.5,
+                fontWeight: FontWeight.w900,
               ),
             ),
 
           if (options['cashierName'] ?? true)
             Text(
-              'Dessy Manurung',
-              textAlign: TextAlign.center,
+              'Kasir: $kasir',
               style: TextStyle(
-                color: const Color(0xff526575),
+                fontFamily: 'monospace',
+                color: const Color(0xff2b3e4f),
+                fontSize: fontSize,
+              ),
+            ),
+
+          if (pelanggan.isNotEmpty)
+            Text(
+              'Pelanggan: $pelanggan',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: const Color(0xff2b3e4f),
                 fontSize: fontSize,
               ),
             ),
 
           if (options['orderTime'] ?? true) ...[
-            SizedBox(height: isMobile ? 5 : 8),
-            detail('Order Date:', '05/11/2026'),
-            detail('Time:', '14:10'),
+            detail('Tanggal:', tglStr),
+            detail('Jam:', jamStr),
           ],
 
-          Divider(height: isMobile ? 10 : 16),
+          Divider(height: isMobile ? 12 : 16, thickness: 0.9, color: navy),
 
-          detail('Pesanan', ''),
-          detail('Americano x1', 'Rp20.000'),
-          detail('Pajak', 'Rp2.200'),
-
-          if (options['total'] ?? true) ...[
-            Divider(height: isMobile ? 10 : 16),
-            detail('Total', 'Rp22.200'),
+          for (final d in details) ...[
+            detail(
+              '${d['produk'] is Map ? d['produk']['nama_produk'] : 'Menu'} x${d['jumlah'] ?? 1}',
+              rp(double.tryParse('${d['subtotal'] ?? 0}') ?? 0),
+            ),
+            if ('${d['varian'] ?? ''}'.trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: 8, bottom: 2),
+                child: Text(
+                  '${d['varian']}',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: fontSize - 1,
+                    color: const Color(0xff6a7b88),
+                  ),
+                ),
+              ),
           ],
+
+          Divider(height: isMobile ? 12 : 16, thickness: 0.9, color: navy),
+
+          detail('Subtotal', rp(subtotal)),
+          detail('Pajak', rp(ppnVal)),
+          if (layananVal > 0) detail('Layanan', rp(layananVal)),
+          if (diskonVal > 0) detail('Diskon', '-${rp(diskonVal)}'),
+          if (options['total'] ?? true)
+            detail('TOTAL', rp(totalVal), bold: true),
+          detail('Bayar', metode),
 
           if (options['qrCode'] ?? true) ...[
-            SizedBox(height: isMobile ? 12 : 16),
-
-            if (_qrisImageBytes != null)
-              Image.memory(
-                _qrisImageBytes!,
-                width: qrSize,
-                height: qrSize,
-                fit: BoxFit.contain,
-              )
-            else
-              Icon(Icons.qr_code_2_rounded, size: qrSize, color: navy),
+            SizedBox(height: isMobile ? 10 : 14),
+            Center(
+              child: QrImageView(
+                data: PrintService.kInstagramUrl,
+                version: QrVersions.auto,
+                size: qrSize,
+                backgroundColor: Colors.white,
+                eyeStyle: const QrEyeStyle(
+                  eyeShape: QrEyeShape.square,
+                  color: Colors.black,
+                ),
+                dataModuleStyle: const QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'Follow Instagram Kami',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: isMobile ? 6.5 : 7.5,
+                color: const Color(0xff526575),
+              ),
+            ),
+            Text(
+              PrintService.kInstagramHandle,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: isMobile ? 7.5 : 8.5,
+                fontWeight: FontWeight.w800,
+                color: navy,
+              ),
+            ),
           ],
+
+          SizedBox(height: isMobile ? 6 : 8),
+          Text(
+            'Terima kasih!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: fontSize,
+              color: const Color(0xff2b3e4f),
+            ),
+          ),
         ],
       ),
     );
@@ -3085,495 +3773,33 @@ class _PengaturanPageState extends State<PengaturanPage> {
   }
 
   // ==========================================================
-  // PAYMENT CONTROL (dropdown + tombol plus navy yang membuka pop up)
+  // PAYMENT CONTROL (hanya QRIS & Cash + tombol unggah foto QRIS)
   // ==========================================================
-
-  Future<bool> _tambahMetodePembayaran([String? customText]) async {
-    final text = (customText ?? _newPaymentController.text).trim();
-    if (text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Ketik nama metode pembayaran terlebih dahulu.'),
-          backgroundColor: navy,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return false;
-    }
-
-    final added = await PaymentMethodsStore.addMethod(text);
-    if (!mounted) return false;
-    if (!added) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Metode "$text" sudah ada.'),
-          backgroundColor: navy,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return false;
-    }
-
-    _newPaymentController.clear();
-    setState(() => metodePembayaran = text);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Metode pembayaran "$text" ditambahkan.'),
-        backgroundColor: const Color(0xFF1F8A5B),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-    return true;
-  }
-
-  Future<void> _hapusMetodePembayaran(String method) async {
-    final removed = await PaymentMethodsStore.removeMethod(method);
-    if (!mounted || !removed) return;
-    final list = PaymentMethodsStore.methods.value;
-    setState(() {
-      if (metodePembayaran == method && list.isNotEmpty) {
-        metodePembayaran = list.first;
-      }
-    });
-  }
-
-  Future<void> _bukaPopupTambahPembayaran() async {
-    _newPaymentController.clear();
-    String? errorText;
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            Future<void> submitMethod() async {
-              final raw = _newPaymentController.text.trim();
-              if (raw.isEmpty) {
-                setDialogState(() {
-                  errorText = 'Nama metode pembayaran tidak boleh kosong.';
-                });
-                return;
-              }
-              final added = await _tambahMetodePembayaran(raw);
-              if (!dialogContext.mounted) return;
-              if (added) {
-                setDialogState(() => errorText = null);
-              } else {
-                setDialogState(() {
-                  errorText = 'Metode "$raw" sudah ada di daftar.';
-                });
-              }
-            }
-
-            return Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 24,
-              ),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: const Color(0xFFA8CBE9),
-                      width: 1.4,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: navy.withValues(alpha: 0.25),
-                        blurRadius: 24,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Header Navy
-                        Container(
-                          padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
-                          decoration: const BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [Color(0xFF082640), Color(0xFF174975)],
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 38,
-                                height: 38,
-                                decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFFA8CBE9,
-                                  ).withValues(alpha: 0.22),
-                                  borderRadius: BorderRadius.circular(11),
-                                ),
-                                child: const Icon(
-                                  Icons.payments_outlined,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Tambah Metode Pembayaran',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    SizedBox(height: 2),
-                                    Text(
-                                      'Tambahkan metode baru ke dropdown kasir',
-                                      style: TextStyle(
-                                        color: Color(0xFFBFD9F0),
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () => Navigator.pop(dialogContext),
-                                tooltip: 'Tutup',
-                                icon: const Icon(
-                                  Icons.close_rounded,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Body
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Nama Metode Pembayaran',
-                                style: TextStyle(
-                                  color: navy,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextField(
-                                      controller: _newPaymentController,
-                                      autofocus: true,
-                                      textCapitalization:
-                                          TextCapitalization.words,
-                                      textInputAction: TextInputAction.done,
-                                      onChanged: (_) {
-                                        if (errorText != null) {
-                                          setDialogState(
-                                            () => errorText = null,
-                                          );
-                                        }
-                                      },
-                                      onSubmitted: (_) => submitMethod(),
-                                      style: TextStyle(
-                                        color: navy,
-                                        fontSize: 13.5,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                      decoration: InputDecoration(
-                                        hintText: 'Contoh: Dana, OVO, GoPay...',
-                                        hintStyle: const TextStyle(
-                                          color: Color(0xFF90A9C0),
-                                          fontSize: 12.5,
-                                        ),
-                                        filled: true,
-                                        fillColor: const Color(0xFFF3F8FD),
-                                        isDense: true,
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 12,
-                                        ),
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                          borderSide: const BorderSide(
-                                            color: Color(0xFFA8CBE9),
-                                          ),
-                                        ),
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                          borderSide: const BorderSide(
-                                            color: Color(0xFFA8CBE9),
-                                          ),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: navy,
-                                            width: 1.5,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  SizedBox(
-                                    height: 44,
-                                    child: ElevatedButton.icon(
-                                      onPressed: submitMethod,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: navy,
-                                        foregroundColor: Colors.white,
-                                        elevation: 0,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                        ),
-                                      ),
-                                      icon: const Icon(
-                                        Icons.add_rounded,
-                                        size: 18,
-                                      ),
-                                      label: const Text(
-                                        'Tambah',
-                                        style: TextStyle(
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (errorText != null) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  errorText!,
-                                  style: const TextStyle(
-                                    color: Colors.redAccent,
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-
-                              const SizedBox(height: 16),
-                              Text(
-                                'Metode Tersedia',
-                                style: TextStyle(
-                                  color: navy,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              ValueListenableBuilder<List<String>>(
-                                valueListenable: PaymentMethodsStore.methods,
-                                builder: (context, methods, _) {
-                                  return Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: [
-                                      for (final m in methods)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 11,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: m == metodePembayaran
-                                                ? navy
-                                                : const Color(0xFFEAF3FB),
-                                            borderRadius: BorderRadius.circular(
-                                              16,
-                                            ),
-                                            border: Border.all(
-                                              color: m == metodePembayaran
-                                                  ? navy
-                                                  : const Color(0xFFA8CBE9),
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              GestureDetector(
-                                                onTap: () {
-                                                  setState(
-                                                    () => metodePembayaran = m,
-                                                  );
-                                                  setDialogState(() {});
-                                                },
-                                                child: Text(
-                                                  m,
-                                                  style: TextStyle(
-                                                    color: m == metodePembayaran
-                                                        ? Colors.white
-                                                        : navy,
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                                ),
-                                              ),
-                                              if (methods.length > 1 &&
-                                                  m.toLowerCase() != 'qris' &&
-                                                  m.toLowerCase() !=
-                                                      'cash') ...[
-                                                const SizedBox(width: 5),
-                                                GestureDetector(
-                                                  onTap: () async {
-                                                    await _hapusMetodePembayaran(
-                                                      m,
-                                                    );
-                                                    setDialogState(() {});
-                                                  },
-                                                  child: Icon(
-                                                    Icons.close_rounded,
-                                                    size: 14,
-                                                    color: m == metodePembayaran
-                                                        ? Colors.white70
-                                                        : navy.withValues(
-                                                            alpha: 0.75,
-                                                          ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                        ),
-                                    ],
-                                  );
-                                },
-                              ),
-
-                              const SizedBox(height: 16),
-                              const Divider(
-                                height: 1,
-                                color: Color(0xFFD6E5F3),
-                              ),
-                              const SizedBox(height: 12),
-
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: OutlinedButton.icon(
-                                      onPressed: () async {
-                                        Navigator.pop(dialogContext);
-                                        await pilihFotoQris();
-                                      },
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: navy,
-                                        side: const BorderSide(
-                                          color: Color(0xFFA8CBE9),
-                                        ),
-                                        backgroundColor: const Color(
-                                          0xFFF3F8FD,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 10,
-                                        ),
-                                      ),
-                                      icon: const Icon(
-                                        Icons.image_outlined,
-                                        size: 17,
-                                      ),
-                                      label: const Text(
-                                        'Ganti Foto QRIS',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  ElevatedButton(
-                                    onPressed: () =>
-                                        Navigator.pop(dialogContext),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFFA8CBE9),
-                                      foregroundColor: navy,
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 18,
-                                        vertical: 10,
-                                      ),
-                                    ),
-                                    child: const Text(
-                                      'Selesai',
-                                      style: TextStyle(
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
 
   Widget paymentControl({required double size, required bool isMobile}) {
     return ValueListenableBuilder<List<String>>(
       valueListenable: PaymentMethodsStore.methods,
       builder: (context, methods, _) {
-        final safeMethods = methods.isEmpty ? const ['QRIS', 'Cash'] : methods;
+        final filtered = methods
+            .where((m) => !m.toLowerCase().contains('transfer'))
+            .toList();
+        final safeMethods =
+            filtered.isEmpty ? const ['QRIS', 'Cash'] : filtered;
         final selected = safeMethods.contains(metodePembayaran)
             ? metodePembayaran
             : safeMethods.first;
 
-        return Row(
-          mainAxisSize: MainAxisSize.min,
+        return Wrap(
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 6,
           children: [
             Container(
               height: isMobile ? 34 : 38,
               constraints: BoxConstraints(
                 minWidth: isMobile ? 102 : 132,
-                maxWidth: isMobile ? 150 : 200,
+                maxWidth: isMobile ? 145 : 180,
               ),
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
@@ -3626,25 +3852,30 @@ class _PengaturanPageState extends State<PengaturanPage> {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            Tooltip(
-              message: 'Tambah Metode Pembayaran',
-              child: Material(
-                color: navy,
-                shape: const CircleBorder(),
-                elevation: 2,
-                shadowColor: navy.withValues(alpha: 0.35),
-                child: InkWell(
-                  customBorder: const CircleBorder(),
-                  onTap: _bukaPopupTambahPembayaran,
-                  child: SizedBox(
-                    width: isMobile ? 34 : 38,
-                    height: isMobile ? 34 : 38,
-                    child: Icon(
-                      Icons.add_rounded,
-                      color: Colors.white,
-                      size: isMobile ? 20 : 22,
-                    ),
+            SizedBox(
+              height: isMobile ? 34 : 38,
+              child: OutlinedButton.icon(
+                onPressed: pilihFotoQris,
+                icon: Icon(
+                  Icons.qr_code_2_rounded,
+                  size: isMobile ? 16 : 18,
+                ),
+                label: Text(
+                  _qrisImageBytes == null ? 'Foto QRIS' : 'Ganti QRIS',
+                  style: TextStyle(
+                    fontSize: isMobile ? 12 : 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: navy,
+                  backgroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0xFFA8CBE9), width: 1.2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 10 : 14,
                   ),
                 ),
               ),

@@ -2,19 +2,14 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'Transaksi_Berhasil.dart';
-import 'dart:typed_data';
-import 'package:image_picker/image_picker.dart';
 import 'package:kasir_celcious_coffe/data/payment_methods_store.dart';
-import 'package:kasir_celcious_coffe/data/qris_store.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 import 'package:kasir_celcious_coffe/features/kasir/application/cashier_checkout_pricing.dart';
 import 'package:kasir_celcious_coffe/features/kasir/application/cashier_transaction_service.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/product_image.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:kasir_celcious_coffe/data/api_service.dart';
+
+import 'Transaksi_Berhasil.dart';
 import 'widgets/qris_direct_dialog.dart';
 
 class CheckoutPage extends StatefulWidget {
@@ -56,23 +51,23 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // ==========================================================
   static const Color _navy = Color(0xff082640);
   static const Color _merah = Color(0xffdd5b5b);
-  // Warna border biru saat tombol dipilih. Ganti jika ingin biru lebih terang,
-  // misalnya Color(0xff1f6fb2).
   static const Color _biruBorder = Color(0xff082640);
   static const Color _biruMuda = Color(0xffa8cbe9);
+  static const Color _canvas = Color(0xffdce9f4);
+  static const Color _surfaceSoft = Color(0xfff1f7fc);
+  static const Color _borderSoft = Color(0xffcde0f0);
+  static const Color _muted = Color(0xff5b738b);
+  static const Color _hijau = Color(0xff1b8a5a);
 
   // Nilai yang diketik kasir, bisa berupa persen atau rupiah.
   double diskon = 0;
   String jenisDiskon = 'Rp'; // Pilihan: 'Rp' atau '%'.
-  Uint8List? _buktiPembayaranBytes; // Bytes agar aman di Chrome/Web.
-  Uint8List? _qrisImageBytes;
+  Uint8List? _buktiPembayaranBytes;
 
   // Mode transaksi.
   String selectedPayment =
       ''; // Belum memilih mode: tombol Langsung Bayar tampil redup.
 
-  final ImagePicker _picker = ImagePicker();
-  XFile? _buktiPembayaran;
   bool _menyimpanPesanan = false;
   bool _memulaiPembayaran = false;
   bool _paymentCompleted = false;
@@ -90,10 +85,22 @@ class _CheckoutPageState extends State<CheckoutPage> {
   OverlayEntry? _dropdownEntry;
   Completer<String?>? _dropdownCompleter;
 
+  List<String> _availablePaymentMethods(List<String> raw) {
+    final cleaned = raw
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty && !e.toLowerCase().contains('transfer'))
+        .toList();
+    if (cleaned.isEmpty) return const ['QRIS', 'Cash'];
+    return cleaned;
+  }
+
   @override
   void initState() {
     super.initState();
-    _muatFotoQris();
+    PaymentMethodsStore.initialize();
+    TransactionStore.syncStoreRates().then((_) {
+      if (mounted) setState(() {});
+    });
     selectedPayment = widget.openPaymentImmediately ? 'Langsung Bayar' : '';
     diskon =
         (widget.existingOrder?['diskonInput'] as num?)?.toDouble() ??
@@ -117,12 +124,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
     super.dispose();
   }
 
-  Future<void> _muatFotoQris() async {
-    final bytes = await QrisStore.loadImageBytes();
-    if (!mounted) return;
-    setState(() => _qrisImageBytes = bytes);
-  }
-
   // ==========================================================
   // TOTAL PESANAN
   // ==========================================================
@@ -131,6 +132,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     cart: widget.cart,
     existingOrder: widget.existingOrder,
     defaultTaxRate: TransactionStore.ppnRate.value,
+    defaultServiceFeeRate: TransactionStore.serviceFeeRate.value,
     discount: diskon,
     discountType: jenisDiskon,
   );
@@ -138,7 +140,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
   double get total => _pricing.subtotal;
   double get ppnRate => _pricing.taxRate;
   double get biayaLainnya => _pricing.tax;
-  double get totalSebelumDiskon => total + biayaLainnya;
+  double get serviceFeeRate => _pricing.serviceFeeRate;
+  double get biayaLayanan => _pricing.serviceFee;
+  double get totalSebelumDiskon => total + biayaLainnya + biayaLayanan;
   double get nominalDiskon => _pricing.discountAmount;
   double get totalAkhir => _pricing.total;
   int get jumlahItem => _pricing.itemCount;
@@ -150,7 +154,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       !_paymentCompleted;
 
   // ==========================================================
-  // BUILD
+  // BUILD (sesuai desain awal, dirapikan & responsif HP / Tablet / Laptop)
   // ==========================================================
 
   @override
@@ -158,141 +162,157 @@ class _CheckoutPageState extends State<CheckoutPage> {
     return PopScope(
       canPop: !_mustCompletePayment,
       child: Container(
-        color: const Color(0xffdce9f4),
-        child: LayoutBuilder(
-          builder: (context, box) {
-            final width = box.maxWidth;
-            final isMobile = width < 3450;
-            final isTablet = width >= 650 && width < 800;
-            final isDesktop = width >= 800;
+        color: _canvas,
+        child: SafeArea(
+          bottom: false,
+          child: LayoutBuilder(
+            builder: (context, box) {
+              final width = box.maxWidth;
+              final isMobile = width < 650;
+              final isTablet = width >= 650 && width < 1020;
+              final isDesktop = width >= 1020;
 
-            final double sidePad = isMobile
-                ? 12
-                : isTablet
-                ? 20
-                : 35;
+              final double sidePad = isMobile
+                  ? 14
+                  : isTablet
+                  ? 22
+                  : 32;
 
-            return Column(
-              children: [
-                Expanded(
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          sidePad,
-                          isMobile
-                              ? 12
-                              : isTablet
-                              ? 16
-                              : 20,
-                          sidePad,
-                          10,
-                        ),
-                        child: Row(
-                          children: [
-                            InkWell(
-                              onTap: _mustCompletePayment
-                                  ? null
-                                  : widget.onBack,
-                              borderRadius: BorderRadius.circular(20),
-                              child: Container(
-                                width: isMobile ? 36 : 38,
-                                height: isMobile ? 36 : 38,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(19),
-                                ),
-                                child: const Icon(
-                                  Icons.arrow_back_rounded,
-                                  color: _navy,
-                                  size: 21,
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // HEADER ATAS (← + Tambah Menu)
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            sidePad,
+                            isMobile ? 12 : 18,
+                            sidePad,
+                            12,
+                          ),
+                          child: Row(
+                            children: [
+                              Material(
+                                color: Colors.white,
+                                shape: const CircleBorder(),
+                                child: InkWell(
+                                  onTap: _mustCompletePayment
+                                      ? null
+                                      : widget.onBack,
+                                  customBorder: const CircleBorder(),
+                                  child: Container(
+                                    width: isMobile ? 38 : 40,
+                                    height: isMobile ? 38 : 40,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: _navy.withValues(alpha: 0.08),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Icon(
+                                      Icons.arrow_back_rounded,
+                                      color: _navy,
+                                      size: 21,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            // Judul berbentuk pill putih seperti desain.
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 16 : 22,
-                                vertical: isMobile ? 6 : 8,
-                              ),
-                              decoration: BoxDecoration(
+                              const SizedBox(width: 10),
+                              Material(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(27),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: _navy.withValues(alpha: 0.10),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: Text(
-                                'Tambah Menu',
-                                style: TextStyle(
-                                  color: _navy,
-                                  fontSize: isMobile
-                                      ? 15
-                                      : isTablet
-                                      ? 16
-                                      : 17,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      Expanded(
-                        child: widget.cart.isEmpty
-                            ? const Center(
-                                child: Text(
-                                  'Belum ada pesanan.',
-                                  style: TextStyle(
-                                    color: _navy,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              )
-                            : LayoutBuilder(
-                                builder: (context, listBox) {
-                                  final availW =
-                                      (listBox.maxWidth - sidePad * 2)
-                                          .clamp(240.0, 1280.0);
-                                  final int columns;
-                                  if (availW < 620) {
-                                    columns = 1;
-                                  } else if (availW < 1020) {
-                                    columns = 2;
-                                  } else {
-                                    columns = 3;
-                                  }
-                                  const spacing = 14.0;
-                                  final cardW = columns == 1
-                                      ? math.min(availW, 440.0)
-                                      : (availW - spacing * (columns - 1)) /
-                                          columns;
-
-                                  return SingleChildScrollView(
-                                    padding: EdgeInsets.fromLTRB(
-                                      sidePad,
-                                      6,
-                                      sidePad,
-                                      18,
+                                child: InkWell(
+                                  onTap: _mustCompletePayment
+                                      ? null
+                                      : widget.onBack,
+                                  borderRadius: BorderRadius.circular(27),
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: isMobile ? 18 : 22,
+                                      vertical: isMobile ? 8 : 9,
                                     ),
-                                    child: Align(
-                                      alignment: isMobile
-                                          ? Alignment.topCenter
-                                          : Alignment.topLeft,
-                                      child: ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                          maxWidth: 1280,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(27),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: _navy.withValues(alpha: 0.09),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 3),
                                         ),
+                                      ],
+                                    ),
+                                    child: Text(
+                                      'Tambah Menu',
+                                      style: TextStyle(
+                                        color: _navy,
+                                        fontSize: isMobile
+                                            ? 14.5
+                                            : isTablet
+                                            ? 15.5
+                                            : 16.5,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // DAFTAR KARTU PESANAN (selalu rapi rata kiri atas)
+                        Expanded(
+                          child: widget.cart.isEmpty
+                              ? const Center(
+                                  child: Text(
+                                    'Belum ada pesanan.',
+                                    style: TextStyle(
+                                      color: _navy,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                )
+                              : LayoutBuilder(
+                                  builder: (context, listBox) {
+                                    final availW =
+                                        (listBox.maxWidth - sidePad * 2)
+                                            .clamp(240.0, 1440.0);
+                                    final int columns;
+                                    if (availW < 620) {
+                                      columns = 1;
+                                    } else if (availW < 980) {
+                                      columns = 2;
+                                    } else {
+                                      columns = 3;
+                                    }
+                                    const spacing = 16.0;
+                                    final cardW = columns == 1
+                                        ? availW
+                                        : (availW - spacing * (columns - 1)) /
+                                            columns;
+
+                                    return SingleChildScrollView(
+                                      physics: const BouncingScrollPhysics(),
+                                      padding: EdgeInsets.fromLTRB(
+                                        sidePad,
+                                        4,
+                                        sidePad,
+                                        20,
+                                      ),
+                                      child: SizedBox(
+                                        width: double.infinity,
                                         child: Wrap(
+                                          alignment: WrapAlignment.start,
                                           spacing: spacing,
-                                          runSpacing: 12,
+                                          runSpacing: 14,
                                           children: List.generate(
                                             widget.cart.length,
                                             (index) => SizedBox(
@@ -302,19 +322,19 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                           ),
                                         ),
                                       ),
-                                    ),
-                                  );
-                                },
-                              ),
-                      ),
-                    ],
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
 
-                _checkoutBottom(width, isMobile, isTablet, isDesktop),
-              ],
-            );
-          },
+                  _checkoutBottom(width, isMobile, isTablet, isDesktop),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -566,7 +586,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   // ==========================================================
-  // BAGIAN BAWAH CHECKOUT
+  // BAGIAN BAWAH CHECKOUT (sesuai desain awal, rapi & proporsional)
   // ==========================================================
 
   Widget _checkoutBottom(
@@ -575,13 +595,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
     bool isTablet,
     bool isDesktop,
   ) {
-    final double barH = isMobile ? 48 : 62;
+    final double barH = isMobile ? 52 : 64;
     const String labelTotalAkhir = 'Total Setelah diskon\ndan biaya lainnya';
 
     Widget totalAkhirStrip() => Container(
       height: barH,
       color: Colors.white,
-      padding: const EdgeInsets.only(left: 12),
+      padding: EdgeInsets.only(left: isMobile ? 14 : 18),
       child: Row(
         children: [
           Expanded(
@@ -590,17 +610,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
               textAlign: TextAlign.right,
               style: TextStyle(
                 color: _navy,
-                fontSize: isMobile ? 9 : 12,
-                fontWeight: FontWeight.bold,
-                height: 1.1,
+                fontSize: isMobile ? 11 : 12.5,
+                fontWeight: FontWeight.w700,
+                height: 1.2,
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: isMobile ? 10 : 14),
           Container(
-            width: isMobile ? 112 : 170,
+            width: isMobile ? 126 : (isTablet ? 156 : 184),
             height: double.infinity,
             color: _navy,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             alignment: Alignment.center,
             child: FittedBox(
               fit: BoxFit.scaleDown,
@@ -608,8 +629,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 widget.rupiah(totalAkhir).replaceFirst('Rp ', ''),
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: isMobile ? 22 : 32,
-                  fontWeight: FontWeight.bold,
+                  fontSize: isMobile ? 21 : 28,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),
@@ -620,94 +641,206 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     final tombol = Container(
       color: _biruMuda,
-      padding: EdgeInsets.fromLTRB(isMobile ? 8 : 14, 8, isMobile ? 8 : 14, 10),
-      child: Row(
-        children: [
-          Expanded(
-            flex: isMobile ? 1 : 0,
-            child: SizedBox(
-              width: isMobile ? null : 190,
-              child: _modePembayaranControl(
-                fontSize: isMobile ? 12 : 14,
-                height: isMobile ? 42 : 44,
-              ),
-            ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            isMobile ? 10 : 18,
+            10,
+            isMobile ? 10 : 18,
+            12,
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: isMobile ? 1 : 0,
-            child: SizedBox(
-              width: isMobile ? null : 190,
-              child: _tombolPembayaran(
-                height: isMobile ? 42 : 44,
-                fontSize: isMobile ? 12 : 14,
-              ),
-            ),
-          ),
-          if (!isMobile) const Spacer(),
-          if (isMobile) const SizedBox(width: 8),
-          Expanded(
-            flex: isMobile ? 1 : 0,
-            child: SizedBox(
-              width: isMobile ? null : 190,
-              child: _tombolProses(height: isMobile ? 42 : 44),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (isMobile) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _diskonBox(height: barH, fontSize: 12, iconSize: 20),
-              ),
-              Expanded(child: _totalBox(height: barH, fontSize: 20)),
-            ],
-          ),
-          totalAkhirStrip(),
-          tombol,
-        ],
-      );
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          height: barH,
           child: Row(
             children: [
-              SizedBox(
-                width: 175,
-                child: _diskonBox(height: barH, fontSize: 14, iconSize: 26),
+              Expanded(
+                flex: isMobile ? 1 : 0,
+                child: SizedBox(
+                  width: isMobile ? null : (isTablet ? 168 : 196),
+                  child: _modePembayaranControl(
+                    fontSize: isMobile ? 12.5 : 14,
+                    height: isMobile ? 42 : 44,
+                  ),
+                ),
               ),
-              SizedBox(
-                width: 190,
-                child: _totalBox(height: barH, fontSize: 26),
+              SizedBox(width: isMobile ? 8 : 12),
+              Expanded(
+                flex: isMobile ? 1 : 0,
+                child: SizedBox(
+                  width: isMobile ? null : (isTablet ? 168 : 196),
+                  child: _tombolPembayaran(
+                    height: isMobile ? 42 : 44,
+                    fontSize: isMobile ? 12.5 : 14,
+                  ),
+                ),
               ),
-              Expanded(child: totalAkhirStrip()),
+              if (!isMobile) const Spacer(),
+              if (isMobile) const SizedBox(width: 8),
+              Expanded(
+                flex: isMobile ? 1 : 0,
+                child: SizedBox(
+                  width: isMobile ? null : (isTablet ? 168 : 196),
+                  child: _tombolProses(height: isMobile ? 42 : 44),
+                ),
+              ),
             ],
           ),
         ),
-        tombol,
-      ],
+      ),
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: _navy.withValues(alpha: 0.10),
+            blurRadius: 14,
+            offset: const Offset(0, -3),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isMobile) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: _diskonBox(height: barH, fontSize: 12.5, iconSize: 20),
+                ),
+                Expanded(child: _totalBox(height: barH, fontSize: 20)),
+              ],
+            ),
+            const Divider(height: 1, thickness: 1, color: Color(0xffdce9f4)),
+            totalAkhirStrip(),
+          ] else
+            SizedBox(
+              height: barH,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: isTablet ? 165 : 190,
+                    child: _diskonBox(height: barH, fontSize: 13.5, iconSize: 24),
+                  ),
+                  SizedBox(
+                    width: isTablet ? 175 : 210,
+                    child: _totalBox(height: barH, fontSize: 24),
+                  ),
+                  Expanded(child: totalAkhirStrip()),
+                ],
+              ),
+            ),
+          tombol,
+        ],
+      ),
     );
   }
 
   // ==========================================================
-  // TOMBOL PILL
-  // - redup        : belum aktif (warna pudar)
-  // - border biru  : sedang dipilih
+  // DISKON & TOTAL BOX
   // ==========================================================
 
-  // Langsung Bayar / Bayar Nanti.
-  // Awalnya REDUP. Ketuk sekali -> langsung aktif (Langsung Bayar, border biru).
-  // Setelah aktif, ketuk lagi untuk membuka dropdown pilihan mode.
+  Widget _diskonBox({
+    required double height,
+    required double fontSize,
+    required double iconSize,
+  }) {
+    final aktif = diskon > 0;
+    return Material(
+      color: _navy,
+      child: InkWell(
+        onTap: widget.existingOrder == null ? _dialogDiskon : null,
+        child: Container(
+          height: height,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  widget.existingOrder != null
+                      ? 'Diskon tetap\n${jenisDiskon == '%' ? '${diskon.toStringAsFixed(0)}%' : widget.rupiah(diskon)}'
+                      : aktif
+                      ? 'Diskon\n${jenisDiskon == '%' ? '${diskon.toStringAsFixed(0)}% (${widget.rupiah(nominalDiskon)})' : widget.rupiah(diskon)}'
+                      : 'Masukkan\nDiskon',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w700,
+                    height: 1.15,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white,
+                size: iconSize,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _totalBox({required double height, required double fontSize}) {
+    return Material(
+      color: Colors.white,
+      child: InkWell(
+        onTap: _dialogRincianPembayaran,
+        child: Container(
+          height: height,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: const BoxDecoration(
+            border: Border(
+              right: BorderSide(color: Color(0xffe1ecf5), width: 1),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Total :',
+                      style: TextStyle(
+                        color: _navy,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        widget.rupiah(total).replaceFirst('Rp ', ''),
+                        style: TextStyle(
+                          color: _navy,
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right_rounded, color: _navy, size: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ==========================================================
+  // TOMBOL PILL (Langsung Bayar / Pembayaran / Simpan-Bayar)
+  // ==========================================================
+
   Widget _modePembayaranControl({double fontSize = 14, double height = 44}) {
     return CompositedTransformTarget(
       link: _modeLink,
@@ -726,8 +859,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  // Pembayaran (Cash / QRIS). Redup jika mode belum "Langsung Bayar".
-  // Saat aktif, daftar pilihan muncul sebagai dropdown di atas tombol.
   Widget _tombolPembayaran({required double height, required double fontSize}) {
     return CompositedTransformTarget(
       link: _bayarLink,
@@ -759,7 +890,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  // Bayar / Simpan
   Widget _tombolProses({required double height}) {
     return _Pill(
       label: langsungBayar ? 'Bayar' : 'Simpan',
@@ -770,24 +900,36 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  // Dipanggil tombol "Pembayaran": pilih Cash/QRIS lalu simpan ke state.
   Future<void> _ubahMetodePembayaran() async {
     final pembayaran = await _pilihPembayaran();
     if (pembayaran == null || !mounted) return;
     setState(() => metodePembayaran = pembayaran);
   }
 
-  // ==========================================================
-  // PILIH MODE TRANSAKSI (dropdown)
-  // ==========================================================
-
   void _pilihModePembayaran() {
-    // Tombol tetap bertuliskan "Langsung Bayar".
-    // Ketuk hanya untuk menampilkan/menyembunyikan border pilihan, tanpa dropdown.
     setState(() {
       selectedPayment = selectedPayment.isEmpty ? 'Langsung Bayar' : '';
       if (selectedPayment.isEmpty) metodePembayaran = '';
     });
+  }
+
+  Future<String?> _pilihPembayaran() async {
+    if (!langsungBayar) return null;
+
+    final options = _availablePaymentMethods(PaymentMethodsStore.methods.value);
+    final pilihan = await _bukaDropdown(
+      link: _bayarLink,
+      targetKey: _bayarKey,
+      header: 'Pembayaran',
+      options: options,
+      selected: metodePembayaran,
+      gayaPembayaran: true,
+    );
+
+    if (pilihan == null) return null;
+    if (pilihan.toLowerCase() == 'qris') return 'QRIS';
+    if (pilihan.toLowerCase() == 'cash') return 'Cash';
+    return pilihan;
   }
 
   // ==========================================================
@@ -899,6 +1041,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   'PPN ${(ppnRate * 100).toStringAsFixed(ppnRate * 100 % 1 == 0 ? 0 : 2)}%',
                   biayaLainnya,
                 ),
+                if (biayaLayanan > 0 || serviceFeeRate > 0) ...[
+                  const SizedBox(height: 8),
+                  _barisRincian(
+                    'Biaya Layanan ${(serviceFeeRate * 100).toStringAsFixed(serviceFeeRate * 100 % 1 == 0 ? 0 : 2)}%',
+                    biayaLayanan,
+                  ),
+                ],
                 const SizedBox(height: 8),
                 _barisRincian(
                   'Diskon${jenisDiskon == '%' ? ' (${diskon.toStringAsFixed(0)}%)' : ''}',
@@ -1210,6 +1359,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
         Navigator.pop(paymentDialogContext);
       }
 
+      var selesaiDipanggil = false;
+      void akhiriTransaksi() {
+        if (selesaiDipanggil) return;
+        selesaiDipanggil = true;
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+        widget.onLanjutPembayaran();
+      }
+
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
           builder: (_) => TransaksiBerhasilPage(
@@ -1225,16 +1384,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   .toList(),
               'subtotal': total,
               'tax': biayaLainnya,
+              'biaya_layanan': biayaLayanan,
               'discount': nominalDiskon,
               'total': totalAkhir,
             },
-            onSelesai: () {
-              Navigator.of(context).pop();
-              widget.onLanjutPembayaran();
-            },
+            onSelesai: akhiriTransaksi,
           ),
         ),
       );
+      if (!selesaiDipanggil && mounted) {
+        selesaiDipanggil = true;
+        widget.onLanjutPembayaran();
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1292,7 +1453,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       orderType: widget.jenisPesanan,
       cart: widget.cart,
       existingOrder: widget.existingOrder,
-      paymentProofName: _buktiPembayaran?.name,
+      paymentProofName: null,
       paymentProofBytes: _buktiPembayaranBytes,
     );
   }
@@ -1302,29 +1463,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
       cart: widget.cart,
       time: waktu,
     );
-  }
-
-  // ==========================================================
-  // PILIH METODE PEMBAYARAN (dropdown di atas tombol Pembayaran)
-  // ==========================================================
-
-  Future<String?> _pilihPembayaran() async {
-    if (!langsungBayar) return null;
-
-    final options = PaymentMethodsStore.methods.value;
-    final pilihan = await _bukaDropdown(
-      link: _bayarLink,
-      targetKey: _bayarKey,
-      header: 'Pembayaran',
-      options: options.isEmpty ? const ['QRIS', 'Cash'] : options,
-      selected: metodePembayaran,
-      gayaPembayaran: true,
-    );
-
-    if (pilihan == null) return null;
-    if (pilihan.toLowerCase() == 'qris') return 'QRIS';
-    if (pilihan.toLowerCase() == 'cash') return 'Cash';
-    return pilihan;
   }
 
   void _dialogPembayaranCustom(String metode) {
@@ -1410,168 +1548,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  Future<void> _mulaiPembayaranQris(BuildContext dialogContext) async {
-    if (_menyimpanPesanan) return;
-
-    setState(() => _menyimpanPesanan = true);
-
-    try {
-      // QRIS Midtrans saat ini untuk transaksi baru.
-      if (widget.existingOrder != null) {
-        throw StateError(
-          'Pembayaran QRIS untuk pesanan Bayar Nanti belum tersedia.',
-        );
-      }
-
-      final waktu = DateTime.now();
-      final kodeUnik = waktu.microsecondsSinceEpoch.toString();
-      final kodePesanan = {'id': 'CC-Q-$kodeUnik', 'display': 'CC-Q-$kodeUnik'};
-      final namaCustomer = _namaCustomerPembayaran;
-
-      if (namaCustomer == null || namaCustomer.trim().isEmpty) {
-        throw StateError('Nama customer belum diisi.');
-      }
-
-      // Buat transaksi QRIS melalui Laravel.
-      final hasil = await CashierTransactionService.createQrisPayment(
-        kode: kodePesanan['id']!,
-        customerName: namaCustomer,
-        orderType: widget.jenisPesanan,
-        discountInput: diskon,
-        discountType: jenisDiskon,
-        cart: widget.cart,
-      );
-
-      final data = hasil['data'] as Map<String, dynamic>;
-      final payment = hasil['payment'] as Map<String, dynamic>;
-
-      final idTransaksi = data['id_transaksi'];
-      final redirectUrl = payment['redirect_url']?.toString();
-
-      if (idTransaksi == null || redirectUrl == null || redirectUrl.isEmpty) {
-        throw StateError('Data pembayaran dari server tidak lengkap.');
-      }
-
-      // Buka halaman pembayaran Midtrans.
-      final berhasilDibuka = await launchUrl(
-        Uri.parse(redirectUrl),
-        mode: LaunchMode.externalApplication,
-      );
-
-      if (!berhasilDibuka) {
-        throw StateError('Halaman pembayaran Midtrans gagal dibuka.');
-      }
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Selesaikan pembayaran di halaman Midtrans. Menunggu konfirmasi...',
-          ),
-        ),
-      );
-
-      // Periksa status langsung dari Laravel.
-      // Status lunas hanya boleh berasal dari webhook Midtrans.
-      bool sudahLunas = false;
-
-      for (int i = 0; i < 150; i++) {
-        await Future.delayed(const Duration(seconds: 2));
-
-        if (!mounted) return;
-
-        final statusResponse = await ApiService.get('transaksi/$idTransaksi');
-
-        final transaksi = statusResponse['data'] as Map<String, dynamic>;
-
-        final status = transaksi['status_bayar']?.toString().toLowerCase();
-
-        if (status == 'lunas') {
-          sudahLunas = true;
-          break;
-        }
-
-        if (status == 'dibatalkan' || status == 'cancelled') {
-          throw StateError('Pembayaran dibatalkan.');
-        }
-      }
-
-      if (!sudahLunas) {
-        throw StateError(
-          'Pembayaran belum terkonfirmasi. Periksa status transaksi sebelum mencoba lagi.',
-        );
-      }
-
-      // Simpan ke penyimpanan lokal setelah server menyatakan lunas.
-      await CashierTransactionService.saveConfirmedQrisTransaction(
-        orderCode: kodePesanan,
-        time: waktu,
-        customerName: namaCustomer,
-        cashierName: widget.namaKasir,
-        itemCount: jumlahItem,
-        subtotal: total,
-        taxRate: ppnRate,
-        tax: biayaLainnya,
-        discount: nominalDiskon,
-        discountInput: diskon,
-        discountType: jenisDiskon,
-        total: totalAkhir,
-        orderType: widget.jenisPesanan,
-        cart: widget.cart,
-        idTransaksi: idTransaksi,
-      );
-
-      if (!mounted) return;
-
-      setState(() => _paymentCompleted = true);
-      _namaCustomerPembayaran = null;
-
-      if (dialogContext.mounted) {
-        Navigator.pop(dialogContext);
-      }
-
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) => TransaksiBerhasilPage(
-            receiptData: {
-              'orderId': kodePesanan['id'] ?? '',
-              'customerName': namaCustomer,
-              'cashierName': widget.namaKasir,
-              'orderType': widget.jenisPesanan,
-              'paymentMethod': 'QRIS',
-              'orderedAt': waktu,
-              'items': widget.cart
-                  .map((item) => Map<String, dynamic>.from(item))
-                  .toList(),
-              'subtotal': total,
-              'tax': biayaLainnya,
-              'discount': nominalDiskon,
-              'total': totalAkhir,
-            },
-            onSelesai: () {
-              Navigator.of(context).pop();
-              widget.onLanjutPembayaran();
-            },
-          ),
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Pembayaran QRIS: $error'),
-          duration: const Duration(seconds: 6),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _menyimpanPesanan = false);
-      }
-    }
-  }
-
   void _dialogQRIS() {
     final namaCustomer = _namaCustomerPembayaran ?? 'Pelanggan';
 
@@ -1599,17 +1575,28 @@ class _CheckoutPageState extends State<CheckoutPage> {
               setState(() => _paymentCompleted = true);
               _namaCustomerPembayaran = null;
 
+              var selesaiDipanggil = false;
+              void akhiriQrisDirect() {
+                if (selesaiDipanggil) return;
+                selesaiDipanggil = true;
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                }
+                widget.onLanjutPembayaran();
+              }
+
               await Navigator.of(context).push<void>(
                 MaterialPageRoute<void>(
                   builder: (_) => TransaksiBerhasilPage(
                     receiptData: receiptData,
-                    onSelesai: () {
-                      Navigator.of(context).pop();
-                      widget.onLanjutPembayaran();
-                    },
+                    onSelesai: akhiriQrisDirect,
                   ),
                 ),
               );
+              if (!selesaiDipanggil && mounted) {
+                selesaiDipanggil = true;
+                widget.onLanjutPembayaran();
+              }
             },
           ),
         );
@@ -1630,6 +1617,22 @@ class _CheckoutPageState extends State<CheckoutPage> {
       return double.tryParse(angka) ?? 0;
     }
 
+    String formatRibuan(double val) {
+      final digits = val.round().toString();
+      return digits.replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+        (m) => '${m[1]}.',
+      );
+    }
+
+    final quickAmounts = <double>{
+      totalAkhir.ceilToDouble(),
+      if (totalAkhir <= 20000) 20000,
+      if (totalAkhir <= 50000) 50000,
+      100000,
+    }.toList()
+      ..sort();
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1638,6 +1641,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
           builder: (context, setDialogState) {
             final double kembalian = nominalCash - totalAkhir;
             final bool cukup = nominalCash >= totalAkhir;
+
+            void setQuick(double val) {
+              final formatted = formatRibuan(val);
+              nominalController.value = TextEditingValue(
+                text: formatted,
+                selection: TextSelection.collapsed(offset: formatted.length),
+              );
+              setDialogState(() => nominalCash = val);
+            }
 
             return PopScope(
               canPop: !_mustCompletePayment,
@@ -1651,168 +1663,223 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   dialogContext: dialogContext,
                   bisaTutup: !_mustCompletePayment,
                   child: Container(
-                    width: 330,
-                    padding: const EdgeInsets.fromLTRB(13, 12, 13, 10),
+                    width: 380,
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(17),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: _borderSoft),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.10),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
+                          color: _navy.withValues(alpha: 0.16),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
                         ),
                       ],
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Center(
-                          child: Text(
-                            'Total Pembayaran',
-                            style: TextStyle(
-                              color: Color(0xff102b40),
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 2),
-
-                        Center(
-                          child: Text(
-                            widget.rupiah(totalAkhir),
-                            style: const TextStyle(
-                              color: Color(0xff16558a),
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 15),
-
-                        const Text(
-                          'Nominal Cash :',
-                          style: TextStyle(
-                            color: Color(0xff263746),
-                            fontSize: 17,
-                          ),
-                        ),
-
-                        const SizedBox(height: 4),
-
                         Container(
-                          height: 22,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                           decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xffe4e4e4)),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.10),
-                                blurRadius: 4,
-                                offset: const Offset(0, 1),
+                            color: _surfaceSoft,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _borderSoft),
+                          ),
+                          child: Column(
+                            children: [
+                              const Text(
+                                'Total Pembayaran Cash',
+                                style: TextStyle(
+                                  color: _muted,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                widget.rupiah(totalAkhir),
+                                style: const TextStyle(
+                                  color: _navy,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                ),
                               ),
                             ],
                           ),
-                          child: TextField(
-                            controller: nominalController,
-                            autofocus: true,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [_RibuanFormatter()],
-                            onChanged: (value) {
-                              setDialogState(() {
-                                nominalCash = parseNominal(value);
-                              });
-                            },
-                            style: const TextStyle(
-                              color: Color(0xff263746),
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
+                        ),
+                        const SizedBox(height: 14),
+                        const Text(
+                          'Nominal Diterima',
+                          style: TextStyle(
+                            color: _navy,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: nominalController,
+                          autofocus: true,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [_RibuanFormatter()],
+                          onChanged: (value) {
+                            setDialogState(() {
+                              nominalCash = parseNominal(value);
+                            });
+                          },
+                          style: const TextStyle(
+                            color: _navy,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                          decoration: InputDecoration(
+                            prefixText: 'Rp ',
+                            prefixStyle: const TextStyle(
+                              color: _muted,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
                             ),
-                            decoration: const InputDecoration(
-                              hintText: 'Masukkan nominal cash',
-                              hintStyle: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 13,
+                            hintText: '0',
+                            hintStyle: const TextStyle(
+                              color: Color(0xff9ab0c4),
+                              fontSize: 16,
+                            ),
+                            filled: true,
+                            fillColor: _surfaceSoft,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(color: _borderSoft),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(color: _borderSoft),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(
+                                color: _navy,
+                                width: 1.6,
                               ),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 7,
-                                vertical: 3,
-                              ),
-                              border: InputBorder.none,
-                              isDense: true,
                             ),
                           ),
                         ),
-
-                        const SizedBox(height: 7),
-
-                        Row(
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
                           children: [
-                            const Text(
-                              'Kembalian : ',
-                              style: TextStyle(
-                                color: Color(0xff263746),
-                                fontSize: 17,
-                              ),
-                            ),
-                            Expanded(
-                              child: AnimatedDefaultTextStyle(
-                                duration: const Duration(milliseconds: 180),
-                                style: TextStyle(
-                                  color: nominalCash > 0 && !cukup
-                                      ? Colors.red
-                                      : const Color(0xff263746),
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w600,
+                            for (final amt in quickAmounts)
+                              ActionChip(
+                                label: Text(
+                                  amt == totalAkhir.ceilToDouble()
+                                      ? 'Uang Pas'
+                                      : 'Rp ${formatRibuan(amt)}',
+                                  style: const TextStyle(
+                                    color: _navy,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                                child: Text(
-                                  nominalCash == 0
-                                      ? '0'
-                                      : cukup
-                                      ? widget
-                                            .rupiah(kembalian)
-                                            .replaceFirst('Rp ', '')
-                                      : 'Kurang ${widget.rupiah(-kembalian)}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                backgroundColor: _surfaceSoft,
+                                side: const BorderSide(color: _borderSoft),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
+                                onPressed: () => setQuick(amt),
                               ),
-                            ),
                           ],
                         ),
-
-                        const SizedBox(height: 8),
-
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: SizedBox(
-                            width: 80,
-                            height: 35,
-                            child: ElevatedButton(
-                              onPressed: cukup && nominalCash > 0
-                                  ? () => _simpanPembayaran(dialogContext)
-                                  : null,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _navy,
-                                foregroundColor: Colors.white,
-                                disabledBackgroundColor: const Color(
-                                  0xffb8c5cf,
-                                ),
-                                elevation: 4,
-                                padding: EdgeInsets.zero,
-                                shape: const StadiumBorder(),
-                              ),
-                              child: const Text(
-                                'Simpan',
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 11,
+                          ),
+                          decoration: BoxDecoration(
+                            color: nominalCash == 0
+                                ? _surfaceSoft
+                                : cukup
+                                ? const Color(0xffeaf8f1)
+                                : const Color(0xffffefef),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: nominalCash == 0
+                                  ? _borderSoft
+                                  : cukup
+                                  ? const Color(0xffa9e0c3)
+                                  : const Color(0xfff3b3b3),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                nominalCash > 0 && !cukup
+                                    ? 'Kekurangan'
+                                    : 'Kembalian',
                                 style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+                                  color: nominalCash > 0 && !cukup
+                                      ? _merah
+                                      : _muted,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
                                 ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                nominalCash == 0
+                                    ? 'Rp 0'
+                                    : cukup
+                                    ? widget.rupiah(kembalian)
+                                    : widget.rupiah(-kembalian),
+                                style: TextStyle(
+                                  color: nominalCash == 0
+                                      ? _navy
+                                      : cukup
+                                      ? _hijau
+                                      : _merah,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height: 46,
+                          child: ElevatedButton.icon(
+                            onPressed:
+                                cukup && nominalCash > 0 && !_menyimpanPesanan
+                                    ? () => _simpanPembayaran(dialogContext)
+                                    : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _navy,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: const Color(0xffb8c5cf),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            icon: const Icon(
+                              Icons.check_circle_outline_rounded,
+                              size: 19,
+                            ),
+                            label: const Text(
+                              'Konfirmasi & Bayar',
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
                           ),
@@ -1829,104 +1896,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
     ).then((_) {
       nominalController.dispose();
     });
-  }
-
-  // ==========================================================
-  // DISKON
-  // ==========================================================
-
-  Widget _diskonBox({
-    required double height,
-    required double fontSize,
-    required double iconSize,
-  }) {
-    final aktif = diskon > 0;
-    return InkWell(
-      onTap: widget.existingOrder == null ? _dialogDiskon : null,
-      child: Container(
-        height: height,
-        color: _navy,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Flexible(
-              child: Text(
-                widget.existingOrder != null
-                    ? 'Diskon tetap\n${jenisDiskon == '%' ? '${diskon.toStringAsFixed(0)}%' : widget.rupiah(diskon)}'
-                    : aktif
-                    ? 'Diskon\n${jenisDiskon == '%' ? '${diskon.toStringAsFixed(0)}% (${widget.rupiah(nominalDiskon)})' : widget.rupiah(diskon)}'
-                    : 'Masukkan\nDiskon',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.bold,
-                  height: 1.1,
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: Colors.white,
-              size: iconSize,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ==========================================================
-  // TOTAL (subtotal sebelum PPN & diskon, klik untuk lihat rincian)
-  // ==========================================================
-
-  Widget _totalBox({required double height, required double fontSize}) {
-    return InkWell(
-      onTap: _dialogRincianPembayaran,
-      child: Container(
-        height: height,
-        color: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Flexible(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Total :',
-                    style: TextStyle(
-                      color: _navy,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      // Ganti `total` menjadi `totalAkhir` jika ingin
-                      // kotak ini menampilkan total setelah PPN & diskon.
-                      widget.rupiah(total).replaceFirst('Rp ', ''),
-                      style: TextStyle(
-                        color: _navy,
-                        fontSize: fontSize,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: _navy, size: 27),
-          ],
-        ),
-      ),
-    );
   }
 
   // ==========================================================
@@ -2024,9 +1993,9 @@ class _Pill extends StatefulWidget {
   final VoidCallback? onTap;
   final double height;
   final double fontSize;
-  final bool selected; // border biru
-  final bool enabled; // false = tidak bisa diketuk
-  final bool dim; // true = tampil redup (tetap bisa diketuk jika enabled)
+  final bool selected;
+  final bool enabled;
+  final bool dim;
 
   @override
   State<_Pill> createState() => _PillState();
@@ -2065,11 +2034,10 @@ class _PillState extends State<_Pill> {
             curve: Curves.easeOutCubic,
             height: widget.height,
             alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
               color: redup ? const Color(0xffc5d3df) : Colors.white,
               borderRadius: BorderRadius.circular(widget.height / 2),
-              // Border selalu 2px (transparan jika tidak dipilih) agar ukuran tidak bergeser.
               border: Border.all(
                 color: aktifBorder
                     ? _CheckoutPageState._biruBorder
@@ -2081,9 +2049,9 @@ class _PillState extends State<_Pill> {
                   : [
                       BoxShadow(
                         color: _CheckoutPageState._navy.withValues(
-                          alpha: _hover ? 0.18 : 0.08,
+                          alpha: _hover ? 0.18 : 0.09,
                         ),
-                        blurRadius: _hover ? 10 : 5,
+                        blurRadius: _hover ? 10 : 6,
                         offset: const Offset(0, 3),
                       ),
                     ],
@@ -2094,7 +2062,7 @@ class _PillState extends State<_Pill> {
                 duration: const Duration(milliseconds: 200),
                 style: TextStyle(
                   color: redup
-                      ? const Color(0xff8799a8)
+                      ? const Color(0xff7d90a1)
                       : _CheckoutPageState._navy,
                   fontSize: widget.fontSize,
                   fontWeight: FontWeight.bold,
@@ -2130,7 +2098,7 @@ class _AnchoredDropdown extends StatefulWidget {
   final String? header;
   final List<String> options;
   final String selected;
-  final bool gayaPembayaran; // true: header + pil biru muda; false: pil putih
+  final bool gayaPembayaran;
   final bool rataKiri;
   final ValueChanged<String?> onClosed;
 
@@ -2169,7 +2137,7 @@ class _AnchoredDropdownState extends State<_AnchoredDropdown>
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         width: double.infinity,
-        height: 36,
+        height: 38,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: sel ? _CheckoutPageState._navy : const Color(0xffdce9f4),
@@ -2227,7 +2195,7 @@ class _AnchoredDropdownState extends State<_AnchoredDropdown>
       isi.add(
         Container(
           width: double.infinity,
-          height: 34,
+          height: 36,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: Colors.white,
@@ -2243,7 +2211,7 @@ class _AnchoredDropdownState extends State<_AnchoredDropdown>
           ),
         ),
       );
-      isi.add(const SizedBox(height: 5));
+      isi.add(const SizedBox(height: 6));
     }
 
     for (var i = 0; i < widget.options.length; i++) {
@@ -2252,15 +2220,15 @@ class _AnchoredDropdownState extends State<_AnchoredDropdown>
         widget.gayaPembayaran ? _opsiPembayaran(label) : _opsiMode(label),
       );
       if (i != widget.options.length - 1) {
-        isi.add(SizedBox(height: widget.gayaPembayaran ? 5 : 8));
+        isi.add(SizedBox(height: widget.gayaPembayaran ? 6 : 8));
       }
     }
 
     return Container(
-      padding: EdgeInsets.all(widget.gayaPembayaran ? 6 : 8),
+      padding: EdgeInsets.all(widget.gayaPembayaran ? 7 : 8),
       decoration: BoxDecoration(
         color: _CheckoutPageState._biruMuda,
-        borderRadius: BorderRadius.circular(widget.gayaPembayaran ? 16 : 24),
+        borderRadius: BorderRadius.circular(widget.gayaPembayaran ? 18 : 24),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.20),
@@ -2283,7 +2251,6 @@ class _AnchoredDropdownState extends State<_AnchoredDropdown>
 
     return Stack(
       children: [
-        // Ketuk di luar dropdown untuk menutup.
         Positioned.fill(
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,

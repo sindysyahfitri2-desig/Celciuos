@@ -1,11 +1,13 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:kasir_celcious_coffe/data/api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Satu sumber data transaksi dan shift untuk semua layar aplikasi.
 class TransactionStore {
   static const _ppnKey = 'ppn_rate';
+  static const _serviceFeeKey = 'service_fee_rate';
   static const _shiftCashierKey = 'shift_cashier';
   static const _shiftOpeningCashKey = 'shift_opening_cash';
   static const _transactionsKey = 'transactions';
@@ -15,6 +17,7 @@ class TransactionStore {
   static const _cashDrawerEntriesKey = 'cash_drawer_entries';
 
   static final ValueNotifier<double> ppnRate = ValueNotifier<double>(0.11);
+  static final ValueNotifier<double> serviceFeeRate = ValueNotifier<double>(0.0);
   static final ValueNotifier<String> shiftCashier = ValueNotifier<String>('');
   static final ValueNotifier<double> shiftOpeningCash = ValueNotifier<double>(
     0,
@@ -45,6 +48,12 @@ class TransactionStore {
     final savedRate = preferences.getDouble(_ppnKey);
     if (savedRate != null && savedRate >= 0 && savedRate <= 1) {
       ppnRate.value = savedRate;
+    }
+    final savedServiceRate = preferences.getDouble(_serviceFeeKey);
+    if (savedServiceRate != null &&
+        savedServiceRate >= 0 &&
+        savedServiceRate <= 1) {
+      serviceFeeRate.value = savedServiceRate;
     }
     shiftCashier.value = preferences.getString(_shiftCashierKey) ?? '';
     shiftOpeningCash.value = preferences.getDouble(_shiftOpeningCashKey) ?? 0;
@@ -128,6 +137,50 @@ class TransactionStore {
       throw StateError('Gagal menyimpan pengaturan PPN.');
     }
     ppnRate.value = rate;
+  }
+
+  static Future<void> saveServiceFeeRate(double rate) async {
+    if (!rate.isFinite || rate < 0 || rate > 1) {
+      throw ArgumentError.value(
+        rate,
+        'rate',
+        'Biaya layanan harus antara 0 sampai 100%.',
+      );
+    }
+
+    final preferences = await SharedPreferences.getInstance();
+    final saved = await preferences.setDouble(_serviceFeeKey, rate);
+    if (!saved) {
+      throw StateError('Gagal menyimpan pengaturan biaya layanan.');
+    }
+    serviceFeeRate.value = rate;
+  }
+
+  /// Sinkronisasi tarif PPN & Biaya Layanan langsung dari backend Laravel.
+  static Future<void> syncStoreRates() async {
+    try {
+      final res = await ApiService.get('pengaturan-toko');
+      final data = res['data'];
+      if (data is! Map) return;
+
+      final rawPpn = data['ppn_persen'];
+      if (rawPpn != null) {
+        final p = double.tryParse(rawPpn.toString());
+        if (p != null && p >= 0 && p <= 100) {
+          await savePpnRate(p / 100);
+        }
+      }
+
+      final rawSvc = data['biaya_layanan_persen'];
+      if (rawSvc != null) {
+        final s = double.tryParse(rawSvc.toString());
+        if (s != null && s >= 0 && s <= 100) {
+          await saveServiceFeeRate(s / 100);
+        }
+      }
+    } catch (e) {
+      debugPrint('Gagal sinkronisasi tarif PPN/layanan dari backend: $e');
+    }
   }
 
   static Future<void> startShift({

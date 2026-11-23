@@ -23,8 +23,33 @@ class ProductImage extends StatelessWidget {
     }
 
     if (image is String && (image as String).isNotEmpty) {
+      final src = (image as String).trim();
+      if (src.startsWith('http://') || src.startsWith('https://')) {
+        return Image.network(
+          src,
+          key: ValueKey(src),
+          fit: fit,
+          headers: const {'ngrok-skip-browser-warning': 'true'},
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return const Center(
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFF082640),
+                ),
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) => _placeholder(),
+        );
+      }
+
       return Image.asset(
-        image as String,
+        src,
+        key: ValueKey(src),
         fit: fit,
         errorBuilder: (context, error, stackTrace) => _placeholder(),
       );
@@ -36,9 +61,9 @@ class ProductImage extends StatelessWidget {
   Widget _placeholder() {
     return const Center(
       child: Icon(
-        Icons.image_not_supported_outlined,
+        Icons.local_cafe_rounded,
         color: Colors.white,
-        size: 30,
+        size: 28,
       ),
     );
   }

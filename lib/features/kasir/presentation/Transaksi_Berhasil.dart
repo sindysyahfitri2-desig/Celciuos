@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:kasir_celcious_coffe/data/receipt_settings_store.dart';
 import 'package:kasir_celcious_coffe/features/settings/application/print_service.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 /// Halaman sukses setelah transaksi berhasil disimpan.
 /// Menampilkan 2 struk: Struk Customer & Struk Dapur, serta tombol cetak masing-masing.
@@ -28,6 +29,7 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
 
   bool _printingCustomer = false;
   bool _printingKitchen = false;
+  bool _printingSticker = false;
 
   static const Color _background = Color(0xFFDCE9F4);
   static const Color _navy = Color(0xFF0B2846);
@@ -90,30 +92,15 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
     }
   }
 
-  bool _sedangCetakStruk = false;
-  bool _sedangCetakStiker = false;
-
-  Future<void> _cetakStrukManual() async {
+  Future<void> _cetakStikerMinuman() async {
     final data = widget.receiptData;
-    if (data == null || _sedangCetakStruk) return;
-    setState(() => _sedangCetakStruk = true);
-    try {
-      final payload = PrintService.buildPrintPayloadFromOrder(data);
-      await PrintService.cetakStruk(payload);
-    } finally {
-      if (mounted) setState(() => _sedangCetakStruk = false);
-    }
-  }
-
-  Future<void> _cetakStikerManual() async {
-    final data = widget.receiptData;
-    if (data == null || _sedangCetakStiker) return;
-    setState(() => _sedangCetakStiker = true);
+    if (data == null || _printingSticker) return;
+    setState(() => _printingSticker = true);
     try {
       final payload = PrintService.buildPrintPayloadFromOrder(data);
       await PrintService.cetakStikerTransaksi(payload);
     } finally {
-      if (mounted) setState(() => _sedangCetakStiker = false);
+      if (mounted) setState(() => _printingSticker = false);
     }
   }
 
@@ -125,7 +112,14 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          widget.onSelesai();
+        }
+      },
+      child: Scaffold(
       backgroundColor: _background,
       body: SafeArea(
         child: Column(
@@ -145,15 +139,32 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final width = constraints.maxWidth;
-                  final sideBySide = width >= 720;
+                  final receipt = widget.receiptData;
+                  final adaMinuman =
+                      receipt != null && PrintService.adaMinuman(receipt);
+                  final adaMakanan =
+                      receipt != null && PrintService.adaMakanan(receipt);
+                  final totalCards =
+                      1 + (adaMinuman ? 1 : 0) + (adaMakanan ? 1 : 0);
+                  final sideBySide = width >= 760 && totalCards > 1;
                   final pad = width < 600 ? 16.0 : 26.0;
+
+                  final subLabel = adaMinuman && adaMakanan
+                      ? 'Struk Transaksi, Stiker Cup Minuman & Struk Dapur siap dicetak'
+                      : adaMinuman
+                      ? 'Struk Transaksi & Stiker Cup Minuman siap dicetak'
+                      : adaMakanan
+                      ? 'Struk Transaksi & Struk Dapur siap dicetak'
+                      : 'Struk Transaksi siap dicetak';
 
                   return SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(pad, 20, pad, 28),
                     child: Center(
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
-                          maxWidth: sideBySide ? 860 : 440,
+                          maxWidth: totalCards == 3 && sideBySide
+                              ? 1140
+                              : (sideBySide ? 860 : 440),
                         ),
                         child: Column(
                           children: [
@@ -202,23 +213,25 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
                               ),
                             ),
                             const SizedBox(height: 4),
-                            const Text(
-                              'Struk Customer & Struk Dapur siap dicetak',
+                            Text(
+                              subLabel,
                               textAlign: TextAlign.center,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 color: _muted,
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
 
-                            if (widget.receiptData != null)
+                            if (receipt != null)
                               ValueListenableBuilder<Map<String, bool>>(
                                 valueListenable: ReceiptSettingsStore.options,
                                 builder: (context, options, _) {
-                                  final customerCard =
-                                      _customerReceiptCard(options);
-                                  final kitchenCard = _kitchenReceiptCard();
+                                  final cards = <Widget>[
+                                    _customerReceiptCard(options),
+                                    if (adaMinuman) _stickerReceiptCard(),
+                                    if (adaMakanan) _kitchenReceiptCard(),
+                                  ];
 
                                   return Padding(
                                     padding: const EdgeInsets.only(top: 20),
@@ -227,16 +240,24 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
-                                              Expanded(child: customerCard),
-                                              const SizedBox(width: 20),
-                                              Expanded(child: kitchenCard),
+                                              for (var i = 0;
+                                                  i < cards.length;
+                                                  i++) ...[
+                                                if (i > 0)
+                                                  const SizedBox(width: 18),
+                                                Expanded(child: cards[i]),
+                                              ],
                                             ],
                                           )
                                         : Column(
                                             children: [
-                                              customerCard,
-                                              const SizedBox(height: 18),
-                                              kitchenCard,
+                                              for (var i = 0;
+                                                  i < cards.length;
+                                                  i++) ...[
+                                                if (i > 0)
+                                                  const SizedBox(height: 18),
+                                                cards[i],
+                                              ],
                                             ],
                                           ),
                                   );
@@ -277,6 +298,7 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -444,18 +466,35 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
                 const Divider(height: 18, color: Color(0xFFCDE0F0)),
                 detail('Subtotal', amount(receipt['subtotal'])),
                 detail('Pajak', amount(receipt['tax'])),
+                if (((receipt['biaya_layanan'] as num?) ?? 0) > 0)
+                  detail('Biaya Layanan', amount(receipt['biaya_layanan'])),
                 if (((receipt['discount'] as num?) ?? 0) > 0)
                   detail('Diskon', '-${amount(receipt['discount'])}'),
                 if (options['total'] ?? true)
                   detail('Total Bayar', amount(receipt['total']), bold: true),
                 if (options['qrCode'] ?? true) ...[
                   const SizedBox(height: 12),
-                  const Icon(Icons.qr_code_2_rounded, color: _navy, size: 54),
+                  QrImageView(
+                    data: PrintService.kInstagramUrl,
+                    version: QrVersions.auto,
+                    size: 76,
+                    backgroundColor: Colors.white,
+                  ),
                   const SizedBox(height: 4),
+                  const Text(
+                    'Follow Instagram Kami • ${PrintService.kInstagramHandle}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: _navy,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
                   const Text(
                     'Terima kasih atas pesanan Anda',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: _muted, fontSize: 10.5),
+                    style: TextStyle(color: _muted, fontSize: 10),
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -475,7 +514,7 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
                           )
                         : const Icon(Icons.print_rounded, size: 17),
                     label: const Text(
-                      'Cetak Struk Customer',
+                      'Cetak Struk Transaksi',
                       style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w800,
@@ -500,7 +539,227 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
   }
 
   // ==========================================================
-  // STRUK 2: STRUK DAPUR (desain sesuai gambar ke-2)
+  // STRUK 2: STIKER CUP MINUMAN (khusus pesanan minuman untuk Barista)
+  // ==========================================================
+
+  Widget _stickerReceiptCard() {
+    final receipt = widget.receiptData!;
+    final orderId = receipt['orderId']?.toString() ?? '-';
+    final customerName = receipt['customerName']?.toString().trim() ?? '';
+    final orderType = receipt['orderType']?.toString().trim() ?? 'Dine In';
+    final tipeKode = orderType == 'Take Away' ? 'Ta' : 'Di';
+    final kasir = receipt['cashierName']?.toString() ?? 'Kasir';
+    final dateValue = receipt['orderedAt'];
+    final date = dateValue is DateTime ? dateValue : DateTime.now();
+    const bln = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    final waktu =
+        '${bln[date.month - 1]} ${date.day}, ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+
+    final drinkItems = (receipt['items'] as List? ?? const [])
+        .whereType<Map>()
+        .where(PrintService.isMinumanItem)
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+
+    final cups = <Map<String, String>>[];
+    final totalCups = drinkItems.fold<int>(
+      0,
+      (sum, it) => sum + ((it['quantity'] as num?)?.toInt() ?? 1),
+    );
+    var cupIndex = 0;
+    for (final item in drinkItems) {
+      final qty = (item['quantity'] as num?)?.toInt() ?? 1;
+      for (var i = 0; i < qty; i++) {
+        cupIndex++;
+        cups.add({
+          'menu': item['name']?.toString() ?? 'Minuman',
+          'catatan': (item['catatan']?.toString() ?? '').trim().toUpperCase(),
+          'urutan': '$cupIndex/$totalCups',
+        });
+      }
+    }
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFB7D6F0), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: _navy.withValues(alpha: 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            color: const Color(0xFF16558A),
+            child: Row(
+              children: [
+                const Icon(Icons.local_cafe_rounded, color: Colors.white, size: 17),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'STIKER CUP MINUMAN ($totalCups CUP)',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final cup in cups)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF7FBFF),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _lightBlue, width: 1.2),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              orderId,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: _navy,
+                              ),
+                            ),
+                            Text(
+                              '${customerName.isNotEmpty ? '$customerName ' : ''}$tipeKode',
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: _navy,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          cup['menu'] ?? '',
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: _navy,
+                          ),
+                        ),
+                        if ((cup['catatan'] ?? '').isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            cup['catatan']!,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: _muted,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '$waktu • $kasir',
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 9.5,
+                                color: _muted,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _navy,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                cup['urutan'] ?? '1/1',
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  height: 40,
+                  child: ElevatedButton.icon(
+                    onPressed: _printingSticker ? null : _cetakStikerMinuman,
+                    icon: _printingSticker
+                        ? const SizedBox(
+                            width: 15,
+                            height: 15,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.local_cafe_outlined, size: 17),
+                    label: Text(
+                      'Cetak Stiker Cup ($totalCups)',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF16558A),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================
+  // STRUK 3: STRUK DAPUR (khusus pesanan makanan untuk Kitchen)
   // ==========================================================
 
   Widget _kitchenReceiptCard() {
@@ -514,6 +773,7 @@ class _TransaksiBerhasilPageState extends State<TransaksiBerhasilPage>
 
     final items = (receipt['items'] as List? ?? const [])
         .whereType<Map>()
+        .where(PrintService.isMakananItem)
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
 

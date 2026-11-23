@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'data/app_branding_store.dart';
+import 'data/kitchen_receipt_settings_store.dart';
 import 'data/owner_profile_store.dart';
 import 'data/payment_methods_store.dart';
 import 'data/produk_data.dart';
@@ -37,6 +38,7 @@ class _MyAppState extends State<MyApp> {
     await PaymentMethodsStore.initialize();
     await ReceiptSettingsStore.initialize();
     await StickerSettingsStore.initialize();
+    await KitchenReceiptSettingsStore.initialize();
   }
 
   void _retryInitialization() {

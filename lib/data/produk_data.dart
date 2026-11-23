@@ -323,14 +323,122 @@ class ProdukData {
     copy['name'] = nama;
     copy['category'] = kategoriBaru(nama, kategoriLama);
 
-    // Jika gambar kosong, gunakan gambar berdasarkan nama produk.
+    // Jika gambar kosong, gunakan pencocokan gambar bawaan berdasarkan nama produk.
     final gambar = copy['image'];
 
     if (gambar == null || gambar.toString().isEmpty) {
-      copy['image'] = _gambarPerNama[nama] ?? '';
+      copy['image'] = _gambarFallbackDariNama(nama);
     }
 
     return copy;
+  }
+
+  /// Pencocokan pintar gambar aset bawaan berdasarkan nama produk (case-insensitive)
+  /// agar produk di database tetap memiliki foto yang bagus meski belum diunggah foto kustom.
+  static String _gambarFallbackDariNama(String namaProduk) {
+    final exact = _gambarPerNama[namaProduk];
+    if (exact != null && exact.isNotEmpty) return exact;
+
+    final n = namaProduk.toLowerCase().trim();
+    if (n.contains('espreso') || n.contains('espresso')) {
+      return 'assets/images/Espreso.jpg';
+    }
+    if (n.contains('americano') || n.contains('americanno')) {
+      return 'assets/images/Americano.jpg';
+    }
+    if (n.contains('sanger')) {
+      return 'assets/images/Sanger.jpg';
+    }
+    if (n.contains('cappuccino') || n.contains('machiato') || n.contains('macchiato')) {
+      return 'assets/images/Cappuccino.jpg';
+    }
+    if (n.contains('aren') || n.contains('butterscotch') || n.contains('buttercream') || n.contains('tiramisu')) {
+      return 'assets/images/Arenn_latte.jpg';
+    }
+    if (n.contains('sunkist') || n.contains('blue') || n.contains('refresh') || n.contains('sunset') || n.contains('lemon') || n.contains('berry')) {
+      return 'assets/images/Black_Sunkist.jpg';
+    }
+    if (n.contains('red velvet')) {
+      return 'assets/images/Red_Velvet.jpg';
+    }
+    if (n.contains('taro')) {
+      return 'assets/images/Taro_Latte.jpg';
+    }
+    if (n.contains('matcha')) {
+      return 'assets/images/Matcha_Latte.jpg';
+    }
+    if (n.contains('chocolate') || n.contains('coklat') || n.contains('cokelat')) {
+      return 'assets/images/White_Chocolate.jpg';
+    }
+    if (n.contains('indomie kuah')) {
+      return 'assets/images/Indomie_Kuah.jpg';
+    }
+    if (n.contains('indomie') || n.contains('mie')) {
+      return 'assets/images/Indomie_Goreng.jpg';
+    }
+    if (n.contains('nasi goreng spesial')) {
+      return 'assets/images/Nasi_Goreng_Spesial.jpg';
+    }
+    if (n.contains('nasi goreng')) {
+      return 'assets/images/Nasi_Goreng.jpg';
+    }
+    if (n.contains('rice bowl') || n.contains('geprek') || n.contains('ayam')) {
+      return 'assets/images/Rice_Bowl_Sambal_Mata.jpg';
+    }
+    if (n.contains('carbonara') || n.contains('calbonara')) {
+      return 'assets/images/Spagetti_Calbonara.jpg';
+    }
+    if (n.contains('bolognese') || n.contains('spagetti') || n.contains('spaghetti')) {
+      return 'assets/images/Spagetti_Bolognese.jpg';
+    }
+    if (n.contains('tomyam')) {
+      return 'assets/images/Tomyam_Seafood.jpg';
+    }
+    if (n.contains('cinnamon')) {
+      return 'assets/images/Cinnamon_Roll.jpg';
+    }
+    if (n.contains('fries') || n.contains('kentang')) {
+      return 'assets/images/French_Fries.jpg';
+    }
+    if (n.contains('burger')) {
+      return 'assets/images/Burger.jpg';
+    }
+    if (n.contains('donat')) {
+      return 'assets/images/donat.jpg';
+    }
+    if (n.contains('latte')) {
+      return 'assets/images/Arenn_latte.jpg';
+    }
+    return 'assets/images/Logo.jpeg';
+  }
+
+  /// Resolusi gambar produk: prioritaskan foto dari server (hasil upload Owner),
+  /// lalu fallback pintar ke aset bawaan jika produk belum punya foto di server.
+  static String _resolveServerImage(Map<String, dynamic> p, String nama) {
+    final serverBase = ApiService.baseUrl.replaceFirst(RegExp(r'/api/?$'), '');
+    final updatedAt = Uri.encodeComponent(p['updated_at']?.toString() ?? '');
+    final cacheQuery = updatedAt.isEmpty ? '' : '?v=$updatedAt';
+
+    final rawUrl = p['gambar_url']?.toString().trim() ?? '';
+    final rawPath = p['gambar']?.toString().trim() ?? '';
+
+    if (rawUrl.isNotEmpty) {
+      final parsed = Uri.tryParse(rawUrl);
+      if (parsed != null && parsed.path.isNotEmpty) {
+        return '$serverBase${parsed.path}$cacheQuery';
+      }
+      if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+        return '$rawUrl$cacheQuery';
+      }
+      final normalizedPath = rawUrl.startsWith('/') ? rawUrl : '/$rawUrl';
+      return '$serverBase$normalizedPath$cacheQuery';
+    }
+
+    if (rawPath.startsWith('http://') || rawPath.startsWith('https://')) {
+      return '$rawPath$cacheQuery';
+    }
+
+    return _gambarFallbackDariNama(nama);
   }
 
   // ==========================================================
@@ -370,7 +478,8 @@ class ProdukData {
               ) ??
               0,
           'category': kategoriFinal,
-          'image': _gambarPerNama[nama] ?? '',
+          'image': _resolveServerImage(p, nama),
+          'gambar': p['gambar'],
           'is_active': p['status'] == 'aktif',
         };
       }).toList();

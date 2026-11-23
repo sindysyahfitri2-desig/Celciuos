@@ -260,12 +260,19 @@ class _ProdukPageState extends State<ProdukPage> {
   // ============================================================
 
   Future<void> _editProduct(Map<String, dynamic> product) async {
+    final rawPrice = product['price'];
+    final cleanPriceText = rawPrice is num
+        ? rawPrice.toInt().toString()
+        : (double.tryParse(rawPrice?.toString() ?? '')?.toInt().toString() ??
+              '');
+
     final result = await showDialog<_EditResult>(
       context: context,
       builder: (_) => _EditProductDialog(
         initialName: product['name']?.toString() ?? '',
-        initialPrice: product['price']?.toString() ?? '',
+        initialPrice: cleanPriceText,
         initialCategory: product['category']?.toString(),
+        initialImage: product['image'],
         categories: _categories,
       ),
     );
@@ -278,6 +285,7 @@ class _ProdukPageState extends State<ProdukPage> {
         name: result.name,
         price: result.price,
         category: result.category,
+        image: result.imageBytes,
       );
 
       await _loadProducts(showError: false);
@@ -460,8 +468,8 @@ class _ProdukPageState extends State<ProdukPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         _header(isPhone),
-                        SizedBox(height: isPhone ? 14 : 22),
-                        _formSection(isPhone),
+                        SizedBox(height: isPhone ? 14 : 20),
+                        _formSection(width < 760),
                         SizedBox(height: isPhone ? 14 : 18),
                         _categoryFilter(isPhone),
                       ],
@@ -529,15 +537,15 @@ class _ProdukPageState extends State<ProdukPage> {
   // ============================================================
 
   Widget _header(bool isPhone) {
-    const title = Text(
+    final title = Text(
       'Kontrol Product',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
         color: _navy,
-        fontSize: 30,
+        fontSize: isPhone ? 22 : 28,
         fontWeight: FontWeight.w900,
-        shadows: [
+        shadows: const [
           Shadow(
             color: Color(0x66000000),
             blurRadius: 4,
@@ -552,7 +560,7 @@ class _ProdukPageState extends State<ProdukPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           title,
-          const SizedBox(height: 13),
+          const SizedBox(height: 12),
           _searchField(),
         ],
       );
@@ -560,7 +568,7 @@ class _ProdukPageState extends State<ProdukPage> {
 
     return Row(
       children: [
-        const Expanded(child: title),
+        Expanded(child: title),
         const SizedBox(width: 24),
         SizedBox(width: 240, child: _searchField()),
       ],
@@ -1363,15 +1371,21 @@ class _AnimatedDeleteButtonState extends State<_AnimatedDeleteButton> {
 // ============================================================
 
 class _EditResult {
-  const _EditResult(this.name, this.price, this.category);
+  const _EditResult(
+    this.name,
+    this.price,
+    this.category, {
+    this.imageBytes,
+  });
 
   final String name;
   final int price;
   final String category;
+  final Uint8List? imageBytes;
 }
 
 // ============================================================
-// DIALOG EDIT PRODUK
+// DIALOG EDIT PRODUK (NAMA, HARGA, KATEGORI, & FOTO PRODUK)
 // ============================================================
 
 class _EditProductDialog extends StatefulWidget {
@@ -1379,12 +1393,14 @@ class _EditProductDialog extends StatefulWidget {
     required this.initialName,
     required this.initialPrice,
     required this.initialCategory,
+    required this.initialImage,
     required this.categories,
   });
 
   final String initialName;
   final String initialPrice;
   final String? initialCategory;
+  final Object? initialImage;
   final List<String> categories;
 
   @override
@@ -1395,8 +1411,10 @@ class _EditProductDialogState extends State<_EditProductDialog> {
   late final TextEditingController _name;
   late final TextEditingController _price;
   late final List<String> _items;
+  final ImagePicker _picker = ImagePicker();
 
   String? _category;
+  Uint8List? _newImageBytes;
   String? _error;
 
   @override
@@ -1422,6 +1440,28 @@ class _EditProductDialogState extends State<_EditProductDialog> {
     super.dispose();
   }
 
+  Future<void> _pickNewImage() async {
+    try {
+      final file = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        imageQuality: 85,
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted || bytes.isEmpty) return;
+      setState(() {
+        _newImageBytes = bytes;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Gagal memilih gambar: $e';
+      });
+    }
+  }
+
   void _submit() {
     final name = _name.text.trim();
     final price = int.tryParse(_price.text.replaceAll('.', '').trim());
@@ -1433,17 +1473,22 @@ class _EditProductDialogState extends State<_EditProductDialog> {
       return;
     }
 
-    Navigator.pop(context, _EditResult(name, price, _category!));
+    Navigator.pop(
+      context,
+      _EditResult(name, price, _category!, imageBytes: _newImageBytes),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final previewImage = _newImageBytes ?? widget.initialImage;
+
     return Dialog(
       backgroundColor: _navy,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360),
+        constraints: const BoxConstraints(maxWidth: 380),
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(26, 24, 26, 24),
           child: Column(
@@ -1460,17 +1505,88 @@ class _EditProductDialogState extends State<_EditProductDialog> {
                   ),
                 ),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 18),
+              Center(
+                child: Column(
+                  children: [
+                    InkWell(
+                      onTap: _pickNewImage,
+                      borderRadius: BorderRadius.circular(14),
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 108,
+                            height: 108,
+                            decoration: BoxDecoration(
+                              color: _imageColor,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.45),
+                                width: 2,
+                              ),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: ProductImage(
+                              image: previewImage,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Positioned(
+                            right: 6,
+                            bottom: 6,
+                            child: Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: const BoxDecoration(
+                                color: _navy,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt_rounded,
+                                color: Colors.white,
+                                size: 15,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: _pickNewImage,
+                      style: TextButton.styleFrom(
+                        foregroundColor: _lightBlue,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      icon: const Icon(Icons.photo_library_outlined, size: 16),
+                      label: Text(
+                        _newImageBytes != null
+                            ? 'Foto baru dipilih (Ganti lagi)'
+                            : 'Ganti Foto Produk',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
               const _DialogLabel('Nama Menu'),
               _DialogTextField(controller: _name),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               const _DialogLabel('Harga'),
               _DialogTextField(
                 controller: _price,
                 keyboardType: TextInputType.number,
                 formatters: [FilteringTextInputFormatter.digitsOnly],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               const _DialogLabel('Kategori'),
               Container(
                 height: 44,
@@ -1515,7 +1631,20 @@ class _EditProductDialogState extends State<_EditProductDialog> {
                 ),
               ],
               const SizedBox(height: 22),
-              Center(child: _DialogSaveButton(onPressed: _submit)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      'Batal',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _DialogSaveButton(onPressed: _submit),
+                ],
+              ),
             ],
           ),
         ),
@@ -1691,13 +1820,11 @@ class _DialogTextField extends StatelessWidget {
     required this.controller,
     this.keyboardType,
     this.formatters,
-    this.onChanged,
   });
 
   final TextEditingController controller;
   final TextInputType? keyboardType;
   final List<TextInputFormatter>? formatters;
-  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1707,7 +1834,6 @@ class _DialogTextField extends StatelessWidget {
         controller: controller,
         keyboardType: keyboardType,
         inputFormatters: formatters,
-        onChanged: onChanged,
         style: const TextStyle(color: _navy, fontSize: 13),
         decoration: InputDecoration(
           filled: true,

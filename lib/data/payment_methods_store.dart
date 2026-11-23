@@ -7,7 +7,7 @@ class PaymentMethodsStore {
   PaymentMethodsStore._();
 
   static const _storageKey = 'celcious_payment_methods';
-  static const List<String> defaults = ['QRIS', 'Cash', 'Transfer'];
+  static const List<String> defaults = ['QRIS', 'Cash'];
 
   static final ValueNotifier<List<String>> methods =
       ValueNotifier<List<String>>(List<String>.from(defaults));
@@ -23,18 +23,25 @@ class PaymentMethodsStore {
     try {
       final decoded = jsonDecode(raw);
       if (decoded is List) {
-        final loaded = decoded
+        final rawLoaded = decoded
             .map((e) => e.toString().trim())
             .where((e) => e.isNotEmpty)
             .toList();
+        final loaded = rawLoaded
+            .where((e) => !e.toLowerCase().contains('transfer'))
+            .toList();
         if (loaded.isNotEmpty) {
           methods.value = loaded;
+          if (loaded.length != rawLoaded.length) {
+            await _persist(loaded);
+          }
           return;
         }
       }
     } catch (_) {}
 
     methods.value = List<String>.from(defaults);
+    await _persist(methods.value);
   }
 
   static Future<bool> addMethod(String rawName) async {

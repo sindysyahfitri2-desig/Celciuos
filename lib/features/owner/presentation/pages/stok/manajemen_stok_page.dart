@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kasir_celcious_coffe/features/owner/application/stock_management_service.dart';
+import 'package:kasir_celcious_coffe/features/owner/presentation/pages/stok/laporan_stok_export.dart';
 
 // ============================================================
 // PALET WARNA & TEMA VIBRANT (NAVY, BIRU MUDA & AKSEN BERWARNA)
@@ -533,30 +534,51 @@ class _RingkasanStokViewState extends State<_RingkasanStokView> {
                 ),
                 const SizedBox(height: 20),
 
-                // QUICK ACTIONS GRADIENT
-                Row(
-                  children: [
-                    Expanded(
-                      child: _QuickActionBanner(
+                // QUICK ACTIONS GRADIENT (bertumpuk rapi di HP sempit, sejajar di tablet/laptop)
+                if (width < 520)
+                  Column(
+                    children: [
+                      _QuickActionBanner(
                         title: 'Catat Stok Masuk',
                         subtitle: 'Restock / pembelian bahan',
                         icon: Icons.add_shopping_cart_rounded,
                         gradient: _emeraldGradient,
                         onTap: () => widget.onPindahTab(2),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _QuickActionBanner(
+                      const SizedBox(height: 10),
+                      _QuickActionBanner(
                         title: 'Catat Stok Keluar',
                         subtitle: 'Rusak, waste, atau opname',
                         icon: Icons.remove_circle_outline_rounded,
                         gradient: _coralGradient,
                         onTap: () => widget.onPindahTab(3),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _QuickActionBanner(
+                          title: 'Catat Stok Masuk',
+                          subtitle: 'Restock / pembelian bahan',
+                          icon: Icons.add_shopping_cart_rounded,
+                          gradient: _emeraldGradient,
+                          onTap: () => widget.onPindahTab(2),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _QuickActionBanner(
+                          title: 'Catat Stok Keluar',
+                          subtitle: 'Rusak, waste, atau opname',
+                          icon: Icons.remove_circle_outline_rounded,
+                          gradient: _coralGradient,
+                          onTap: () => widget.onPindahTab(3),
+                        ),
+                      ),
+                    ],
+                  ),
                 const SizedBox(height: 20),
 
                 // PERINGATAN STOK MENIPIS / HABIS
@@ -3278,8 +3300,10 @@ class _RiwayatStokViewState extends State<_RiwayatStokView> {
 }
 
 // ============================================================
-// 7. VIEW LAPORAN STOK
+// 7. VIEW LAPORAN STOK & ANALISIS PRODUK + EKSPOR PDF / EXCEL
 // ============================================================
+
+enum _PeriodeStok { hariIni, tujuhHari, bulanIni, semua }
 
 class _LaporanStokView extends StatefulWidget {
   const _LaporanStokView();
@@ -3291,6 +3315,23 @@ class _LaporanStokView extends StatefulWidget {
 class _LaporanStokViewState extends State<_LaporanStokView> {
   Map<String, dynamic> _laporan = {};
   bool _loading = true;
+  bool _exporting = false;
+  _PeriodeStok _periode = _PeriodeStok.bulanIni;
+
+  static const _bulan = [
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember',
+  ];
 
   @override
   void initState() {
@@ -3298,13 +3339,129 @@ class _LaporanStokViewState extends State<_LaporanStokView> {
     _fetch();
   }
 
-  Future<void> _fetch() async {
-    setState(() => _loading = true);
+  String _isoDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  (DateTime, DateTime, String) _rentangPeriode(_PeriodeStok p) {
+    final now = DateTime.now();
+    switch (p) {
+      case _PeriodeStok.hariIni:
+        final d = DateTime(now.year, now.month, now.day);
+        return (d, now, '${now.day} ${_bulan[now.month - 1]} ${now.year}');
+      case _PeriodeStok.tujuhHari:
+        final d = now.subtract(const Duration(days: 6));
+        return (
+          DateTime(d.year, d.month, d.day),
+          now,
+          '7 Hari Terakhir s.d. ${now.day} ${_bulan[now.month - 1]} ${now.year}',
+        );
+      case _PeriodeStok.bulanIni:
+        return (
+          DateTime(now.year, now.month, 1),
+          now,
+          '${_bulan[now.month - 1]} ${now.year}',
+        );
+      case _PeriodeStok.semua:
+        return (
+          DateTime(2024, 1, 1),
+          now,
+          'Semua Periode s.d. ${now.day} ${_bulan[now.month - 1]} ${now.year}',
+        );
+    }
+  }
+
+  Future<void> _fetch({_PeriodeStok? overridePeriode}) async {
+    final target = overridePeriode ?? _periode;
+    if (mounted) {
+      setState(() {
+        _periode = target;
+        _loading = true;
+      });
+    }
+    final (dari, sampai, _) = _rentangPeriode(target);
     try {
-      final res = await StockManagementService.getLaporanStok();
+      final res = await StockManagementService.getLaporanStok(
+        dariTanggal: _isoDate(dari),
+        sampaiTanggal: _isoDate(sampai),
+      );
       if (mounted) setState(() => _laporan = res);
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memuat laporan stok: $e')),
+        );
+      }
+    }
     if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _handleExport({required bool isPdf}) async {
+    if (_exporting || _laporan.isEmpty) return;
+    setState(() => _exporting = true);
+    final (_, _, labelPeriode) = _rentangPeriode(_periode);
+    try {
+      if (isPdf) {
+        await LaporanStokExport.exportPdf(
+          laporan: _laporan,
+          labelPeriode: labelPeriode,
+        );
+      } else {
+        await LaporanStokExport.exportExcel(
+          laporan: _laporan,
+          labelPeriode: labelPeriode,
+        );
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: _emerald,
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+              isPdf
+                  ? 'Laporan Manajemen Stok (PDF) berhasil diunduh.'
+                  : 'Laporan Manajemen Stok (Excel 4 Sheet) berhasil diunduh.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: _coral,
+            content: Text('Gagal mengunduh laporan: $e'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  Widget _chipPeriode(String label, _PeriodeStok value) {
+    final active = _periode == value;
+    return InkWell(
+      onTap: _loading ? null : () => _fetch(overridePeriode: value),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+        decoration: BoxDecoration(
+          color: active ? _navy : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: active ? _navy : _border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: active ? Colors.white : _navy,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -3315,331 +3472,909 @@ class _LaporanStokViewState extends State<_LaporanStokView> {
 
     final ringkasan = (_laporan['ringkasan'] as Map<String, dynamic>?) ?? {};
     final rekap = (_laporan['rekap_bahan'] as List?) ?? [];
+    final terlaris = (_laporan['produk_terlaris'] as List?) ?? [];
+    final kurangLaku = (_laporan['produk_kurang_laku'] as List?) ?? [];
+    final cepatHabis = (_laporan['bahan_cepat_habis'] as List?) ?? [];
+    final terbuang = (_laporan['bahan_terbuang'] as List?) ?? [];
 
     final totalNilai =
         (num.tryParse(ringkasan['total_nilai_persediaan']?.toString() ?? '0')) ??
             0;
-    final totalBiaya =
-        (num.tryParse(ringkasan['total_biaya_pembelian']?.toString() ?? '0')) ??
+    final totalHpp =
+        (num.tryParse(ringkasan['total_estimasi_hpp']?.toString() ?? '0')) ?? 0;
+    final totalItemTerjual =
+        (num.tryParse(ringkasan['total_item_terjual']?.toString() ?? '0')) ?? 0;
+    final totalWaste =
+        (num.tryParse(ringkasan['total_kerugian_waste']?.toString() ?? '0')) ??
             0;
-    final totalBahan = ringkasan['total_bahan_baku'] ?? 0;
-    final totalMenipis = ringkasan['total_bahan_menipis'] ?? 0;
-    final totalHabis = ringkasan['total_bahan_habis'] ?? 0;
+    final totalMenipis =
+        int.tryParse('${ringkasan['total_bahan_menipis'] ?? 0}') ?? 0;
+    final totalHabis =
+        int.tryParse('${ringkasan['total_bahan_habis'] ?? 0}') ?? 0;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final isPhone = width < 600;
+        final isWide = width >= 920;
         final pad = isPhone ? 14.0 : 20.0;
         final availW = width - pad * 2;
         final cols = width < 640 ? 2 : 4;
         const gap = 12.0;
         final cardW = (availW - gap * (cols - 1)) / cols;
 
-        return SingleChildScrollView(
-          padding: EdgeInsets.all(pad),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // KARTU RINGKASAN LAPORAN BERWARNA
-              Wrap(
-                spacing: gap,
-                runSpacing: gap,
-                children: [
-                  _buildReportCard(
-                    width: cardW,
-                    label: 'Total Nilai Persediaan',
-                    value: _formatRupiah(totalNilai),
-                    icon: Icons.account_balance_rounded,
-                    color: _navy,
-                    lightBg: const Color(0xFFE5EFF8),
+        return RefreshIndicator(
+          color: _navy,
+          onRefresh: () => _fetch(overridePeriode: _periode),
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.all(pad),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // TOOLBAR PERIODE + OUTPUT LAPORAN (PDF & EXCEL)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: _border),
+                    boxShadow: _softShadow(),
                   ),
-                  _buildReportCard(
-                    width: cardW,
-                    label: 'Total Biaya Pembelian',
-                    value: _formatRupiah(totalBiaya),
-                    icon: Icons.shopping_bag_rounded,
-                    color: _skyBlue,
-                    lightBg: const Color(0xFFE3F2FD),
-                  ),
-                  _buildReportCard(
-                    width: cardW,
-                    label: 'Total Bahan Aktif',
-                    value: '$totalBahan jenis',
-                    icon: Icons.inventory_rounded,
-                    color: _teal,
-                    lightBg: const Color(0xFFE1F6F8),
-                  ),
-                  _buildReportCard(
-                    width: cardW,
-                    label: 'Menipis / Habis',
-                    value: '$totalMenipis / $totalHabis',
-                    icon: Icons.warning_rounded,
-                    color: (totalMenipis + totalHabis > 0) ? _coral : _emerald,
-                    lightBg: (totalMenipis + totalHabis > 0)
-                        ? const Color(0xFFFDEAEB)
-                        : const Color(0xFFE2F7F0),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // TABEL REKAP PERSEDIAAN
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: _border),
-                  boxShadow: _softShadow(),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 14,
-                      ),
-                      decoration: const BoxDecoration(gradient: _navyGradient),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
                         children: [
-                          const Row(
-                            children: [
-                              Icon(
-                                Icons.table_chart_rounded,
-                                color: _lightBlue,
-                                size: 20,
+                          _chipPeriode('Hari Ini', _PeriodeStok.hariIni),
+                          _chipPeriode('7 Hari', _PeriodeStok.tujuhHari),
+                          _chipPeriode('Bulan Ini', _PeriodeStok.bulanIni),
+                          _chipPeriode('Semua Periode', _PeriodeStok.semua),
+                        ],
+                      ),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _coral,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
                               ),
-                              SizedBox(width: 10),
-                              Text(
-                                'Rekap Persediaan & Mutasi Bahan Baku',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 14.5,
-                                  color: Colors.white,
-                                ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                            ],
+                            ),
+                            onPressed: _exporting
+                                ? null
+                                : () => _handleExport(isPdf: true),
+                            icon: const Icon(
+                              Icons.picture_as_pdf_rounded,
+                              size: 17,
+                            ),
+                            label: Text(
+                              _exporting ? 'Menyiapkan...' : 'Unduh PDF',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _emerald,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: _exporting
+                                ? null
+                                : () => _handleExport(isPdf: false),
+                            icon: const Icon(
+                              Icons.table_view_rounded,
+                              size: 17,
+                            ),
+                            label: const Text(
+                              'Unduh Excel',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                              ),
+                            ),
                           ),
                           IconButton(
-                            tooltip: 'Muat Ulang',
-                            onPressed: _fetch,
+                            tooltip: 'Muat ulang laporan',
+                            onPressed: () => _fetch(overridePeriode: _periode),
                             icon: const Icon(
                               Icons.refresh_rounded,
-                              color: Colors.white,
-                              size: 20,
+                              color: _navy,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    if (rekap.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 28),
-                        child: Center(
-                          child: Text(
-                            'Tidak ada data rekap persediaan.',
-                            style: TextStyle(color: _muted),
-                          ),
-                        ),
-                      )
-                    else
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
-                          headingRowColor: WidgetStateProperty.all(_softBlue),
-                          columns: const [
-                            DataColumn(
-                              label: Text(
-                                'Nama Bahan',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: _navy,
-                                ),
-                              ),
-                            ),
-                            DataColumn(
-                              label: Text(
-                                'Kategori',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: _navy,
-                                ),
-                              ),
-                            ),
-                            DataColumn(
-                              label: Text(
-                                'Stok Tersedia',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: _navy,
-                                ),
-                              ),
-                            ),
-                            DataColumn(
-                              label: Text(
-                                'Status',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: _navy,
-                                ),
-                              ),
-                            ),
-                            DataColumn(
-                              label: Text(
-                                'Harga Beli',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: _navy,
-                                ),
-                              ),
-                            ),
-                            DataColumn(
-                              label: Text(
-                                'Nilai Aset',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: _navy,
-                                ),
-                              ),
-                            ),
-                            DataColumn(
-                              label: Text(
-                                'Total Masuk',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: _navy,
-                                ),
-                              ),
-                            ),
-                            DataColumn(
-                              label: Text(
-                                'Total Keluar',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: _navy,
-                                ),
-                              ),
-                            ),
-                            DataColumn(
-                              label: Text(
-                                'Pemakaian Kasir',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: _navy,
-                                ),
-                              ),
-                            ),
-                          ],
-                          rows: List.generate(rekap.length, (idx) {
-                            final b = rekap[idx];
-                            final stok = (num.tryParse(
-                                  b['stok_tersedia']?.toString() ?? '0',
-                                )) ??
-                                0;
-                            final harga = (num.tryParse(
-                                  b['harga_beli']?.toString() ?? '0',
-                                )) ??
-                                0;
-                            final nilai = (num.tryParse(
-                                  b['nilai_persediaan']?.toString() ?? '0',
-                                )) ??
-                                0;
-                            final masuk = (num.tryParse(
-                                  b['total_masuk']?.toString() ?? '0',
-                                )) ??
-                                0;
-                            final keluar = (num.tryParse(
-                                  b['total_keluar']?.toString() ?? '0',
-                                )) ??
-                                0;
-                            final pemakaian = (num.tryParse(
-                                  b['total_pemakaian']?.toString() ?? '0',
-                                )) ??
-                                0;
-                            final status =
-                                b['status_stok']?.toString() ?? 'aman';
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
 
-                            return DataRow(
-                              color: WidgetStateProperty.all(
-                                idx.isEven
-                                    ? Colors.white
-                                    : const Color(0xFFF6FAFE),
-                              ),
-                              cells: [
-                                DataCell(
-                                  Text(
-                                    b['nama_bahan_baku'] ?? '-',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      color: _navy,
-                                    ),
-                                  ),
+                // KARTU RINGKASAN LAPORAN BERWARNA
+                Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    _buildReportCard(
+                      width: cardW,
+                      label: 'Nilai Persediaan Stok',
+                      value: _formatRupiah(totalNilai),
+                      icon: Icons.account_balance_rounded,
+                      color: _navy,
+                      lightBg: const Color(0xFFE5EFF8),
+                    ),
+                    _buildReportCard(
+                      width: cardW,
+                      label: 'Terjual (${_formatNumber(totalItemTerjual)} porsi) • HPP',
+                      value: _formatRupiah(totalHpp),
+                      icon: Icons.local_fire_department_rounded,
+                      color: _skyBlue,
+                      lightBg: const Color(0xFFE3F2FD),
+                    ),
+                    _buildReportCard(
+                      width: cardW,
+                      label: 'Kerugian Terbuang (Waste)',
+                      value: _formatRupiah(totalWaste),
+                      icon: Icons.delete_sweep_rounded,
+                      color: totalWaste > 0 ? _coral : _emerald,
+                      lightBg: totalWaste > 0
+                          ? const Color(0xFFFDEAEB)
+                          : const Color(0xFFE2F7F0),
+                    ),
+                    _buildReportCard(
+                      width: cardW,
+                      label: 'Stok Menipis / Habis',
+                      value: '$totalMenipis / $totalHabis',
+                      icon: Icons.warning_rounded,
+                      color: (totalMenipis + totalHabis > 0) ? _amber : _emerald,
+                      lightBg: (totalMenipis + totalHabis > 0)
+                          ? const Color(0xFFFFF5E0)
+                          : const Color(0xFFE2F7F0),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+
+                // ANALITIK 1: PRODUK TERLARIS VS PRODUK KURANG LAKU
+                if (isWide)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildProdukTerlarisCard(terlaris)),
+                      const SizedBox(width: 14),
+                      Expanded(child: _buildProdukKurangLakuCard(kurangLaku)),
+                    ],
+                  )
+                else ...[
+                  _buildProdukTerlarisCard(terlaris),
+                  const SizedBox(height: 14),
+                  _buildProdukKurangLakuCard(kurangLaku),
+                ],
+                const SizedBox(height: 16),
+
+                // ANALITIK 2: BAHAN PALING CEPAT HABIS VS BAHAN TERBUANG (WASTE)
+                if (isWide)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildBahanCepatHabisCard(cepatHabis)),
+                      const SizedBox(width: 14),
+                      Expanded(child: _buildBahanTerbuangCard(terbuang)),
+                    ],
+                  )
+                else ...[
+                  _buildBahanCepatHabisCard(cepatHabis),
+                  const SizedBox(height: 14),
+                  _buildBahanTerbuangCard(terbuang),
+                ],
+                const SizedBox(height: 18),
+
+                // TABEL REKAP PERSEDIAAN
+                Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: _border),
+                    boxShadow: _softShadow(),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 14,
+                        ),
+                        decoration: const BoxDecoration(gradient: _navyGradient),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(
+                                  Icons.table_chart_rounded,
+                                  color: _lightBlue,
+                                  size: 20,
                                 ),
-                                DataCell(Text(b['kategori'] ?? '-')),
-                                DataCell(
-                                  Text(
-                                    '${_formatNumber(stok)} ${b['satuan']}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      color: _navy,
-                                    ),
-                                  ),
-                                ),
-                                DataCell(_buildStatusStokChip(status)),
-                                DataCell(Text(_formatRupiah(harga))),
-                                DataCell(
-                                  Text(
-                                    _formatRupiah(nilai),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      color: _skyBlue,
-                                    ),
-                                  ),
-                                ),
-                                DataCell(
-                                  Text(
-                                    '+${_formatNumber(masuk)} ${b['satuan']}',
-                                    style: const TextStyle(
-                                      color: _emerald,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                DataCell(
-                                  Text(
-                                    '-${_formatNumber(keluar)} ${b['satuan']}',
-                                    style: const TextStyle(
-                                      color: _coral,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                DataCell(
-                                  Text(
-                                    '-${_formatNumber(pemakaian)} ${b['satuan']}',
-                                    style: const TextStyle(
-                                      color: _indigo,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Rekap Persediaan & Mutasi Bahan Baku',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14.5,
+                                    color: Colors.white,
                                   ),
                                 ),
                               ],
-                            );
-                          }),
+                            ),
+                            Text(
+                              '${rekap.length} bahan',
+                              style: const TextStyle(
+                                color: _lightBlue,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                  ],
+                      if (rekap.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 28),
+                          child: Center(
+                            child: Text(
+                              'Tidak ada data rekap persediaan.',
+                              style: TextStyle(color: _muted),
+                            ),
+                          ),
+                        )
+                      else
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: DataTable(
+                            headingRowColor: WidgetStateProperty.all(_softBlue),
+                            columns: const [
+                              DataColumn(
+                                label: Text(
+                                  'Nama Bahan',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: _navy,
+                                  ),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Kategori',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: _navy,
+                                  ),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Stok Tersedia',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: _navy,
+                                  ),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Status',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: _navy,
+                                  ),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Harga Beli',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: _navy,
+                                  ),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Nilai Aset',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: _navy,
+                                  ),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Total Masuk',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: _navy,
+                                  ),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Keluar / Waste',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: _navy,
+                                  ),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Pemakaian Kasir',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: _navy,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            rows: List.generate(rekap.length, (idx) {
+                              final b = rekap[idx];
+                              final stok = (num.tryParse(
+                                    b['stok_tersedia']?.toString() ?? '0',
+                                  )) ??
+                                  0;
+                              final harga = (num.tryParse(
+                                    b['harga_beli']?.toString() ?? '0',
+                                  )) ??
+                                  0;
+                              final nilai = (num.tryParse(
+                                    b['nilai_persediaan']?.toString() ?? '0',
+                                  )) ??
+                                  0;
+                              final masuk = (num.tryParse(
+                                    b['total_masuk']?.toString() ?? '0',
+                                  )) ??
+                                  0;
+                              final keluar = (num.tryParse(
+                                    b['total_keluar']?.toString() ?? '0',
+                                  )) ??
+                                  0;
+                              final pemakaian = (num.tryParse(
+                                    b['total_pemakaian']?.toString() ?? '0',
+                                  )) ??
+                                  0;
+                              final status =
+                                  b['status_stok']?.toString() ?? 'aman';
+
+                              return DataRow(
+                                color: WidgetStateProperty.all(
+                                  idx.isEven
+                                      ? Colors.white
+                                      : const Color(0xFFF6FAFE),
+                                ),
+                                cells: [
+                                  DataCell(
+                                    Text(
+                                      b['nama_bahan_baku'] ?? '-',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        color: _navy,
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(Text(b['kategori'] ?? '-')),
+                                  DataCell(
+                                    Text(
+                                      '${_formatNumber(stok)} ${b['satuan']}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        color: _navy,
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(_buildStatusStokChip(status)),
+                                  DataCell(Text(_formatRupiah(harga))),
+                                  DataCell(
+                                    Text(
+                                      _formatRupiah(nilai),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        color: _skyBlue,
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Text(
+                                      '+${_formatNumber(masuk)} ${b['satuan']}',
+                                      style: const TextStyle(
+                                        color: _emerald,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Text(
+                                      '-${_formatNumber(keluar)} ${b['satuan']}',
+                                      style: const TextStyle(
+                                        color: _coral,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Text(
+                                      '-${_formatNumber(pemakaian)} ${b['satuan']}',
+                                      style: const TextStyle(
+                                        color: _indigo,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
+    );
+  }
+
+  Widget _analyticsPanel({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color accent,
+    required Widget child,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _border),
+        boxShadow: _softShadow(),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.10),
+              border: Border(
+                bottom: BorderSide(color: accent.withValues(alpha: 0.25)),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 17),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13.5,
+                          color: _navy,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: _muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProdukTerlarisCard(List terlaris) {
+    final maxQty = terlaris.isEmpty
+        ? 1.0
+        : terlaris
+            .map((e) => num.tryParse('${e['total_terjual'] ?? 0}')?.toDouble() ?? 0.0)
+            .fold<double>(1.0, (a, b) => a > b ? a : b);
+
+    return _analyticsPanel(
+      title: 'Produk Paling Banyak Terjual',
+      subtitle: 'Berdasarkan transaksi lunas (resep otomatis potong stok)',
+      icon: Icons.emoji_events_rounded,
+      accent: _emerald,
+      child: terlaris.isEmpty
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 18),
+              child: Center(
+                child: Text(
+                  'Belum ada penjualan produk pada periode ini.',
+                  style: TextStyle(color: _muted, fontSize: 12),
+                ),
+              ),
+            )
+          : Column(
+              children: List.generate(terlaris.take(6).length, (i) {
+                final p = terlaris[i];
+                final qty = num.tryParse('${p['total_terjual'] ?? 0}') ?? 0;
+                final omzet = num.tryParse('${p['total_omzet'] ?? 0}') ?? 0;
+                final laba = num.tryParse('${p['estimasi_laba'] ?? 0}') ?? 0;
+                final ratio = (qty / maxQty).clamp(0.05, 1.0);
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 22,
+                            height: 22,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: i == 0 ? _amber : _softBlue,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '${i + 1}',
+                              style: TextStyle(
+                                color: i == 0 ? Colors.white : _navy,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${p['nama_produk'] ?? '-'}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12.5,
+                                color: _navy,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${_formatNumber(qty)} terjual',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                              color: _emerald,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: ratio,
+                          minHeight: 6,
+                          backgroundColor: _softBlue,
+                          valueColor: const AlwaysStoppedAnimation(_emerald),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Omzet ${_formatRupiah(omzet)} • Est. Laba ${_formatRupiah(laba)}',
+                        style: const TextStyle(fontSize: 10.5, color: _muted),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ),
+    );
+  }
+
+  Widget _buildProdukKurangLakuCard(List kurangLaku) {
+    return _analyticsPanel(
+      title: 'Produk Kurang Laku (Slow Moving)',
+      subtitle: 'Perlu evaluasi promo / penyesuaian stok bahan baku',
+      icon: Icons.trending_down_rounded,
+      accent: _amber,
+      child: kurangLaku.isEmpty
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 18),
+              child: Center(
+                child: Text(
+                  'Tidak ada produk slow moving.',
+                  style: TextStyle(color: _muted, fontSize: 12),
+                ),
+              ),
+            )
+          : Column(
+              children: kurangLaku.take(6).map((p) {
+                final qty = num.tryParse('${p['total_terjual'] ?? 0}') ?? 0;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFAF0),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _amber.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${p['nama_produk'] ?? '-'}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12.5,
+                                color: _navy,
+                              ),
+                            ),
+                            Text(
+                              'Kategori: ${p['kategori'] ?? '-'}',
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                color: _muted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: qty == 0
+                              ? _coral.withValues(alpha: 0.14)
+                              : _amber.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          qty == 0
+                              ? 'Belum terjual'
+                              : '${_formatNumber(qty)} terjual',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: qty == 0 ? _coral : _amber,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+    );
+  }
+
+  Widget _buildBahanCepatHabisCard(List cepatHabis) {
+    return _analyticsPanel(
+      title: 'Bahan Baku Paling Cepat Habis',
+      subtitle: 'Diurutkan dari pemakaian resep penjualan tertinggi',
+      icon: Icons.bolt_rounded,
+      accent: _indigo,
+      child: cepatHabis.isEmpty
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 18),
+              child: Center(
+                child: Text(
+                  'Belum ada pemakaian bahan baku pada periode ini.',
+                  style: TextStyle(color: _muted, fontSize: 12),
+                ),
+              ),
+            )
+          : Column(
+              children: cepatHabis.take(6).map((b) {
+                final pakai = num.tryParse('${b['total_pemakaian'] ?? 0}') ?? 0;
+                final sisa = num.tryParse('${b['stok_tersedia'] ?? 0}') ?? 0;
+                final sat = b['satuan'] ?? '';
+                final est = b['estimasi_habis_hari'];
+                final status = b['status_stok']?.toString() ?? 'aman';
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _softBlue.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _border),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${b['nama_bahan_baku'] ?? '-'}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12.5,
+                                color: _navy,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Terpakai ${_formatNumber(pakai)} $sat  •  Sisa ${_formatNumber(sisa)} $sat'
+                              '${est != null ? '  •  Est. $est hari' : ''}',
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                color: _muted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildStatusStokChip(status),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+    );
+  }
+
+  Widget _buildBahanTerbuangCard(List terbuang) {
+    return _analyticsPanel(
+      title: 'Bahan Terbuang / Rusak / Kedaluwarsa',
+      subtitle: 'Tercatat dari form Stok Keluar (Waste & Opname)',
+      icon: Icons.delete_outline_rounded,
+      accent: _coral,
+      child: terbuang.isEmpty
+          ? Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAFBF4),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Column(
+                children: [
+                  Icon(Icons.verified_rounded, color: _emerald, size: 28),
+                  SizedBox(height: 6),
+                  Text(
+                    'Tidak ada bahan terbuang / rusak pada periode ini',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: _navy,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Jika ada bahan rusak/tumpah/kedaluwarsa, catat di tab Stok Keluar agar langsung terpantau di sini.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: _muted, fontSize: 10.5),
+                  ),
+                ],
+              ),
+            )
+          : Column(
+              children: terbuang.take(6).map((w) {
+                final jml = num.tryParse('${w['total_jumlah'] ?? 0}') ?? 0;
+                final rugi =
+                    num.tryParse('${w['estimasi_kerugian'] ?? 0}') ?? 0;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF3F4),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _coral.withValues(alpha: 0.28)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${w['nama_bahan_baku'] ?? '-'}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12.5,
+                                color: _navy,
+                              ),
+                            ),
+                            Text(
+                              '${'${w['alasan'] ?? '-'}'.toUpperCase()} • ${_formatNumber(jml)} ${w['satuan'] ?? ''} • ${w['catatan'] ?? '-'}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                color: _muted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _formatRupiah(rugi),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                          color: _coral,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
     );
   }
 

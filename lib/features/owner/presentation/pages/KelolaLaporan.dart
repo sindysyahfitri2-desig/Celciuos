@@ -112,6 +112,7 @@ class LaporanPreviewData {
     this.pendapatanItems = const [],
     this.bebanItems = const [],
     this.pajakPersen = 0,
+    this.pajakNominal,
     this.namaKasir = 'Kasir',
     this.namaOwner = 'Owner',
     this.alamatToko =
@@ -130,6 +131,7 @@ class LaporanPreviewData {
   final List<LaporanNominalItem> pendapatanItems;
   final List<LaporanNominalItem> bebanItems;
   final double pajakPersen;
+  final num? pajakNominal;
   final String namaKasir;
   final String namaOwner;
   final String alamatToko;
@@ -313,8 +315,11 @@ ComputedFinancialReport _computeReport({
   final totalExpense = expenseItems.fold<num>(0, (s, e) => s + e.nominal);
   final profitBeforeTax = totalRevenue - totalExpense;
   final taxPercent = data?.pajakPersen ?? 0;
-  final taxAmount =
-      profitBeforeTax > 0 ? (profitBeforeTax * (taxPercent / 100)).round() : 0;
+  final taxAmount = data?.pajakNominal != null
+      ? data!.pajakNominal!.round()
+      : (profitBeforeTax > 0
+            ? (profitBeforeTax * (taxPercent / 100)).round()
+            : 0);
   final netIncome = profitBeforeTax - taxAmount;
 
   final shortPeriod =
@@ -694,7 +699,7 @@ Future<Uint8List> _buildPdfBytes(ComputedFinancialReport r) async {
                   bold: true,
                 ),
                 amountRow(
-                  'Pajak Penghasilan (${r.taxPercent.toStringAsFixed(0)}%)',
+                  'Pajak / PPN (${r.taxPercent.toStringAsFixed(0)}%)',
                   r.taxAmount,
                   italic: true,
                   dashZero: true,
@@ -845,7 +850,7 @@ Uint8List _encodeExcel(ComputedFinancialReport r) {
   writeLine(row++, 'Laba (Rugi) Sebelum Pajak', r.profitBeforeTax, bold: true);
   writeLine(
     row++,
-    'Pajak Penghasilan (${r.taxPercent.toStringAsFixed(0)}%)',
+    'Pajak / PPN (${r.taxPercent.toStringAsFixed(0)}%)',
     r.taxAmount,
   );
   writeLine(
@@ -858,6 +863,45 @@ Uint8List _encodeExcel(ComputedFinancialReport r) {
   sheet.setColumnWidth(0, 32);
   sheet.setColumnWidth(1, 20);
   sheet.setColumnWidth(2, 22);
+
+  // Sheet 2: Rincian seluruh transaksi lunas pada periode laporan
+  if (r.rows.isNotEmpty) {
+    final trxSheet = excel['Rincian Transaksi'];
+    final headers = ['Tanggal', 'Keterangan / Order', 'Metode', 'Nominal'];
+    for (var col = 0; col < headers.length; col++) {
+      final cell = trxSheet.cell(
+        xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 0),
+      );
+      cell.value = xl.TextCellValue(headers[col]);
+      cell.cellStyle = xl.CellStyle(bold: true);
+    }
+
+    for (var i = 0; i < r.rows.length; i++) {
+      final item = r.rows[i];
+      final rowIdx = i + 1;
+      trxSheet
+          .cell(xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIdx))
+          .value = xl.TextCellValue(item.tanggal);
+      trxSheet
+          .cell(xl.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIdx))
+          .value = xl.TextCellValue(item.keterangan);
+      trxSheet
+          .cell(xl.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIdx))
+          .value = xl.TextCellValue(item.metode);
+      final nomCell = trxSheet.cell(
+        xl.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIdx),
+      );
+      nomCell.value = xl.TextCellValue(_rupiah(item.nominal));
+      nomCell.cellStyle = xl.CellStyle(
+        horizontalAlign: xl.HorizontalAlign.Right,
+      );
+    }
+
+    trxSheet.setColumnWidth(0, 20);
+    trxSheet.setColumnWidth(1, 34);
+    trxSheet.setColumnWidth(2, 14);
+    trxSheet.setColumnWidth(3, 18);
+  }
 
   final bytes = excel.encode();
   if (bytes == null) throw Exception('File Excel gagal dibuat.');
@@ -1439,7 +1483,7 @@ class _FinancialReportDocument extends StatelessWidget {
                 ),
                 _dataRow(
                   label:
-                      'Pajak Penghasilan (${report.taxPercent.toStringAsFixed(0)}%)',
+                      'Pajak / PPN (${report.taxPercent.toStringAsFixed(0)}%)',
                   amount: report.taxAmount,
                   italic: true,
                   dashZero: true,

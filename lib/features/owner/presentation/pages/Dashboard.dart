@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
+import 'package:kasir_celcious_coffe/features/owner/application/owner_notification_service.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/KelolaProduk.dart'
     as owner_products;
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/KelolaStaf.dart';
@@ -8,10 +10,10 @@ import 'package:kasir_celcious_coffe/features/owner/presentation/pages/stok/mana
 import 'package:kasir_celcious_coffe/features/owner/presentation/widgets/Navigation.dart';
 import 'package:kasir_celcious_coffe/features/owner/presentation/pages/PengaturanPage.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
+import 'package:kasir_celcious_coffe/data/api_service.dart';
 import 'package:kasir_celcious_coffe/data/dashboard_service.dart';
 import 'package:kasir_celcious_coffe/data/owner_profile_store.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
-import '../../../reports/application/report_service.dart' show ReportService;
 import 'KelolaLaporan.dart';
 
 // ============================================================
@@ -57,6 +59,9 @@ class _DashboardOwnerState extends State<DashboardOwner> {
   int selectedMenu = 0;
   bool _openProfileOnPengaturan = false;
   int _profileRequestId = 0;
+  List<OwnerNotificationItem> _notifications = const [];
+  final Set<String> _readNotificationIds = {};
+  Timer? _notifTimer;
 
   static const menuTitles = [
     'Dashboard',
@@ -75,14 +80,396 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     OwnerProfileStore.ownerName.addListener(_onOwnerProfileChanged);
     OwnerProfileStore.photoBytes.addListener(_onOwnerProfileChanged);
     OwnerProfileStore.photoUrl.addListener(_onOwnerProfileChanged);
+    _muatNotifikasi();
+    _notifTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted) _muatNotifikasi();
+    });
   }
 
   @override
   void dispose() {
+    _notifTimer?.cancel();
     OwnerProfileStore.ownerName.removeListener(_onOwnerProfileChanged);
     OwnerProfileStore.photoBytes.removeListener(_onOwnerProfileChanged);
     OwnerProfileStore.photoUrl.removeListener(_onOwnerProfileChanged);
     super.dispose();
+  }
+
+  int get _unreadNotifCount => _notifications
+      .where((n) => !_readNotificationIds.contains(n.id))
+      .length;
+
+  Future<void> _muatNotifikasi() async {
+    final items = await OwnerNotificationService.fetchAll();
+    if (!mounted) return;
+    setState(() {
+      _notifications = items;
+    });
+  }
+
+  Future<void> _bukaPanelNotifikasi() async {
+    await _muatNotifikasi();
+    if (!mounted) return;
+
+    OwnerNotifType? filter;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final filtered = filter == null
+                ? _notifications
+                : _notifications.where((n) => n.type == filter).toList();
+
+            Widget chipFilter(String label, OwnerNotifType? value) {
+              final active = filter == value;
+              return InkWell(
+                onTap: () => setModalState(() => filter = value),
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: active ? ownerNavy : const Color(0xFFEAF2F8),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: active ? Colors.white : ownerNavy,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            IconData iconFor(OwnerNotifType type) => switch (type) {
+              OwnerNotifType.stok => Icons.inventory_2_rounded,
+              OwnerNotifType.shift => Icons.point_of_sale_rounded,
+              OwnerNotifType.order => Icons.receipt_long_rounded,
+            };
+
+            Color colorFor(OwnerNotificationItem item) {
+              if (item.type == OwnerNotifType.stok) {
+                return item.title.startsWith('Stok Habis')
+                    ? const Color(0xFFDC2626)
+                    : const Color(0xFFD97706);
+              }
+              if (item.type == OwnerNotifType.shift) {
+                return item.isUrgent
+                    ? const Color(0xFFD97706)
+                    : const Color(0xFF16558A);
+              }
+              return item.isUrgent
+                  ? const Color(0xFFD97706)
+                  : const Color(0xFF00875A);
+            }
+
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 440,
+                  maxHeight: 560,
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: _softShadow(lifted: true),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(18, 16, 12, 14),
+                        decoration: const BoxDecoration(
+                          color: ownerNavy,
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(20),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.notifications_active_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Notifikasi Owner',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Stok, Pengawasan Shift & Pesanan Meja',
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 10.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Refresh',
+                              onPressed: () async {
+                                await _muatNotifikasi();
+                                setModalState(() {});
+                              },
+                              icon: const Icon(
+                                Icons.refresh_rounded,
+                                color: Colors.white70,
+                                size: 20,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Tutup',
+                              onPressed: () => Navigator.of(dialogCtx).pop(),
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Filter Chips
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              chipFilter('Semua (${_notifications.length})', null),
+                              const SizedBox(width: 6),
+                              chipFilter('Stok', OwnerNotifType.stok),
+                              const SizedBox(width: 6),
+                              chipFilter('Shift & Kas', OwnerNotifType.shift),
+                              const SizedBox(width: 6),
+                              chipFilter('Pesanan', OwnerNotifType.order),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      const Divider(height: 1),
+
+                      // Daftar Notifikasi
+                      Flexible(
+                        child: filtered.isEmpty
+                            ? const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  vertical: 40,
+                                  horizontal: 20,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.notifications_off_outlined,
+                                      size: 42,
+                                      color: _mutedText,
+                                    ),
+                                    SizedBox(height: 10),
+                                    Text(
+                                      'Semua aman — tidak ada notifikasi.',
+                                      style: TextStyle(
+                                        color: ownerNavy,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.separated(
+                                shrinkWrap: true,
+                                padding: const EdgeInsets.all(12),
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (context, index) {
+                                  final item = filtered[index];
+                                  final unread =
+                                      !_readNotificationIds.contains(item.id);
+                                  final accent = colorFor(item);
+                                  return InkWell(
+                                    borderRadius: BorderRadius.circular(14),
+                                    onTap: () {
+                                      setState(() {
+                                        _readNotificationIds.add(item.id);
+                                      });
+                                      Navigator.of(dialogCtx).pop();
+                                      selectMenu(item.targetMenuIndex);
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: unread
+                                            ? const Color(0xFFF0F7FD)
+                                            : const Color(0xFFF8FAFC),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: unread
+                                              ? accent.withValues(alpha: 0.35)
+                                              : const Color(0xFFE2E8F0),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            width: 36,
+                                            height: 36,
+                                            decoration: BoxDecoration(
+                                              color: accent.withValues(
+                                                alpha: 0.14,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: Icon(
+                                              iconFor(item.type),
+                                              color: accent,
+                                              size: 19,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        item.title,
+                                                        style: const TextStyle(
+                                                          color: ownerNavy,
+                                                          fontSize: 12.5,
+                                                          fontWeight:
+                                                              FontWeight.w800,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    Text(
+                                                      item.timeLabel,
+                                                      style: TextStyle(
+                                                        color: item.isUrgent
+                                                            ? accent
+                                                            : _mutedText,
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 3),
+                                                Text(
+                                                  item.subtitle,
+                                                  style: const TextStyle(
+                                                    color: _mutedText,
+                                                    fontSize: 11.5,
+                                                    height: 1.35,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+
+                      // Footer
+                      if (_notifications.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.vertical(
+                              bottom: Radius.circular(20),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Ketuk item untuk buka halaman terkait',
+                                style: TextStyle(
+                                  color: _mutedText,
+                                  fontSize: 10.5,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    for (final n in _notifications) {
+                                      _readNotificationIds.add(n.id);
+                                    }
+                                  });
+                                  setModalState(() {});
+                                },
+                                child: const Text(
+                                  'Tandai dibaca',
+                                  style: TextStyle(
+                                    color: ownerNavy,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    // Tandai terbaca setelah panel ditutup agar badge tetap bersih
+    if (mounted && _notifications.isNotEmpty) {
+      setState(() {
+        for (final n in _notifications) {
+          _readNotificationIds.add(n.id);
+        }
+      });
+    }
   }
 
   void _onOwnerProfileChanged() {
@@ -121,83 +508,74 @@ class _DashboardOwnerState extends State<DashboardOwner> {
   }
 
   Widget _buildLaporan() {
-    final snapshot = ReportService.load(cashierFallback: 'Kasir');
+    return _OwnerLaporanLivePage(namaOwner: _currentOwnerName);
+  }
 
-    final rows = snapshot.transactionRows
-        .where((transaction) => transaction['status']?.toLowerCase() == 'lunas')
-        .map((transaction) {
-          final nominal =
-              num.tryParse(
-                (transaction['total'] ?? '0')
-                    .replaceAll('.', '')
-                    .replaceAll(',', ''),
-              ) ??
-              0;
+  Future<void> _konfirmasiLogout({bool closeDrawer = false}) async {
+    if (widget.onLogout == null) return;
+    if (closeDrawer && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
 
-          final tanggal = transaction['tanggal'] ?? '-';
-          final jam = transaction['jam'] ?? '';
-          final id = transaction['id'] ?? '-';
-          final kasir = transaction['kasir'] ?? 'Kasir';
-          final metode = transaction['pembayaran'] ?? '-';
-
-          return LaporanPreviewRow(
-            tanggal: '$tanggal $jam'.trim(),
-            keterangan: '$id - $kasir',
-            metode: metode,
-            nominal: nominal,
-          );
-        })
-        .toList();
-
-    final bebanItems = snapshot.drawerRows
-        .where((entry) => entry['jenis']?.toLowerCase() == 'keluar')
-        .map((entry) {
-          final rawNominal = (entry['nominal'] ?? '0')
-              .replaceAll('+', '')
-              .replaceAll('-', '')
-              .replaceAll('.', '')
-              .replaceAll(',', '');
-          final nominal = num.tryParse(rawNominal) ?? 0;
-          final ket = (entry['keterangan'] ?? '').trim();
-          return LaporanNominalItem(
-            label: ket.isEmpty ? 'Beban Operasional' : ket,
-            nominal: nominal,
-          );
-        })
-        .toList();
-
-    final cashierName = snapshot.transactionRows.isNotEmpty
-        ? (snapshot.transactionRows.first['kasir'] ?? 'Kasir')
-        : (TransactionStore.shiftCashier.value.trim().isNotEmpty
-            ? TransactionStore.shiftCashier.value.trim()
-            : 'Kasir');
-
-    final now = DateTime.now();
-    const bulan = [
-      'Januari',
-      'Februari',
-      'Maret',
-      'April',
-      'Mei',
-      'Juni',
-      'Juli',
-      'Agustus',
-      'September',
-      'Oktober',
-      'November',
-      'Desember',
-    ];
-
-    return KelolaLaporanContent(
-      judulLaporan: 'Laporan Laba Rugi & Keuangan Harian',
-      tanggalLaporan: '${now.day} ${bulan[now.month - 1]} ${now.year}',
-      previewData: LaporanPreviewData(
-        rows: rows,
-        bebanItems: bebanItems,
-        namaKasir: cashierName,
-        namaOwner: _currentOwnerName,
+    final yakin = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.logout_rounded, color: Color(0xFFDC4C5B)),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Konfirmasi Keluar',
+                style: TextStyle(
+                  color: ownerNavy,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 17,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Anda yakin ingin keluar dari Dashboard Owner?\n\n'
+          'Anda perlu memasukkan PIN atau Face ID kembali untuk masuk lagi.',
+          style: TextStyle(color: Color(0xFF3A5268), fontSize: 13.5, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text(
+              'Batal',
+              style: TextStyle(
+                color: _mutedText,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC4C5B),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            icon: const Icon(Icons.logout_rounded, size: 16),
+            label: const Text(
+              'Ya, Keluar',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
       ),
     );
+
+    if (yakin == true && mounted) {
+      widget.onLogout?.call();
+    }
   }
 
   @override
@@ -226,7 +604,9 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                       onPengaturan: () => _pilihMenuDariDrawer(6),
                       onProfileTap: () =>
                           _openOwnerProfileSettings(closeDrawer: true),
-                      onLogout: widget.onLogout,
+                      onLogout: widget.onLogout == null
+                          ? null
+                          : () => _konfirmasiLogout(closeDrawer: true),
                     ),
                   ),
                 ),
@@ -250,7 +630,9 @@ class _DashboardOwnerState extends State<DashboardOwner> {
                           onKelolaStaf: () => selectMenu(5),
                           onPengaturan: () => selectMenu(6),
                           onProfileTap: () => _openOwnerProfileSettings(),
-                          onLogout: widget.onLogout,
+                          onLogout: widget.onLogout == null
+                              ? null
+                              : () => _konfirmasiLogout(),
                         ),
                       Expanded(child: _content()),
                     ],
@@ -369,15 +751,48 @@ class _DashboardOwnerState extends State<DashboardOwner> {
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Notifikasi',
-            visualDensity: VisualDensity.compact,
-            onPressed: () => _showMessage('Belum ada notifikasi baru.'),
-            icon: const Icon(
-              Icons.notifications_none_rounded,
-              color: Colors.white,
-              size: 20,
-            ),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                tooltip: 'Notifikasi',
+                visualDensity: VisualDensity.compact,
+                onPressed: _bukaPanelNotifikasi,
+                icon: Icon(
+                  _unreadNotifCount > 0
+                      ? Icons.notifications_active_rounded
+                      : Icons.notifications_none_rounded,
+                  color: Colors.white,
+                  size: 21,
+                ),
+              ),
+              if (_unreadNotifCount > 0)
+                Positioned(
+                  right: 4,
+                  top: 4,
+                  child: IgnorePointer(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: ownerNavy, width: 1.2),
+                      ),
+                      child: Text(
+                        _unreadNotifCount > 9 ? '9+' : '$_unreadNotifCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(width: 4),
           Tooltip(
@@ -712,27 +1127,63 @@ class _DashboardBodyState extends State<_DashboardBody>
                       ),
                       SizedBox(height: isPhone ? 22 : 34),
 
-                      // 3 kartu selalu horizontal di HP, Tablet, dan Laptop
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (int i = 0; i < summaries.length; i++) ...[
-                            if (i > 0)
-                              SizedBox(
-                                width: isPhone ? 7 : (isTablet ? 10 : 14),
-                              ),
+                      // Kartu ringkasan adaptif:
+                      // - HP (< 600px): 1 kartu utama penuh di atas + 2 kartu sejajar di bawah (teks besar & nyaman dibaca)
+                      // - Tablet & Laptop (>= 600px): 3 kartu sejajar horizontal
+                      if (isPhone) ...[
+                        _animatedCard(
+                          0,
+                          _SummaryCard(
+                            data: summaries[0],
+                            compact: false,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Expanded(
                               child: _animatedCard(
-                                i,
+                                1,
                                 _SummaryCard(
-                                  data: summaries[i],
-                                  compact: isPhone,
+                                  data: summaries[1],
+                                  compact: true,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _animatedCard(
+                                2,
+                                _SummaryCard(
+                                  data: summaries[2],
+                                  compact: true,
                                 ),
                               ),
                             ),
                           ],
-                        ],
-                      ),
+                        ),
+                      ] else
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (int i = 0; i < summaries.length; i++) ...[
+                              if (i > 0)
+                                SizedBox(
+                                  width: isTablet ? 10 : 14,
+                                ),
+                              Expanded(
+                                child: _animatedCard(
+                                  i,
+                                  _SummaryCard(
+                                    data: summaries[i],
+                                    compact: false,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
 
                       SizedBox(height: isPhone ? 20 : 28),
 
@@ -801,11 +1252,11 @@ class _SummaryCard extends StatelessWidget {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final isTiny = compact || width < 145;
-        final scale = (width / 270).clamp(0.75, 1.15);
+        final scale = (width / 270).clamp(0.78, 1.15);
         final isNarrow = width < 230;
         final cardHeight = isTiny
-            ? 126.0
-            : (data.suffix == null ? (isNarrow ? 146.0 : 154.0) : 146.0);
+            ? 136.0
+            : (data.suffix == null ? (isNarrow ? 150.0 : 156.0) : 148.0);
 
         return AnimatedContainer(
           duration: const Duration(milliseconds: 250),
@@ -854,7 +1305,7 @@ class _SummaryCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: ownerNavy,
-                              fontSize: isTiny ? 8.8 : 11 * scale,
+                              fontSize: isTiny ? 10.5 : 11.5 * scale,
                               fontWeight: FontWeight.w800,
                               height: 1.15,
                             ),
@@ -918,7 +1369,7 @@ class _SummaryCard extends StatelessWidget {
                           'Rp. ${_formatNumber(data.amount)}',
                           style: TextStyle(
                             color: ownerNavy,
-                            fontSize: isTiny ? 15 : 27 * scale,
+                            fontSize: isTiny ? 17 : 27 * scale,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -951,7 +1402,7 @@ class _SummaryCard extends StatelessWidget {
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
                                           color: ownerNavy,
-                                          fontSize: isTiny ? 7.5 : 8.5 * scale,
+                                          fontSize: isTiny ? 9.2 : 9.0 * scale,
                                         ),
                                       ),
                                     ),
@@ -1339,11 +1790,359 @@ class _SalesChartCardState extends State<_SalesChartCard> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-            ]
-            ,
+            ],
           ),
         ),
       ),
+    );
+  }
+}
+
+// ============================================================
+// WRAPPER LIVE KELOLA LAPORAN OWNER (TERHUBUNG KE BACKEND API)
+// ============================================================
+
+enum _PeriodeLaporanOwner { hariIni, bulanIni, semua }
+
+class _OwnerLaporanLivePage extends StatefulWidget {
+  const _OwnerLaporanLivePage({required this.namaOwner});
+
+  final String namaOwner;
+
+  @override
+  State<_OwnerLaporanLivePage> createState() => _OwnerLaporanLivePageState();
+}
+
+class _OwnerLaporanLivePageState extends State<_OwnerLaporanLivePage> {
+  _PeriodeLaporanOwner _periode = _PeriodeLaporanOwner.hariIni;
+  bool _loading = true;
+  LaporanPreviewData? _previewData;
+  String _judulLaporan = 'Laporan Laba Rugi & Keuangan Harian';
+  String _tanggalLaporan = '';
+
+  static const _bulan = [
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _muatData();
+  }
+
+  String _isoDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  double _toDouble(dynamic v) {
+    if (v is num) return v.toDouble();
+    return double.tryParse(v?.toString() ?? '') ?? 0.0;
+  }
+
+  String _formatTglRow(String? iso) {
+    if (iso == null || iso.isEmpty) return '-';
+    final dt = DateTime.tryParse(iso)?.toLocal();
+    if (dt == null) return iso;
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final h = dt.hour.toString().padLeft(2, '0');
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '$d/$m/${dt.year} $h:$min';
+  }
+
+  Future<void> _muatData({_PeriodeLaporanOwner? overridePeriode}) async {
+    final target = overridePeriode ?? _periode;
+    if (mounted) {
+      setState(() {
+        _periode = target;
+        _loading = true;
+      });
+    }
+
+    final now = DateTime.now();
+    late DateTime dari;
+    final sampai = now;
+    late String judul;
+    late String labelPeriode;
+
+    switch (target) {
+      case _PeriodeLaporanOwner.hariIni:
+        dari = DateTime(now.year, now.month, now.day);
+        judul = 'Laporan Laba Rugi & Keuangan Harian';
+        labelPeriode = '${now.day} ${_bulan[now.month - 1]} ${now.year}';
+      case _PeriodeLaporanOwner.bulanIni:
+        dari = DateTime(now.year, now.month, 1);
+        judul = 'Laporan Laba Rugi & Keuangan Bulanan';
+        labelPeriode = '${_bulan[now.month - 1]} ${now.year}';
+      case _PeriodeLaporanOwner.semua:
+        dari = DateTime(2024, 1, 1);
+        judul = 'Laporan Laba Rugi & Keuangan Keseluruhan';
+        labelPeriode = 'Semua Periode s.d. ${now.day} ${_bulan[now.month - 1]} ${now.year}';
+    }
+
+    try {
+      final query = <String, String>{
+        'dari_tanggal': _isoDate(dari),
+        'sampai_tanggal': _isoDate(sampai),
+      };
+
+      final res = await Future.wait([
+        ApiService.get(
+          'laporan',
+          query: {...query, 'status_bayar': 'lunas'},
+        ).catchError((_) => <String, dynamic>{}),
+        ApiService.get(
+          'laporan/kas-laci',
+          query: query,
+        ).catchError((_) => <String, dynamic>{}),
+        ApiService.get('pengaturan-toko').catchError((_) => <String, dynamic>{}),
+        ApiService.get('shift/aktif').catchError((_) => <String, dynamic>{}),
+      ]);
+
+      final lapData = res[0]['data'] is Map
+          ? Map<String, dynamic>.from(res[0]['data'] as Map)
+          : <String, dynamic>{};
+      final ringkasan = lapData['ringkasan'] is Map
+          ? Map<String, dynamic>.from(lapData['ringkasan'] as Map)
+          : <String, dynamic>{};
+      final trxRaw = (lapData['transaksi'] as List? ?? const []).whereType<Map>();
+
+      final rows = trxRaw.map((t) {
+        final kode = t['kode']?.toString() ?? 'TRX-${t['id_transaksi']}';
+        final pelanggan = t['nama_pelanggan']?.toString().trim() ?? '';
+        final kasir = (t['pengguna'] is Map ? t['pengguna']['nama']?.toString() : null) ?? 'Kasir';
+        final metode = (t['metode_pembayaran'] is Map
+                ? t['metode_pembayaran']['nama_metode']?.toString()
+                : null) ??
+            (t['midtrans_order_id'] != null ? 'QRIS' : 'Cash');
+        final ket = pelanggan.isNotEmpty ? '$kode - $pelanggan ($kasir)' : '$kode - $kasir';
+
+        return LaporanPreviewRow(
+          tanggal: _formatTglRow((t['dibayar_pada'] ?? t['tanggal'])?.toString()),
+          keterangan: ket,
+          metode: metode,
+          nominal: _toDouble(t['total']),
+        );
+      }).toList();
+
+      // Beban operasional dari kas laci keluar pada periode yang sama
+      final kasData = res[1]['data'] is Map
+          ? Map<String, dynamic>.from(res[1]['data'] as Map)
+          : <String, dynamic>{};
+      final kasBaris = (kasData['baris'] as List? ?? const []).whereType<Map>();
+      final bebanItems = kasBaris
+          .where((b) => b['jenis']?.toString().toLowerCase() == 'keluar')
+          .map((b) {
+            final ket = (b['keterangan']?.toString() ?? '').trim();
+            return LaporanNominalItem(
+              label: ket.isEmpty ? 'Pengeluaran Kas Laci' : ket,
+              nominal: _toDouble(b['jumlah']),
+            );
+          })
+          .toList();
+
+      // Pengaturan toko (alamat & PPN)
+      final tokoData = res[2]['data'] is Map
+          ? Map<String, dynamic>.from(res[2]['data'] as Map)
+          : <String, dynamic>{};
+      final alamatRaw = tokoData['alamat']?.toString().trim() ?? '';
+      final alamatToko = alamatRaw.isNotEmpty
+          ? alamatRaw
+          : 'Jl. Arah Kampung Satu, Mekar Sawit, Kec. Sawit Seberang, Kab. Langkat, Sumatera Utara';
+      final ppnPersen = _toDouble(tokoData['ppn_persen']);
+
+      // Nama kasir aktif atau dari transaksi terbaru
+      final shiftWrap = res[3]['data'];
+      String namaKasir = 'Kasir';
+      if (shiftWrap is Map && shiftWrap['shift'] is Map) {
+        final shift = shiftWrap['shift'] as Map;
+        final kasir2 = shift['kasir2'];
+        final kasir1 = shift['kasir1'];
+        if (kasir2 is Map && (kasir2['nama']?.toString().trim().isNotEmpty ?? false)) {
+          namaKasir = kasir2['nama'].toString();
+        } else if (kasir1 is Map && (kasir1['nama']?.toString().trim().isNotEmpty ?? false)) {
+          namaKasir = kasir1['nama'].toString();
+        }
+      } else if (trxRaw.isNotEmpty) {
+        final firstPengguna = trxRaw.first['pengguna'];
+        if (firstPengguna is Map && firstPengguna['nama'] != null) {
+          namaKasir = firstPengguna['nama'].toString();
+        }
+      } else if (TransactionStore.shiftCashier.value.trim().isNotEmpty) {
+        namaKasir = TransactionStore.shiftCashier.value.trim();
+      }
+
+      // Rincian pendapatan berdasarkan semua metode pembayaran aktif dari backend
+      // agar total pendapatan 100% sinkron dengan Dashboard, Transaksi, & Sheet 2 Excel.
+      final totalOmzet = _toDouble(ringkasan['total_pendapatan']);
+      final totalTunai = _toDouble(ringkasan['total_cash']);
+      final totalQris = _toDouble(ringkasan['total_qris']);
+      final totalPpn = _toDouble(ringkasan['total_ppn']);
+      final totalTrx =
+          int.tryParse('${ringkasan['total_transaksi'] ?? rows.length}') ??
+          rows.length;
+
+      final rincianMetodeRaw =
+          (ringkasan['rincian_metode'] as List? ?? const []).whereType<Map>();
+      final pendapatanItems = <LaporanNominalItem>[];
+      for (final m in rincianMetodeRaw) {
+        final namaM = (m['nama_metode']?.toString() ?? 'Lainnya').trim();
+        final nomM = _toDouble(m['total_nominal']);
+        final cntM = int.tryParse('${m['total_transaksi'] ?? 0}') ?? 0;
+        if (nomM > 0) {
+          final isCash =
+              namaM.toLowerCase().contains('cash') ||
+              namaM.toLowerCase().contains('tunai');
+          final label = isCash
+              ? 'Penjualan Tunai / Cash ($cntM transaksi)'
+              : 'Penjualan Non-Tunai / $namaM ($cntM transaksi)';
+          pendapatanItems.add(LaporanNominalItem(label: label, nominal: nomM));
+        }
+      }
+
+      // Jika hari ini kosong saat pertama dibuka, otomatis coba Bulan Ini 1x agar Owner langsung lihat data
+      if (overridePeriode == null &&
+          target == _PeriodeLaporanOwner.hariIni &&
+          rows.isEmpty &&
+          totalOmzet == 0) {
+        await _muatData(overridePeriode: _PeriodeLaporanOwner.bulanIni);
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _judulLaporan = judul;
+        _tanggalLaporan = labelPeriode;
+        _previewData = LaporanPreviewData(
+          totalOmzet: totalOmzet,
+          totalTunai: totalTunai,
+          totalNonTunai: totalQris,
+          totalTransaksi: totalTrx,
+          rows: rows,
+          pendapatanItems: pendapatanItems,
+          bebanItems: bebanItems,
+          pajakPersen: ppnPersen > 0 ? ppnPersen : 11,
+          pajakNominal: totalPpn,
+          namaKasir: namaKasir,
+          namaOwner: widget.namaOwner,
+          alamatToko: alamatToko,
+        );
+        _loading = false;
+      });
+    } catch (e) {
+      debugPrint('Gagal memuat laporan owner dari backend: $e');
+      if (!mounted) return;
+      setState(() {
+        _judulLaporan = judul;
+        _tanggalLaporan = labelPeriode;
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _catatRiwayatCetak() async {
+    try {
+      await ApiService.post('laporan', {
+        'jenis_laporan': _judulLaporan,
+        'periode': _tanggalLaporan,
+      });
+    } catch (_) {
+      // Abaikan jika gagal catat riwayat audit cetak
+    }
+  }
+
+  Widget _chipPeriode(String label, _PeriodeLaporanOwner value) {
+    final active = _periode == value;
+    return InkWell(
+      onTap: _loading ? null : () => _muatData(overridePeriode: value),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: active ? ownerNavy : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: active ? ownerNavy : ownerNavy.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: active ? Colors.white : ownerNavy,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Bar Filter Periode Laporan (Terhubung real-time ke Database)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
+          color: ownerBackground,
+          child: Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _chipPeriode('Hari Ini', _PeriodeLaporanOwner.hariIni),
+                      const SizedBox(width: 8),
+                      _chipPeriode('Bulan Ini', _PeriodeLaporanOwner.bulanIni),
+                      const SizedBox(width: 8),
+                      _chipPeriode('Semua Periode', _PeriodeLaporanOwner.semua),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Muat ulang data laporan',
+                onPressed: _loading ? null : () => _muatData(overridePeriode: _periode),
+                icon: _loading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: ownerNavy,
+                        ),
+                      )
+                    : const Icon(Icons.refresh_rounded, color: ownerNavy),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _loading && _previewData == null
+              ? const Center(
+                  child: CircularProgressIndicator(color: ownerNavy),
+                )
+              : KelolaLaporanContent(
+                  judulLaporan: _judulLaporan,
+                  tanggalLaporan: _tanggalLaporan,
+                  previewData: _previewData,
+                  onDownload: _catatRiwayatCetak,
+                ),
+        ),
+      ],
     );
   }
 }

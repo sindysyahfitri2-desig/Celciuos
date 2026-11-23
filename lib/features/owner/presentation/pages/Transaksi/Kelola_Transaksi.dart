@@ -67,6 +67,14 @@ class _KelolaTransaksiPageState extends State<KelolaTransaksiPage> {
       for (final s in _sumberData) {
         s.addListener(_muatUlang);
       }
+      _sinkronisasiDariBackend();
+    }
+  }
+
+  Future<void> _sinkronisasiDariBackend() async {
+    final dariServer = await KtDataService.fetchDariBackend(widget.namaKasir);
+    if (dariServer != null && mounted) {
+      setState(() => rekap = dariServer);
     }
   }
 
