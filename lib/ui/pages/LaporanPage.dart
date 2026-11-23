@@ -3,9 +3,10 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:kasir_celcious_coffe/data/owner_profile_store.dart';
+import 'package:kasir_celcious_coffe/features/reports/application/celcious_report_export.dart';
 import 'package:kasir_celcious_coffe/features/reports/application/report_service.dart';
 import '../../data/transaction_store.dart';
-import 'package:excel/excel.dart' hide Border;
 import 'package:file_saver/file_saver.dart';
 
 class LaporanPage extends StatefulWidget {
@@ -514,6 +515,7 @@ class _LaporanPageState extends State<LaporanPage> {
                 alignment: WrapAlignment.end,
                 spacing: 8,
                 runSpacing: 8,
+                children: [_tombolExport(hp)],
               ),
             )
           else
@@ -1635,33 +1637,36 @@ class _LaporanPageState extends State<LaporanPage> {
   void _modalExport() {
     final kasLaci = tabDipilih == 1;
 
-    final namaLaporan = kasLaci ? 'Laporan Kas Laci' : 'Laporan Keuangan';
+    final namaLaporan = kasLaci ? 'Laporan Kas Laci' : 'Laporan Transaksi';
 
-    final tanggalLaporan = tanggal == 'Semua' ? '1' : tanggal;
+    final periodeText =
+        tanggal == 'Semua' ? '$bulan $tahun' : '$tanggal $bulan $tahun';
 
     final namaFile =
-        '${namaLaporan.replaceAll(' ', '_')}_${tanggalLaporan}_${bulan}_$tahun';
+        '${namaLaporan.replaceAll(' ', '_')}_${periodeText.replaceAll(' ', '_')}';
 
-    final namaTampilan = '$namaLaporan $tanggalLaporan $bulan $tahun.xlsx';
+    final namaTampilan = '$namaLaporan $periodeText';
 
     final now = DateTime.now();
     final tanggalHariIni =
         '${now.day.toString().padLeft(2, '0')} '
         '${['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'][now.month]} ${now.year}';
 
-    bool sedangDownload = false;
+    bool sedangDownloadExcel = false;
+    bool sedangDownloadPdf = false;
 
     showDialog<void>(
       context: context,
-      barrierDismissible: !sedangDownload,
+      barrierDismissible: !sedangDownloadExcel && !sedangDownloadPdf,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final sedangDownload = sedangDownloadExcel || sedangDownloadPdf;
             return Dialog(
               backgroundColor: Colors.transparent,
               insetPadding: const EdgeInsets.symmetric(horizontal: 24),
               child: Container(
-                width: 300,
+                width: 330,
                 padding: const EdgeInsets.fromLTRB(17, 15, 17, 16),
                 decoration: BoxDecoration(
                   color: navy,
@@ -1687,7 +1692,7 @@ class _LaporanPageState extends State<LaporanPage> {
                               Text(
                                 kasLaci
                                     ? 'Ekspor Laporan Kas Laci'
-                                    : 'Ekspor Laporan Pendapatan',
+                                    : 'Ekspor Laporan Keuangan',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 13,
@@ -1698,7 +1703,7 @@ class _LaporanPageState extends State<LaporanPage> {
                               Text(
                                 tanggalHariIni,
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: Colors.white70,
                                   fontSize: 10,
                                 ),
                               ),
@@ -1725,11 +1730,11 @@ class _LaporanPageState extends State<LaporanPage> {
                         children: [
                           Expanded(
                             child: Text(
-                              namaTampilan,
+                              '$namaTampilan (.xlsx / .pdf)',
                               style: TextStyle(
                                 color: navy,
                                 fontSize: 11,
-                                fontWeight: FontWeight.w500,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
@@ -1737,9 +1742,9 @@ class _LaporanPageState extends State<LaporanPage> {
                       ),
                     ),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
 
-                    // TOMBOL BATAL DAN DOWNLOAD
+                    // TOMBOL BATAL, PDF, DAN EXCEL
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
@@ -1748,23 +1753,26 @@ class _LaporanPageState extends State<LaporanPage> {
                               ? null
                               : () => Navigator.pop(dialogContext),
                           style: TextButton.styleFrom(
-                            foregroundColor: Colors.white54,
+                            foregroundColor: Colors.white70,
                           ),
                           child: const Text(
                             'Batal',
                             style: TextStyle(fontSize: 12),
                           ),
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 6),
                         ElevatedButton(
                           onPressed: sedangDownload
                               ? null
                               : () async {
-                                  setDialogState(() => sedangDownload = true);
+                                  setDialogState(
+                                    () => sedangDownloadPdf = true,
+                                  );
 
-                                  final berhasil = await _downloadExcel(
+                                  final berhasil = await _downloadPdf(
                                     kasLaci,
                                     namaFile,
+                                    periodeText,
                                   );
 
                                   if (!dialogContext.mounted) return;
@@ -1773,23 +1781,23 @@ class _LaporanPageState extends State<LaporanPage> {
                                     Navigator.pop(dialogContext);
                                   } else {
                                     setDialogState(
-                                      () => sedangDownload = false,
+                                      () => sedangDownloadPdf = false,
                                     );
                                   }
                                 },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
+                            backgroundColor: const Color(0xFFA8CBE9),
                             foregroundColor: navy,
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
+                              horizontal: 16,
                               vertical: 10,
                             ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: sedangDownload
+                          child: sedangDownloadPdf
                               ? const SizedBox(
                                   width: 15,
                                   height: 15,
@@ -1798,7 +1806,60 @@ class _LaporanPageState extends State<LaporanPage> {
                                   ),
                                 )
                               : const Text(
-                                  'Download',
+                                  'PDF',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(width: 6),
+                        ElevatedButton(
+                          onPressed: sedangDownload
+                              ? null
+                              : () async {
+                                  setDialogState(
+                                    () => sedangDownloadExcel = true,
+                                  );
+
+                                  final berhasil = await _downloadExcel(
+                                    kasLaci,
+                                    namaFile,
+                                    periodeText,
+                                  );
+
+                                  if (!dialogContext.mounted) return;
+
+                                  if (berhasil) {
+                                    Navigator.pop(dialogContext);
+                                  } else {
+                                    setDialogState(
+                                      () => sedangDownloadExcel = false,
+                                    );
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: navy,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 10,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: sedangDownloadExcel
+                              ? const SizedBox(
+                                  width: 15,
+                                  height: 15,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text(
+                                  'Excel',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
@@ -1817,75 +1878,155 @@ class _LaporanPageState extends State<LaporanPage> {
     );
   }
 
-  Future<bool> _downloadExcel(bool kasLaci, String namaFile) async {
-    try {
-      final workbook = Excel.createExcel();
-      final sheet = workbook[kasLaci ? 'Kas Laci' : 'Laporan Keuangan'];
-      sheet.appendRow(
-        kasLaci
-            ? [
-                TextCellValue('Tanggal'),
-                TextCellValue('Jam'),
-                TextCellValue('Kasir'),
-                TextCellValue('Nominal'),
-                TextCellValue('Jenis'),
-                TextCellValue('Keterangan'),
-              ]
-            : [
-                TextCellValue('ID Pemesanan'),
-                TextCellValue('Jam'),
-                TextCellValue('Nama Kasir'),
-                TextCellValue('Pembayaran'),
-                TextCellValue('Jumlah Pemesanan'),
-                TextCellValue('Total (Rp)'),
-                TextCellValue('Bukti Pembayaran'),
-              ],
+  Future<String?> _simpanFileLaporan({
+    required String namaFile,
+    required Uint8List bytes,
+    required String ekstensi,
+    required MimeType mimeType,
+  }) async {
+    if (kIsWeb) {
+      return FileSaver.instance.saveFile(
+        name: namaFile,
+        bytes: bytes,
+        fileExtension: ekstensi,
+        mimeType: mimeType,
       );
-      for (final row in kasLaci ? dataKasLaciTerfilter : dataLaporanTerfilter) {
-        sheet.appendRow(
-          kasLaci
-              ? [
-                  TextCellValue(_formatTanggal(row['tanggal'])),
-                  TextCellValue(row['jam'] ?? ''),
-                  TextCellValue(row['kasir'] ?? ''),
-                  TextCellValue(row['nominal'] ?? ''),
-                  TextCellValue(row['jenis'] ?? ''),
-                  TextCellValue(row['keterangan'] ?? ''),
-                ]
-              : [
-                  TextCellValue(row['id'] ?? ''),
-                  TextCellValue(row['jam'] ?? ''),
-                  TextCellValue(row['kasir'] ?? ''),
-                  TextCellValue(row['pembayaran'] ?? ''),
-                  TextCellValue(row['jumlah'] ?? ''),
-                  TextCellValue(row['total'] ?? ''),
-                  TextCellValue(
-                    _adaBuktiPembayaran(row) ? 'Tersedia' : 'Tidak ada',
-                  ),
-                ],
+    }
+    try {
+      return await FileSaver.instance.saveAs(
+        name: namaFile,
+        bytes: bytes,
+        fileExtension: ekstensi,
+        mimeType: mimeType,
+      );
+    } on UnimplementedError {
+      return FileSaver.instance.saveFile(
+        name: namaFile,
+        bytes: bytes,
+        fileExtension: ekstensi,
+        mimeType: mimeType,
+      );
+    }
+  }
+
+  Future<bool> _downloadExcel(
+    bool kasLaci,
+    String namaFile,
+    String periodeText,
+  ) async {
+    try {
+      final logoBytes = await CelciousReportExport.loadBrandLogoBytes();
+      final ownerName = OwnerProfileStore.ownerName.value;
+
+      final Uint8List bytes;
+      if (kasLaci) {
+        final reportData = CelciousReportExport.buildCashDrawerDataFromMaps(
+          rows: dataKasLaciTerfilter,
+          periodDateText: periodeText,
+          openingCash: kasAwal,
+          currentCash: kasSaatIni,
+          ownerName: ownerName,
+        );
+        bytes = CelciousReportExport.buildCashDrawerReportExcel(
+          reportData,
+          logoBytes: logoBytes,
+        );
+      } else {
+        final reportData = CelciousReportExport.buildTransactionDataFromMaps(
+          rows: dataLaporanTerfilter,
+          periodDateText: periodeText,
+          ownerName: ownerName,
+        );
+        bytes = CelciousReportExport.buildTransactionReportExcel(
+          reportData,
+          logoBytes: logoBytes,
         );
       }
-      final bytes = workbook.encode();
-      if (bytes == null || bytes.isEmpty) {
+
+      if (bytes.isEmpty) {
         throw StateError('Berkas Excel kosong dan tidak dapat disimpan.');
       }
-      final lokasi = await FileSaver.instance.saveFile(
-        name: namaFile,
-        bytes: Uint8List.fromList(bytes),
-        fileExtension: 'xlsx',
+
+      await _simpanFileLaporan(
+        namaFile: namaFile,
+        bytes: bytes,
+        ekstensi: 'xlsx',
         mimeType: MimeType.microsoftExcel,
       );
+
       if (!mounted) {
         return false;
       }
       ScaffoldMessenger.of(this.context).showSnackBar(
-        SnackBar(content: Text('Excel berhasil disimpan: $lokasi')),
+        const SnackBar(content: Text('Laporan Excel (.xlsx) berhasil diunduh.')),
       );
       return true;
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(this.context).showSnackBar(
           SnackBar(content: Text('Gagal menyimpan Excel: $error')),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<bool> _downloadPdf(
+    bool kasLaci,
+    String namaFile,
+    String periodeText,
+  ) async {
+    try {
+      final logoBytes = await CelciousReportExport.loadBrandLogoBytes();
+      final ownerName = OwnerProfileStore.ownerName.value;
+
+      final Uint8List bytes;
+      if (kasLaci) {
+        final reportData = CelciousReportExport.buildCashDrawerDataFromMaps(
+          rows: dataKasLaciTerfilter,
+          periodDateText: periodeText,
+          openingCash: kasAwal,
+          currentCash: kasSaatIni,
+          ownerName: ownerName,
+        );
+        bytes = await CelciousReportExport.buildCashDrawerReportPdf(
+          reportData,
+          logoBytes: logoBytes,
+        );
+      } else {
+        final reportData = CelciousReportExport.buildTransactionDataFromMaps(
+          rows: dataLaporanTerfilter,
+          periodDateText: periodeText,
+          ownerName: ownerName,
+        );
+        bytes = await CelciousReportExport.buildTransactionReportPdf(
+          reportData,
+          logoBytes: logoBytes,
+        );
+      }
+
+      if (bytes.isEmpty) {
+        throw StateError('Berkas PDF kosong dan tidak dapat disimpan.');
+      }
+
+      await _simpanFileLaporan(
+        namaFile: namaFile,
+        bytes: bytes,
+        ekstensi: 'pdf',
+        mimeType: MimeType.pdf,
+      );
+
+      if (!mounted) {
+        return false;
+      }
+      ScaffoldMessenger.of(this.context).showSnackBar(
+        const SnackBar(content: Text('Laporan PDF (.pdf) berhasil diunduh.')),
+      );
+      return true;
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(this.context).showSnackBar(
+          SnackBar(content: Text('Gagal menyimpan PDF: $error')),
         );
       }
       return false;

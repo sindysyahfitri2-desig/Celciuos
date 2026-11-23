@@ -139,9 +139,14 @@ class _DashboardOwnerState extends State<DashboardOwner> {
           final id = transaction['id'] ?? '-';
           final kasir = transaction['kasir'] ?? 'Kasir';
           final metode = transaction['pembayaran'] ?? '-';
+          final jumlah = int.tryParse(transaction['jumlah'] ?? '1') ?? 1;
 
           return LaporanPreviewRow(
             tanggal: '$tanggal $jam'.trim(),
+            idPemesanan: id,
+            jam: jam,
+            namaKasir: kasir,
+            jumlahPemesanan: jumlah <= 0 ? 1 : jumlah,
             keterangan: '$id - $kasir',
             metode: metode,
             nominal: nominal,
@@ -189,7 +194,7 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     ];
 
     return KelolaLaporanContent(
-      judulLaporan: 'Laporan Laba Rugi & Keuangan Harian',
+      judulLaporan: 'LAPORAN TRANSAKSI CELCIOUS COFFEE',
       tanggalLaporan: '${now.day} ${bulan[now.month - 1]} ${now.year}',
       previewData: LaporanPreviewData(
         rows: rows,

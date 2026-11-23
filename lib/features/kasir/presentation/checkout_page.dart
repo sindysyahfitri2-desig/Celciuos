@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -162,7 +162,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         child: LayoutBuilder(
           builder: (context, box) {
             final width = box.maxWidth;
-            final isMobile = width < 3450;
+            final isMobile = width < 650;
             final isTablet = width >= 650 && width < 800;
             final isDesktop = width >= 800;
 
