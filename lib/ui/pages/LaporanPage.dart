@@ -1,15 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:kasir_celcious_coffe/data/api_service.dart';
-import 'package:kasir_celcious_coffe/data/owner_profile_store.dart';
 import 'package:kasir_celcious_coffe/features/reports/application/celcious_report_export.dart';
 import 'package:kasir_celcious_coffe/features/reports/application/report_service.dart';
 import '../../data/transaction_store.dart';
-import 'package:file_saver/file_saver.dart';
 
+/// Halaman Riwayat Operasional Harian untuk Kasir (khusus hari ini, read-only,
+/// tanpa grafik rekap omzet dan tanpa ekspor PDF/Excel — ekspor & rekap penuh
+/// hanya tersedia pada akun Owner sesuai prinsip ISO 27001 Least Privilege).
 class LaporanPage extends StatefulWidget {
   const LaporanPage({super.key, this.namaKasir = 'Kasir'});
 
@@ -20,118 +19,90 @@ class LaporanPage extends StatefulWidget {
 }
 
 class _LaporanPageState extends State<LaporanPage> {
-  // ============================================================
-  // WARNA
-  // ============================================================
-
   final Color navy = const Color(0xff082640);
   final Color background = const Color(0xffdce9f4);
-
   final Color qrisColor = const Color(0xff00875a);
   final Color cashColor = const Color(0xff28628a);
 
-  // ============================================================
-  // TAB
-  // ============================================================
-
+  // 0 = Riwayat Transaksi, 1 = Riwayat Kas Laci
   int tabDipilih = 0;
 
-  // 0 = Laporan Keuangan
-  // 1 = Laporan Kas Laci
-
-  // ============================================================
-  // FILTER
-  // ============================================================
-
-  String tanggal = "Semua";
-  String bulan = "September";
-  String tahun = "2026";
-  bool filterDiterapkan = false;
-
-  final Map<String, int> nomorBulan = const {
-    'Januari': 1,
-    'Februari': 2,
-    'Maret': 3,
-    'April': 4,
-    'Mei': 5,
-    'Juni': 6,
-    'Juli': 7,
-    'Agustus': 8,
-    'September': 9,
-    'Oktober': 10,
-    'November': 11,
-    'Desember': 12,
-  };
-
-  // ============================================================
-  // PEMBAYARAN YANG DIPILIH DI CHART
-  // ============================================================
-
+  // Filter metode pembayaran ringan untuk memudahkan kasir cek pesanan hari ini
   String? pembayaranDipilih;
 
-  // ============================================================
-  // DATA LAPORAN KEUANGAN
-  // ============================================================
-
-  List<Map<String, String>> dataLaporan = [];
-
-  // ============================================================
-  // DATA KAS LACI
-  //
-  // NANTI BAGIAN INI BISA DIAMBIL DARI TRANSAKSI KASIR
-  // ============================================================
-
+  List<Map<String, String>> dataTransaksi = [];
   List<Map<String, String>> dataKasLaci = [];
-
-  // ============================================================
-  // KAS AWAL DAN KAS SAAT INI
-  // ============================================================
-
-  double kasAwal = TransactionStore.shiftOpeningCash.value;
-  double kasSaatIni = TransactionStore.shiftOpeningCash.value;
-
   bool _memuat = false;
 
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    bulan = nomorBulan.keys.elementAt(now.month - 1);
-    tahun = now.year.toString();
-    filterDiterapkan = true;
+    TransactionStore.transactions.addListener(_muatDariLokalDanServer);
+    TransactionStore.cashDrawerEntries.addListener(_muatDariLokalDanServer);
+
+    final initial =
+        ReportService.lastFetchedSnapshot ??
+        ReportService.load(cashierFallback: widget.namaKasir);
+    dataTransaksi = _filterHariIni(initial.transactionRows);
+    dataKasLaci = _filterHariIni(initial.drawerRows);
     _muat();
   }
 
+  @override
+  void dispose() {
+    TransactionStore.transactions.removeListener(_muatDariLokalDanServer);
+    TransactionStore.cashDrawerEntries.removeListener(_muatDariLokalDanServer);
+    super.dispose();
+  }
+
+  void _muatDariLokalDanServer() {
+    if (!mounted) return;
+    final local = ReportService.load(cashierFallback: widget.namaKasir);
+    setState(() {
+      if (dataTransaksi.isEmpty) {
+        dataTransaksi = _filterHariIni(local.transactionRows);
+      }
+      if (dataKasLaci.isEmpty) {
+        dataKasLaci = _filterHariIni(local.drawerRows);
+      }
+    });
+    _muat();
+  }
+
+  bool _adalahHariIni(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return false;
+    final dt = DateTime.tryParse(raw)?.toLocal();
+    if (dt == null) return false;
+    final now = DateTime.now();
+    return dt.year == now.year && dt.month == now.month && dt.day == now.day;
+  }
+
+  List<Map<String, String>> _filterHariIni(List<Map<String, String>> rows) {
+    return rows.where((item) => _adalahHariIni(item['tanggal'])).toList();
+  }
+
   Future<void> _muat() async {
-    final b = nomorBulan[bulan];
-    final t = int.tryParse(tahun);
-    if (b == null || t == null) return;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
 
-    final dari = tanggal == 'Semua'
-        ? DateTime(t, b, 1)
-        : DateTime(t, b, int.tryParse(tanggal) ?? 1);
-    final sampai = tanggal == 'Semua' ? DateTime(t, b + 1, 0) : dari;
-
-    setState(() => _memuat = true);
+    if (mounted) setState(() => _memuat = true);
     try {
       final snapshot = await ReportService.fetch(
-        dari: dari,
-        sampai: sampai,
+        dari: today,
+        sampai: today,
         cashierFallback: widget.namaKasir,
       );
       if (!mounted) return;
       setState(() {
-        kasAwal = snapshot.openingCash;
-        kasSaatIni = snapshot.currentCash;
-        dataKasLaci = snapshot.drawerRows;
-        dataLaporan = snapshot.transactionRows;
+        dataTransaksi = _filterHariIni(snapshot.transactionRows);
+        dataKasLaci = _filterHariIni(snapshot.drawerRows);
       });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Gagal memuat laporan: ${e.toString().replaceAll('Exception: ', '')}',
+            'Gagal memuat riwayat hari ini: ${e.toString().replaceAll('Exception: ', '')}',
           ),
         ),
       );
@@ -141,118 +112,26 @@ class _LaporanPageState extends State<LaporanPage> {
   }
 
   String _formatTanggal(String? value) {
-    final date = _tanggalDariData(value);
+    if (value == null || value.trim().isEmpty) return '-';
+    final date = DateTime.tryParse(value)?.toLocal();
     if (date == null) return '-';
     return '${date.day.toString().padLeft(2, '0')}/'
         '${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
-  DateTime? _tanggalDariData(String? raw) {
-    if (raw == null || raw.trim().isEmpty) return null;
-    return DateTime.tryParse(raw)?.toLocal();
-  }
-
-  bool _cocokTanggal(String? raw) {
-    final waktu = _tanggalDariData(raw);
-    final bulanAngka = nomorBulan[bulan];
-    if (waktu == null || bulanAngka == null) return false;
-    if (waktu.year != int.tryParse(tahun) || waktu.month != bulanAngka) {
-      return false;
-    }
-    if (tanggal != 'Semua' && waktu.day != int.tryParse(tanggal)) {
-      return false;
-    }
-    return true;
-  }
-
-  List<Map<String, String>> get dataLaporanTerfilter {
-    return dataLaporan.where((item) {
-      if (filterDiterapkan && !_cocokTanggal(item['tanggal'])) return false;
-      if (pembayaranDipilih != null &&
-          item['pembayaran']?.toLowerCase() !=
-              pembayaranDipilih!.toLowerCase()) {
-        return false;
-      }
-      return true;
-    }).toList();
-  }
-
-  List<Map<String, String>> get dataKasLaciTerfilter {
-    return dataKasLaci.where((item) {
-      if (filterDiterapkan && !_cocokTanggal(item['tanggal'])) return false;
-      return true;
-    }).toList();
-  }
-
-  List<Map<String, String>> get penjualanLunasTerfilter =>
-      dataLaporanTerfilter.where((item) => item['status'] == 'Lunas').toList();
-
-  double _totalMetode(String metode) {
-    return penjualanLunasTerfilter
+  List<Map<String, String>> get _transaksiTerfilter {
+    if (pembayaranDipilih == null) return dataTransaksi;
+    return dataTransaksi
         .where(
-          (item) => item['pembayaran']?.toLowerCase() == metode.toLowerCase(),
+          (item) =>
+              item['pembayaran']?.toLowerCase() ==
+              pembayaranDipilih!.toLowerCase(),
         )
-        .fold<double>(
-          0,
-          (total, item) =>
-              total +
-              (double.tryParse(item['total']?.replaceAll('.', '') ?? '') ?? 0),
-        );
+        .toList();
   }
 
-  void _terapkanFilter() {
-    setState(() => filterDiterapkan = true);
-    _muat();
-  }
-
-  Widget _tampilanDataKosong({required bool kasLaci}) {
-    final rentang = tanggal == 'Semua'
-        ? 'bulan $bulan $tahun'
-        : 'tanggal $tanggal $bulan $tahun';
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 46),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: background,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                kasLaci
-                    ? Icons.point_of_sale_outlined
-                    : Icons.receipt_long_outlined,
-                size: 38,
-                color: navy.withOpacity(0.68),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'Tidak ada transaksi',
-              style: TextStyle(
-                color: navy,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Tidak ada data pada $rentang.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xff71808d), fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // BUILD
-  // ============================================================
+  String get _tanggalHariIniText =>
+      CelciousReportExport.formatTanggalIndonesia(DateTime.now());
 
   @override
   Widget build(BuildContext context) {
@@ -260,23 +139,20 @@ class _LaporanPageState extends State<LaporanPage> {
       backgroundColor: background,
       body: LayoutBuilder(
         builder: (context, ukuran) {
-          double lebar = ukuran.maxWidth;
-
+          final lebar = ukuran.maxWidth;
           return Column(
             children: [
-              // ==================================================
-              // HEADER
-              // ==================================================
               _header(lebar),
-
-              // ==================================================
-              // ISI
-              // ==================================================
               Expanded(
                 child: Stack(
                   children: [
-                    _isiLaporan(lebar),
-                    if (_memuat) const LinearProgressIndicator(minHeight: 3),
+                    _isiRiwayat(lebar),
+                    if (_memuat)
+                      LinearProgressIndicator(
+                        minHeight: 3,
+                        color: navy,
+                        backgroundColor: Colors.white70,
+                      ),
                   ],
                 ),
               ),
@@ -287,29 +163,34 @@ class _LaporanPageState extends State<LaporanPage> {
     );
   }
 
-  // ============================================================
-  // HEADER
-  // ============================================================
-
   Widget _header(double lebar) {
-    bool hp = lebar < 550;
-
+    final hp = lebar < 550;
     return Container(
       width: double.infinity,
-      height: hp ? 50 : 50,
+      height: 50,
       color: navy,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // ======================================================
-          // JUDUL
-          // ======================================================
           Text(
-            "Laporan Keuangan",
+            'Riwayat',
             style: TextStyle(
               color: Colors.white,
-              fontSize: hp ? 18 : 24,
+              fontSize: hp ? 18 : 22,
               fontWeight: FontWeight.bold,
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: IconButton(
+              tooltip: 'Muat ulang riwayat hari ini',
+              onPressed: _memuat ? null : _muat,
+              icon: const Icon(
+                Icons.refresh_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
           ),
         ],
@@ -317,59 +198,39 @@ class _LaporanPageState extends State<LaporanPage> {
     );
   }
 
-  // ============================================================
-  // ISI LAPORAN
-  // ============================================================
+  Widget _isiRiwayat(double lebar) {
+    final hp = lebar < 600;
+    final tablet = lebar >= 600 && lebar < 950;
+    final padding = hp ? 10.0 : (tablet ? 18.0 : 22.0);
 
-  Widget _isiLaporan(double lebar) {
-    bool hp = lebar < 600;
-    bool tablet = lebar >= 600 && lebar < 950;
-
-    double padding;
-
-    if (hp) {
-      padding = 10;
-    } else if (tablet) {
-      padding = 18;
-    } else {
-      padding = 22;
-    }
-
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(padding),
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(hp ? 14 : 0),
-        ),
-        child: Column(
-          children: [
-            // ====================================================
-            // TAB
-            // ====================================================
-            _tabLaporan(lebar),
-
-            // ====================================================
-            // ISI TAB
-            // ====================================================
-            if (tabDipilih == 0)
-              _laporanKeuangan(lebar)
-            else
-              _laporanKasLaci(lebar),
-          ],
+    return RefreshIndicator(
+      onRefresh: _muat,
+      color: navy,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.all(padding),
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(hp ? 14 : 16),
+          ),
+          child: Column(
+            children: [
+              _tabRiwayat(lebar),
+              if (tabDipilih == 0)
+                _kontenRiwayatTransaksi(lebar)
+              else
+                _kontenRiwayatKasLaci(lebar),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ============================================================
-  // TAB LAPORAN
-  // ============================================================
-
-  Widget _tabLaporan(double lebar) {
-    bool hp = lebar < 600;
-
+  Widget _tabRiwayat(double lebar) {
+    final hp = lebar < 600;
     return Container(
       width: double.infinity,
       padding: EdgeInsets.only(left: hp ? 10 : 0, top: hp ? 8 : 0),
@@ -380,7 +241,7 @@ class _LaporanPageState extends State<LaporanPage> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             _tabButton(
-              title: "Laporan Keuangan",
+              title: 'Riwayat Transaksi',
               aktif: tabDipilih == 0,
               onTap: () {
                 setState(() {
@@ -391,7 +252,7 @@ class _LaporanPageState extends State<LaporanPage> {
             ),
             const SizedBox(width: 8),
             _tabButton(
-              title: "Laporan Kas Laci",
+              title: 'Riwayat Kas Laci',
               aktif: tabDipilih == 1,
               onTap: () {
                 setState(() {
@@ -405,10 +266,6 @@ class _LaporanPageState extends State<LaporanPage> {
       ),
     );
   }
-
-  // ============================================================
-  // BUTTON TAB
-  // ============================================================
 
   Widget _tabButton({
     required String title,
@@ -439,573 +296,135 @@ class _LaporanPageState extends State<LaporanPage> {
     );
   }
 
-  // ============================================================
-  // LAPORAN KEUANGAN
-  // ============================================================
-
-  Widget _laporanKeuangan(double lebar) {
-    bool hp = lebar < 600;
-    bool tablet = lebar >= 600 && lebar < 950;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        hp
-            ? 10
-            : tablet
-            ? 16
-            : 18,
-        hp
-            ? 10
-            : tablet
-            ? 12
-            : 14,
-        hp
-            ? 10
-            : tablet
-            ? 16
-            : 18,
-        hp
-            ? 14
-            : tablet
-            ? 18
-            : 20,
+  Widget _barInfoHariIni({
+    required bool hp,
+    required int totalBaris,
+    required String satuan,
+    bool tampilFilterMetode = false,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: hp ? 12 : 16,
+        vertical: hp ? 10 : 12,
       ),
-      child: Column(
-        children: [
-          // ======================================================
-          // FILTER + CHART
-          // ======================================================
-          if (hp)
-            Column(
-              children: [
-                _filterHP(),
-
-                const SizedBox(height: 14),
-
-                _chartPembayaran(kecil: true),
-              ],
-            )
-          else
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: _filterDesktop()),
-
-                const SizedBox(width: 14),
-
-                _chartPembayaran(kecil: false),
-              ],
-            ),
-
-          const SizedBox(height: 20),
-
-          // ======================================================
-          // TABEL
-          // ======================================================
-          _containerTabel(child: _tabelLaporan(lebar)),
-
-          const SizedBox(height: 18),
-
-          // ======================================================
-          // EXPORT
-          // ======================================================
-          if (hp)
-            Align(
-              alignment: Alignment.centerRight,
-              child: Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 8,
-                runSpacing: 8,
-              ),
-            )
-          else
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                const SizedBox(width: 8),
-                _tombolExport(hp),
-              ],
-            ),
-        ],
+      decoration: BoxDecoration(
+        color: const Color(0xfff1f6fb),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xffd2e2f0)),
       ),
-    );
-  }
-
-  // ============================================================
-  // LAPORAN KAS LACI
-  // ============================================================
-
-  Widget _laporanKasLaci(double lebar) {
-    bool hp = lebar < 600;
-    bool tablet = lebar >= 600 && lebar < 950;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        hp
-            ? 10
-            : tablet
-            ? 16
-            : 18,
-        hp
-            ? 10
-            : tablet
-            ? 12
-            : 14,
-        hp
-            ? 10
-            : tablet
-            ? 16
-            : 18,
-        hp
-            ? 14
-            : tablet
-            ? 18
-            : 20,
-      ),
-      child: Column(
-        children: [
-          _filterDesktopKasLaci(lebar),
-          const SizedBox(height: 18),
-          // ======================================================
-          // KAS AWAL + KAS SAAT INI
-          // ======================================================
-          if (hp)
-            Column(
-              children: [
-                _boxKas("Kas Awal", kasAwal),
-
-                const SizedBox(height: 12),
-
-                _boxKas("Kas Saat ini", kasSaatIni),
-              ],
-            )
-          else
-            Row(
-              children: [
-                Expanded(child: _boxKas("Kas Awal", kasAwal)),
-
-                const SizedBox(width: 22),
-
-                Expanded(child: _boxKas("Kas Saat ini", kasSaatIni)),
-              ],
-            ),
-
-          const SizedBox(height: 25),
-
-          // ======================================================
-          // TABEL KAS LACI
-          // ======================================================
-          _containerTabel(child: _tabelKasLaci(lebar)),
-
-          const SizedBox(height: 18),
-
-          // ======================================================
-          // EXPORT
-          // ======================================================
-          Align(alignment: Alignment.centerRight, child: _tombolExport(hp)),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // FILTER LAPORAN DESKTOP
-  // ============================================================
-
-  Widget _filterDesktop() {
-    return Row(
-      children: [
-        Expanded(
-          child: _dropdown("Tanggal", tanggal, [
-            'Semua',
-            ...List.generate(31, (index) => '${index + 1}'),
-          ]),
-        ),
-
-        const SizedBox(width: 10),
-
-        Expanded(
-          child: _dropdown("Bulan", bulan, [
-            "Januari",
-            "Februari",
-            "Maret",
-            "April",
-            "Mei",
-            "Juni",
-            "Juli",
-            "Agustus",
-            "September",
-            "Oktober",
-            "November",
-            "Desember",
-          ]),
-        ),
-
-        const SizedBox(width: 10),
-
-        Expanded(child: _dropdown("Tahun", tahun, ["2025", "2026", "2027"])),
-
-        const SizedBox(width: 10),
-
-        SizedBox(
-          height: 47,
-          child: ElevatedButton.icon(
-            onPressed: _terapkanFilter,
-            icon: const Icon(Icons.filter_list, color: Colors.white, size: 18),
-            label: const Text(
-              "Filter",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: navy,
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // FILTER KAS LACI
-  // ============================================================
-
-  Widget _filterDesktopKasLaci(double lebar) {
-    bool hp = lebar < 600;
-
-    if (hp) {
-      return Column(
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 10,
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: _dropdown("Tanggal", tanggal, [
-                  'Semua',
-                  ...List.generate(31, (index) => '${index + 1}'),
-                ]),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: navy,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.today_rounded,
+                  color: Colors.white,
+                  size: 16,
+                ),
               ),
-
-              const SizedBox(width: 8),
-
-              Expanded(
-                child: _dropdown("Bulan", bulan, [
-                  "Januari",
-                  "Februari",
-                  "Maret",
-                  "April",
-                  "Mei",
-                  "Juni",
-                  "Juli",
-                  "Agustus",
-                  "September",
-                  "Oktober",
-                  "November",
-                  "Desember",
-                ]),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 10),
-
-          Row(
-            children: [
-              Expanded(
-                child: _dropdown("Tahun", tahun, ["2025", "2026", "2027"]),
-              ),
-
-              const SizedBox(width: 8),
-            ],
-          ),
-        ],
-      );
-    }
-
-    Widget _buttonFilter() {
-      return SizedBox(
-        height: 47,
-        child: ElevatedButton.icon(
-          onPressed: _terapkanFilter,
-          icon: const Icon(Icons.filter_list, color: Colors.white, size: 18),
-          label: const Text(
-            "Filter",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: navy,
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Row(
-      children: [
-        Expanded(
-          child: _dropdown("Tanggal", tanggal, [
-            'Semua',
-            ...List.generate(31, (index) => '${index + 1}'),
-          ]),
-        ),
-
-        const SizedBox(width: 10),
-
-        Expanded(
-          child: _dropdown("Bulan", bulan, [
-            "Januari",
-            "Februari",
-            "Maret",
-            "April",
-            "Mei",
-            "Juni",
-            "Juli",
-            "Agustus",
-            "September",
-            "Oktober",
-            "November",
-            "Desember",
-          ]),
-        ),
-
-        const SizedBox(width: 10),
-
-        Expanded(child: _dropdown("Tahun", tahun, ["2025", "2026", "2027"])),
-
-        const SizedBox(width: 10),
-
-        _buttonFilter(),
-      ],
-    );
-  }
-
-  // ============================================================
-  // FILTER HP
-  // ============================================================
-
-  Widget _filterHP() {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _dropdown("Tanggal", tanggal, [
-                'Semua',
-                ...List.generate(31, (index) => '${index + 1}'),
-              ]),
-            ),
-
-            const SizedBox(width: 8),
-
-            Expanded(
-              child: _dropdown("Bulan", bulan, [
-                "Januari",
-                "Februari",
-                "Maret",
-                "April",
-                "Mei",
-                "Juni",
-                "Juli",
-                "Agustus",
-                "September",
-                "Oktober",
-                "November",
-                "Desember",
-              ]),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 10),
-
-        Row(
-          children: [
-            Expanded(
-              child: _dropdown("Tahun", tahun, ["2025", "2026", "2027"]),
-            ),
-
-            const SizedBox(width: 8),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // DROPDOWN
-  // ============================================================
-
-  Widget _dropdown(String judul, String nilai, List<String> pilihan) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          judul,
-          style: TextStyle(
-            color: navy,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-
-        const SizedBox(height: 5),
-
-        Container(
-          height: 47,
-          padding: const EdgeInsets.symmetric(horizontal: 11),
-          decoration: BoxDecoration(
-            color: const Color(0xfffafafa),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xffe3e7ea)),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: nilai,
-              isExpanded: true,
-              icon: const Icon(
-                Icons.keyboard_arrow_down,
-                color: Colors.grey,
-                size: 20,
-              ),
-              items: pilihan.map((item) {
-                return DropdownMenuItem<String>(
-                  value: item,
-                  child: Text(
-                    item,
-                    overflow: TextOverflow.ellipsis,
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Aktivitas Hari Ini • $_tanggalHariIniText',
                     style: TextStyle(
                       color: navy,
-                      fontSize: 13,
+                      fontSize: hp ? 12.5 : 13.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$totalBaris $satuan tercatat hari ini',
+                    style: const TextStyle(
+                      color: Color(0xff5b7186),
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value == null) {
-                  return;
-                }
-
-                setState(() {
-                  if (judul == "Tanggal") {
-                    tanggal = value;
-                  }
-
-                  if (judul == "Bulan") {
-                    bulan = value;
-                  }
-
-                  if (judul == "Tahun") {
-                    tahun = value;
-                  }
-                });
-              },
-            ),
+                ],
+              ),
+            ],
           ),
-        ),
-      ],
+          if (tampilFilterMetode)
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _chipMetode('Semua', null),
+                _chipMetode('Cash', 'Cash'),
+                _chipMetode('QRIS', 'QRIS'),
+              ],
+            ),
+        ],
+      ),
     );
   }
 
-  // ============================================================
-  // CHART PEMBAYARAN
-  // ============================================================
+  Widget _chipMetode(String label, String? value) {
+    final aktif = pembayaranDipilih == value;
+    return InkWell(
+      onTap: () => setState(() => pembayaranDipilih = value),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: aktif ? navy : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: aktif ? navy : navy.withValues(alpha: 0.22),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: aktif ? Colors.white : navy,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
 
-  Widget _chartPembayaran({required bool kecil}) {
-    final cashTotal = _totalMetode('Cash') + _totalMetode('Tunai');
-    final qrisTotal = _totalMetode('QRIS');
-    final totalPaid = cashTotal + qrisTotal;
-    final qrisShare = totalPaid == 0 ? .5 : qrisTotal / totalPaid;
-    final cashPercent = totalPaid == 0
-        ? 0
-        : (cashTotal / totalPaid * 100).round();
-    final qrisPercent = totalPaid == 0 ? 0 : 100 - cashPercent;
-
+  Widget _catatanHakAksesOwner() {
     return Container(
-      width: kecil ? double.infinity : 285,
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xfffbfcfd),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xffedf0f2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: const Color(0xfff7fafd),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xffdbe7f3)),
       ),
       child: Row(
         children: [
-          // ======================================================
-          // DONUT
-          // ======================================================
-          SizedBox(
-            width: kecil ? 72 : 82,
-            height: kecil ? 72 : 82,
-            child: CustomPaint(
-              painter: DonutChartPainter(
-                qrisColor: qrisColor,
-                cashColor: cashColor,
-                selected: pembayaranDipilih,
-                qrisShare: qrisShare,
-              ),
-              child: Center(
-                child: Text(
-                  '${totalPaid == 0 ? 0 : 100}%',
-                  style: TextStyle(
-                    color: navy,
-                    fontSize: kecil ? 10 : 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
+          Icon(
+            Icons.lock_outline_rounded,
+            size: 16,
+            color: navy.withValues(alpha: 0.72),
           ),
-
-          const SizedBox(width: 13),
-
-          // ======================================================
-          // DATA CHART
-          // ======================================================
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Metode Pembayaran",
-                  style: TextStyle(
-                    color: navy,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 5),
-
-                _legendInteraktif(
-                  "QRIS",
-                  "$qrisPercent% • ${_formatRupiah(qrisTotal)}",
-                  qrisColor,
-                ),
-
-                const SizedBox(height: 3),
-
-                _legendInteraktif(
-                  "Cash",
-                  "$cashPercent% • ${_formatRupiah(cashTotal)}",
-                  cashColor,
-                ),
-              ],
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'Halaman ini hanya menampilkan riwayat operasional hari ini. Rekap lengkap & unduh PDF/Excel hanya tersedia di akun Owner.',
+              style: TextStyle(
+                color: Color(0xff566c80),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -1013,82 +432,74 @@ class _LaporanPageState extends State<LaporanPage> {
     );
   }
 
-  // ============================================================
-  // LEGEND INTERAKTIF
-  // ============================================================
+  Widget _kontenRiwayatTransaksi(double lebar) {
+    final hp = lebar < 600;
+    final tablet = lebar >= 600 && lebar < 950;
+    final rows = _transaksiTerfilter;
 
-  Widget _legendInteraktif(String nama, String persen, Color warna) {
-    bool dipilih = pembayaranDipilih == nama;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          if (pembayaranDipilih == nama) {
-            pembayaranDipilih = null;
-          } else {
-            pembayaranDipilih = nama;
-          }
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-        decoration: BoxDecoration(
-          color: dipilih ? warna.withOpacity(0.10) : Colors.transparent,
-          borderRadius: BorderRadius.circular(7),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 9,
-              height: 9,
-              decoration: BoxDecoration(color: warna, shape: BoxShape.circle),
-            ),
-
-            const SizedBox(width: 7),
-
-            Expanded(
-              child: Text(
-                nama,
-                style: TextStyle(
-                  color: navy,
-                  fontSize: 11,
-                  fontWeight: dipilih ? FontWeight.bold : FontWeight.w600,
-                ),
-              ),
-            ),
-
-            Text(
-              persen,
-              style: TextStyle(
-                color: navy,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        hp ? 10 : (tablet ? 16 : 18),
+        hp ? 12 : 16,
+        hp ? 10 : (tablet ? 16 : 18),
+        hp ? 14 : 20,
+      ),
+      child: Column(
+        children: [
+          _barInfoHariIni(
+            hp: hp,
+            totalBaris: rows.length,
+            satuan: 'transaksi selesai',
+            tampilFilterMetode: true,
+          ),
+          const SizedBox(height: 16),
+          _containerTabel(child: _tabelRiwayatTransaksi(lebar, rows)),
+          const SizedBox(height: 14),
+          _catatanHakAksesOwner(),
+        ],
       ),
     );
   }
 
-  // ============================================================
-  // CONTAINER TABEL
-  // ============================================================
+  Widget _kontenRiwayatKasLaci(double lebar) {
+    final hp = lebar < 600;
+    final tablet = lebar >= 600 && lebar < 950;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        hp ? 10 : (tablet ? 16 : 18),
+        hp ? 12 : 16,
+        hp ? 10 : (tablet ? 16 : 18),
+        hp ? 14 : 20,
+      ),
+      child: Column(
+        children: [
+          _barInfoHariIni(
+            hp: hp,
+            totalBaris: dataKasLaci.length,
+            satuan: 'catatan kas laci',
+          ),
+          const SizedBox(height: 16),
+          _containerTabel(child: _tabelKasLaci(lebar, dataKasLaci)),
+          const SizedBox(height: 14),
+          _catatanHakAksesOwner(),
+        ],
+      ),
+    );
+  }
 
   Widget _containerTabel({required Widget child}) {
     return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(minHeight: 300),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xffeeeeee)),
+        border: Border.all(color: const Color(0xffe1e8ef)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.10),
-            blurRadius: 16,
-            offset: const Offset(0, 5),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -1096,46 +507,72 @@ class _LaporanPageState extends State<LaporanPage> {
     );
   }
 
-  // ============================================================
-  // TABEL LAPORAN KEUANGAN
-  // ============================================================
+  Widget _tampilanDataKosong({required bool kasLaci}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 44),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: background,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                kasLaci
+                    ? Icons.point_of_sale_outlined
+                    : Icons.receipt_long_outlined,
+                size: 36,
+                color: navy.withValues(alpha: 0.68),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              kasLaci
+                  ? 'Belum ada catatan kas laci hari ini'
+                  : 'Belum ada riwayat transaksi hari ini',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: navy,
+                fontSize: 15.5,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              kasLaci
+                  ? 'Kas awal, penjualan cash, penambahan, atau pengeluaran laci hari ini akan otomatis muncul di sini.'
+                  : 'Transaksi yang sudah dibayar / diselesaikan pada $_tanggalHariIniText akan muncul di sini.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xff71808d), fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-  Widget _tabelLaporan(double lebar) {
-    bool hp = lebar < 600;
-    final rows = dataLaporanTerfilter;
-    if (filterDiterapkan && rows.isEmpty) {
+  Widget _tabelRiwayatTransaksi(double lebar, List<Map<String, String>> rows) {
+    final hp = lebar < 600;
+    if (rows.isEmpty) {
       return _tampilanDataKosong(kasLaci: false);
     }
 
     if (hp) {
-      return Column(
-        children: rows.map((data) {
-          return InkWell(
-            onTap: () {
-              setState(() {
-                pembayaranDipilih = data["pembayaran"];
-              });
-            },
-            child: Container(
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Column(
+          children: rows.map((data) {
+            return Container(
               width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+              margin: const EdgeInsets.fromLTRB(10, 10, 10, 0),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: const Color(0xfff9fbfd),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: pembayaranDipilih == data["pembayaran"]
-                      ? navy
-                      : const Color(0xffe5e9ed),
-                  width: pembayaranDipilih == data["pembayaran"] ? 1.5 : 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
+                border: Border.all(color: const Color(0xffe5e9ed)),
               ),
               child: Column(
                 children: [
@@ -1143,7 +580,7 @@ class _LaporanPageState extends State<LaporanPage> {
                     children: [
                       Expanded(
                         child: Text(
-                          data["id"]!,
+                          data['id'] ?? '-',
                           style: TextStyle(
                             color: navy,
                             fontSize: 13,
@@ -1151,19 +588,24 @@ class _LaporanPageState extends State<LaporanPage> {
                           ),
                         ),
                       ),
+                      _badgePembayaran(data['pembayaran'] ?? '-'),
                     ],
                   ),
-                  const SizedBox(height: 9),
-                  _infoRow("Jam", data["jam"]!),
-                  _infoRow("Nama Kasir", data["kasir"]!),
-                  _infoRow("Pembayaran", data["pembayaran"]!),
-                  _infoRow("Jumlah Pesanan", data["jumlah"]!),
-                  _infoRow("Total Harga", "Rp ${data["total"]!}", bold: true),
+                  const SizedBox(height: 8),
+                  _infoRow('Jam', data['jam'] ?? '-'),
+                  _infoRow('Nama Kasir', data['kasir'] ?? '-'),
+                  _infoRow('Jumlah Item', data['jumlah'] ?? '0'),
+                  _infoRow('Total Harga', 'Rp ${data['total'] ?? '0'}', bold: true),
+                  if (_adaBuktiPembayaran(data))
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: _tombolLihatBukti(data),
+                    ),
                 ],
               ),
-            ),
-          );
-        }).toList(),
+            );
+          }).toList(),
+        ),
       );
     }
 
@@ -1178,8 +620,8 @@ class _LaporanPageState extends State<LaporanPage> {
               horizontalMargin: 14,
               headingRowHeight: 44,
               dataRowMinHeight: 48,
-              dataRowMaxHeight: 70,
-              headingRowColor: MaterialStateProperty.all(navy),
+              dataRowMaxHeight: 68,
+              headingRowColor: WidgetStateProperty.all(navy),
               headingTextStyle: const TextStyle(
                 color: Colors.white,
                 fontSize: 12,
@@ -1187,32 +629,51 @@ class _LaporanPageState extends State<LaporanPage> {
               ),
               dataTextStyle: TextStyle(color: navy, fontSize: 12),
               columns: const [
-                DataColumn(label: Text("ID Pemesanan")),
-                DataColumn(label: Text("Jam")),
-                DataColumn(label: Text("Nama Kasir")),
-                DataColumn(label: Text("Pembayaran")),
-                DataColumn(label: Text("Jumlah Pemesanan")),
-                DataColumn(label: Text("Total Harga")),
-                DataColumn(label: Text("Bukti Pembayaran")),
+                DataColumn(label: Text('ID Pemesanan')),
+                DataColumn(label: Text('Jam')),
+                DataColumn(label: Text('Nama Kasir')),
+                DataColumn(label: Text('Pembayaran')),
+                DataColumn(label: Text('Jumlah Pemesanan')),
+                DataColumn(label: Text('Total Harga')),
+                DataColumn(label: Text('Status')),
               ],
               rows: rows.map((data) {
                 return DataRow(
                   cells: [
-                    DataCell(Text(data["id"]!)),
-                    DataCell(Text(data["jam"]!)),
-                    DataCell(Text(data["kasir"]!)),
-                    DataCell(_badgePembayaran(data["pembayaran"]!)),
-                    DataCell(Text(data["jumlah"]!)),
+                    DataCell(Text(data['id'] ?? '-')),
+                    DataCell(Text(data['jam'] ?? '-')),
+                    DataCell(Text(data['kasir'] ?? '-')),
+                    DataCell(_badgePembayaran(data['pembayaran'] ?? '-')),
+                    DataCell(Text(data['jumlah'] ?? '0')),
                     DataCell(
                       Text(
-                        "Rp ${data["total"]!}",
+                        'Rp ${data['total'] ?? '0'}',
                         style: TextStyle(
                           color: navy,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                    DataCell(_tombolLihatBukti(data)),
+                    DataCell(
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: qrisColor.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          data['status'] ?? 'Lunas',
+                          style: TextStyle(
+                            color: qrisColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 );
               }).toList(),
@@ -1223,51 +684,140 @@ class _LaporanPageState extends State<LaporanPage> {
     );
   }
 
-  bool _adaBuktiPembayaran(Map<String, String> data) {
-    return data['buktiPembayaranPath']?.isNotEmpty == true ||
-        data['buktiPembayaranBase64']?.isNotEmpty == true;
-  }
+  Widget _tabelKasLaci(double lebar, List<Map<String, String>> rows) {
+    final hp = lebar < 600;
+    if (rows.isEmpty) {
+      return _tampilanDataKosong(kasLaci: true);
+    }
 
-  Widget _tombolLihatBukti(Map<String, String> data) {
-    if (!_adaBuktiPembayaran(data)) return const Text('-');
-    return TextButton(
-      onPressed: () => _lihatBuktiPembayaran(data),
-      child: const Text('Lihat Bukti'),
+    if (hp) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Column(
+          children: rows.map((data) {
+            final masuk = data['jenis'] == 'masuk';
+            return InkWell(
+              onTap: () => _detailKas(data),
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xfff9fbfd),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: masuk
+                        ? const Color(0xff00875a).withValues(alpha: 0.25)
+                        : const Color(0xffd85c5c).withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            data['kasir'] ?? '-',
+                            style: TextStyle(
+                              color: navy,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          data['jam'] ?? '--:--',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _infoRow('Tanggal', _formatTanggal(data['tanggal'])),
+                    _infoRow('Nominal', data['nominal'] ?? '-', bold: true),
+                    _infoRow('Keterangan', data['keterangan'] ?? '-'),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: DataTable(
+              columnSpacing: lebar < 1000 ? 18 : 28,
+              horizontalMargin: 14,
+              headingRowHeight: 44,
+              dataRowMinHeight: 48,
+              dataRowMaxHeight: 68,
+              headingRowColor: WidgetStateProperty.all(navy),
+              headingTextStyle: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+              dataTextStyle: TextStyle(color: navy, fontSize: 12),
+              columns: const [
+                DataColumn(label: Text('Tanggal')),
+                DataColumn(label: Text('Jam')),
+                DataColumn(label: Text('Nama Kasir')),
+                DataColumn(label: Text('Nominal')),
+                DataColumn(label: Text('Keterangan')),
+              ],
+              rows: rows.map((data) {
+                final masuk = data['jenis'] == 'masuk';
+                return DataRow(
+                  cells: [
+                    DataCell(Text(_formatTanggal(data['tanggal']))),
+                    DataCell(Text(data['jam'] ?? '--:--')),
+                    DataCell(Text(data['kasir'] ?? '-')),
+                    DataCell(
+                      Text(
+                        data['nominal'] ?? '-',
+                        style: TextStyle(
+                          color: masuk
+                              ? const Color(0xff00875a)
+                              : const Color(0xffd85c5c),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    DataCell(Text(data['keterangan'] ?? '-')),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        );
+      },
     );
   }
 
-  void _lihatBuktiPembayaran(Map<String, String> data) {
-    final path = data['buktiPembayaranPath'] ?? '';
-    final base64Image = data['buktiPembayaranBase64'] ?? '';
-    final image = path.isNotEmpty
-        ? (kIsWeb
-              ? const Center(
-                  child: Text(
-                    'Foto lokal hanya tersedia di aplikasi perangkat.',
-                  ),
-                )
-              : Image.file(
-                  File(path),
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Center(
-                    child: Text('Berkas bukti foto tidak ditemukan.'),
-                  ),
-                ))
-        : base64Image.isNotEmpty
-        ? Image.memory(base64Decode(base64Image), fit: BoxFit.contain)
-        : const Center(child: Text('Bukti foto tidak ditemukan.'));
-
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Bukti Pembayaran QRIS'),
-        content: SizedBox(width: 440, height: 420, child: image),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Tutup'),
-          ),
-        ],
+  Widget _badgePembayaran(String metode) {
+    final isQris = metode.toLowerCase().contains('qris');
+    final color = isQris ? qrisColor : cashColor;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        metode,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -1301,804 +851,84 @@ class _LaporanPageState extends State<LaporanPage> {
     );
   }
 
-  // ============================================================
-  // TABEL KAS LACI
-  // ============================================================
+  bool _adaBuktiPembayaran(Map<String, String> data) {
+    return data['buktiPembayaranPath']?.isNotEmpty == true ||
+        data['buktiPembayaranBase64']?.isNotEmpty == true;
+  }
 
-  Widget _tabelKasLaci(double lebar) {
-    bool hp = lebar < 600;
-    final rows = dataKasLaciTerfilter;
-    if (filterDiterapkan && rows.isEmpty) {
-      return _tampilanDataKosong(kasLaci: true);
-    }
+  Widget _tombolLihatBukti(Map<String, String> data) {
+    if (!_adaBuktiPembayaran(data)) return const Text('-');
+    return TextButton(
+      onPressed: () => _lihatBuktiPembayaran(data),
+      child: const Text('Lihat Bukti'),
+    );
+  }
 
-    if (hp) {
-      return Column(
-        children: rows.map((data) {
-          bool masuk = data["jenis"] == "masuk";
-
-          return InkWell(
-            onTap: () {
-              _detailKas(data);
-            },
-            child: Container(
-              width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(10, 8, 10, 0),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xfff9fbfd),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: masuk
-                      ? const Color(0xff00875a).withOpacity(0.25)
-                      : const Color(0xffd85c5c).withOpacity(0.25),
+  void _lihatBuktiPembayaran(Map<String, String> data) {
+    final path = data['buktiPembayaranPath'] ?? '';
+    final base64Image = data['buktiPembayaranBase64'] ?? '';
+    final image = path.isNotEmpty
+        ? (kIsWeb
+            ? const Center(
+                child: Text(
+                  'Foto lokal hanya tersedia di aplikasi perangkat.',
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          data["kasir"]!,
-                          style: TextStyle(
-                            color: navy,
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        data["jam"]!,
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 9),
-                  _infoRow("Tanggal", _formatTanggal(data["tanggal"])),
-                  _infoRow("Nominal", data["nominal"]!, bold: true),
-                  _infoRow("Keterangan", data["keterangan"]!),
-                ],
-              ),
-            ),
-          );
-        }).toList(),
-      );
-    }
+              )
+            : Image.file(
+                File(path),
+                fit: BoxFit.contain,
+                errorBuilder: (_, _, _) => const Center(
+                  child: Text('Berkas bukti foto tidak ditemukan.'),
+                ),
+              ))
+        : base64Image.isNotEmpty
+            ? Image.memory(base64Decode(base64Image), fit: BoxFit.contain)
+            : const Center(child: Text('Bukti foto tidak ditemukan.'));
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: DataTable(
-              columnSpacing: lebar < 1000 ? 28 : 42,
-              horizontalMargin: 15,
-              headingRowHeight: 44,
-              dataRowMinHeight: 48,
-              dataRowMaxHeight: 60,
-              headingRowColor: MaterialStateProperty.all(navy),
-              headingTextStyle: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-              dataTextStyle: TextStyle(color: navy, fontSize: 12),
-              columns: const [
-                DataColumn(label: Text("Nama Kasir")),
-                DataColumn(label: Text("Tanggal")),
-                DataColumn(label: Text("Jam")),
-                DataColumn(label: Text("Pemasukan/Pengeluaran")),
-                DataColumn(label: Text("Keterangan")),
-              ],
-              rows: rows.map((data) {
-                bool masuk = data["jenis"] == "masuk";
-
-                return DataRow(
-                  cells: [
-                    DataCell(
-                      Text(data["kasir"]!),
-                      onTap: () => _detailKas(data),
-                    ),
-                    DataCell(Text(_formatTanggal(data["tanggal"]))),
-                    DataCell(Text(data["jam"]!)),
-                    DataCell(
-                      Text(
-                        data["nominal"]!,
-                        style: TextStyle(
-                          color: masuk
-                              ? const Color(0xff00875a)
-                              : const Color(0xffd85c5c),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    DataCell(Text(data["keterangan"]!)),
-                  ],
-                );
-              }).toList(),
-            ),
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Bukti Pembayaran QRIS'),
+        content: SizedBox(width: 440, height: 420, child: image),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tutup'),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
   void _detailKas(Map<String, String> data) {
-    bool masuk = data["jenis"] == "masuk";
-
-    showDialog(
+    final masuk = data['jenis'] == 'masuk';
+    showDialog<void>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(
-            masuk ? "Detail Pemasukan" : "Detail Pengeluaran",
-            style: TextStyle(color: navy, fontWeight: FontWeight.bold),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Kasir : ${data["kasir"]}"),
-              const SizedBox(height: 7),
-              Text("Jam : ${data["jam"]}"),
-              const SizedBox(height: 7),
-              Text("Nominal : ${data["nominal"]}"),
-              const SizedBox(height: 7),
-              Text("Keterangan : ${data["keterangan"]}"),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text("Tutup", style: TextStyle(color: navy)),
-            ),
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(
+          'Detail Catatan Kas Laci',
+          style: TextStyle(color: navy, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _infoRow('Tanggal', _formatTanggal(data['tanggal'])),
+            _infoRow('Jam', data['jam'] ?? '--:--'),
+            _infoRow('Kasir', data['kasir'] ?? '-'),
+            _infoRow('Jenis', masuk ? 'Kas Masuk' : 'Kas Keluar'),
+            _infoRow('Nominal', data['nominal'] ?? '-', bold: true),
+            _infoRow('Keterangan', data['keterangan'] ?? '-'),
           ],
-        );
-      },
-    );
-  }
-
-  
-
-  Future<void> _konfirmasiKosongkanLaporan() async {
-    final yakin = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Kosongkan Laporan?'),
-        content: const Text(
-          'Semua transaksi pada Laporan Keuangan akan dihapus permanen dari perangkat. '
-          'Pesanan belum selesai dan kas awal shift tidak ikut dihapus.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xffa84848),
-            ),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Hapus Transaksi'),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tutup'),
           ),
         ],
       ),
     );
-    if (yakin != true || !mounted) return;
-
-    try {
-      await TransactionStore.clearTransactions();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Data laporan berhasil dikosongkan.')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal mengosongkan laporan: $error')),
-      );
-    }
-  }
-
-  // ============================================================
-  // BOX KAS AWAL / KAS SAAT INI
-  // ============================================================
-
-  Widget _boxKas(String judul, double nominal) {
-    return Container(
-      height: 55,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.black),
-        borderRadius: BorderRadius.circular(9),
-      ),
-      child: Row(
-        children: [
-          Container(
-            height: double.infinity,
-            width: 140,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: navy,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              judul,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-
-          Expanded(
-            child: Center(
-              child: Text(
-                _formatRupiah(nominal),
-                style: TextStyle(
-                  color: navy,
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // BADGE PEMBAYARAN
-  // ============================================================
-
-  Widget _badgePembayaran(String pembayaran) {
-    bool qris = pembayaran == "QRIS";
-
-    Color warna = qris ? qrisColor : cashColor;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: warna.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        pembayaran,
-        style: TextStyle(
-          color: warna,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // FORMAT RUPIAH
-  // ============================================================
-
-  String _formatRupiah(double value) {
-    final number = value.toInt().toString();
-
-    String result = "";
-    int count = 0;
-
-    for (int i = number.length - 1; i >= 0; i--) {
-      result = number[i] + result;
-      count++;
-
-      if (count == 3 && i != 0) {
-        result = ".$result";
-        count = 0;
-      }
-    }
-
-    return "Rp $result";
-  }
-
-  // ============================================================
-  // TOMBOL EXPORT
-  // ============================================================
-
-  Widget _tombolExport(bool hp) {
-    return ElevatedButton.icon(
-      onPressed: _modalExport,
-      icon: const Icon(Icons.download, color: Colors.white, size: 19),
-      label: Text(
-        hp ? 'Export' : 'Export to Excel',
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: navy,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-        elevation: 2,
-      ),
-    );
-  }
-
-  void _modalExport() {
-    final kasLaci = tabDipilih == 1;
-
-    final namaLaporan = kasLaci ? 'Laporan Kas Laci' : 'Laporan Keuangan';
-
-    final tanggalLaporan = tanggal == 'Semua' ? '1' : tanggal;
-
-    final namaFile =
-        '${namaLaporan.replaceAll(' ', '_')}_${tanggalLaporan}_${bulan}_$tahun';
-
-    final now = DateTime.now();
-    final tanggalHariIni =
-        '${now.day.toString().padLeft(2, '0')} '
-        '${['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'][now.month]} ${now.year}';
-
-    bool sedangDownload = false;
-    bool eksporPdf = false;
-
-    showDialog<void>(
-      context: context,
-      barrierDismissible: !sedangDownload,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final ekstensi = eksporPdf ? 'pdf' : 'xlsx';
-            final namaTampilanAktif =
-                '$namaLaporan $tanggalLaporan $bulan $tahun.$ekstensi';
-
-            return Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Container(
-                width: 320,
-                padding: const EdgeInsets.fromLTRB(17, 15, 17, 16),
-                decoration: BoxDecoration(
-                  color: navy,
-                  borderRadius: BorderRadius.circular(17),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // JUDUL DAN IKON
-                    Row(
-                      children: [
-                        Icon(
-                          eksporPdf
-                              ? Icons.picture_as_pdf_rounded
-                              : Icons.description,
-                          color: Colors.white,
-                          size: 29,
-                        ),
-                        const SizedBox(width: 9),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                kasLaci
-                                    ? 'Ekspor Laporan Kas Laci'
-                                    : 'Ekspor Laporan Pendapatan',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                tanggalHariIni,
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // PILIH FORMAT (EXCEL / PDF)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ChoiceChip(
-                            label: const Center(child: Text('Excel (.xlsx)')),
-                            selected: !eksporPdf,
-                            onSelected: sedangDownload
-                                ? null
-                                : (_) =>
-                                    setDialogState(() => eksporPdf = false),
-                            selectedColor: Colors.white,
-                            backgroundColor: const Color(0xFF1A3A57),
-                            labelStyle: TextStyle(
-                              color: !eksporPdf ? navy : Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            side: BorderSide.none,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: ChoiceChip(
-                            label: const Center(child: Text('PDF (.pdf)')),
-                            selected: eksporPdf,
-                            onSelected: sedangDownload
-                                ? null
-                                : (_) =>
-                                    setDialogState(() => eksporPdf = true),
-                            selectedColor: Colors.white,
-                            backgroundColor: const Color(0xFF1A3A57),
-                            labelStyle: TextStyle(
-                              color: eksporPdf ? navy : Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            side: BorderSide.none,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    // NAMA FILE
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 11,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              namaTampilanAktif,
-                              style: TextStyle(
-                                color: navy,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // TOMBOL BATAL DAN DOWNLOAD
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: sedangDownload
-                              ? null
-                              : () => Navigator.pop(dialogContext),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.white54,
-                          ),
-                          child: const Text(
-                            'Batal',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        ElevatedButton(
-                          onPressed: sedangDownload
-                              ? null
-                              : () async {
-                                  setDialogState(() => sedangDownload = true);
-
-                                  final berhasil = eksporPdf
-                                      ? await _downloadPdf(kasLaci, namaFile)
-                                      : await _downloadExcel(kasLaci, namaFile);
-
-                                  if (!dialogContext.mounted) return;
-
-                                  if (berhasil) {
-                                    Navigator.pop(dialogContext);
-                                  } else {
-                                    setDialogState(
-                                      () => sedangDownload = false,
-                                    );
-                                  }
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: navy,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 10,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: sedangDownload
-                              ? const SizedBox(
-                                  width: 15,
-                                  height: 15,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text(
-                                  'Download',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  String get _periodeTeksExport =>
-      tanggal == 'Semua' ? '$bulan $tahun' : '$tanggal $bulan $tahun';
-
-  Future<void> _simpanFileEkspor({
-    required String namaFile,
-    required Uint8List bytes,
-    required String ekstensi,
-    required MimeType mimeType,
-  }) async {
-    if (kIsWeb) {
-      await FileSaver.instance.saveFile(
-        name: namaFile,
-        bytes: bytes,
-        fileExtension: ekstensi,
-        mimeType: mimeType,
-      );
-      return;
-    }
-    try {
-      await FileSaver.instance.saveAs(
-        name: namaFile,
-        bytes: bytes,
-        fileExtension: ekstensi,
-        mimeType: mimeType,
-      );
-    } on UnimplementedError {
-      await FileSaver.instance.saveFile(
-        name: namaFile,
-        bytes: bytes,
-        fileExtension: ekstensi,
-        mimeType: mimeType,
-      );
-    }
-  }
-
-  Future<bool> _downloadExcel(bool kasLaci, String namaFile) async {
-    try {
-      final logoBytes = await CelciousReportExport.loadBrandLogoBytes();
-      final ownerName = OwnerProfileStore.ownerName.value;
-      final Uint8List bytes;
-      if (kasLaci) {
-        final reportData = CelciousReportExport.buildCashDrawerDataFromMaps(
-          rows: dataKasLaciTerfilter,
-          periodDateText: _periodeTeksExport,
-          openingCash: kasAwal,
-          currentCash: kasSaatIni,
-          ownerName: ownerName,
-        );
-        bytes = CelciousReportExport.buildCashDrawerReportExcel(
-          reportData,
-          logoBytes: logoBytes,
-        );
-      } else {
-        final reportData = CelciousReportExport.buildTransactionDataFromMaps(
-          rows: dataLaporanTerfilter,
-          periodDateText: _periodeTeksExport,
-          ownerName: ownerName,
-        );
-        bytes = CelciousReportExport.buildTransactionReportExcel(
-          reportData,
-          logoBytes: logoBytes,
-        );
-      }
-
-      if (bytes.isEmpty) {
-        throw StateError('Berkas Excel kosong dan tidak dapat disimpan.');
-      }
-      await _simpanFileEkspor(
-        namaFile: namaFile,
-        bytes: bytes,
-        ekstensi: 'xlsx',
-        mimeType: MimeType.microsoftExcel,
-      );
-      try {
-        await ApiService.post('laporan', {
-          'jenis_laporan': kasLaci ? 'Laporan Kas Laci Kasir' : 'Laporan Keuangan Kasir',
-          'periode': _periodeTeksExport,
-        });
-      } catch (_) {}
-      if (!mounted) {
-        return false;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Laporan Excel (.xlsx) berhasil disimpan.')),
-      );
-      return true;
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menyimpan Excel: $error')),
-        );
-      }
-      return false;
-    }
-  }
-
-  Future<bool> _downloadPdf(bool kasLaci, String namaFile) async {
-    try {
-      final logoBytes = await CelciousReportExport.loadBrandLogoBytes();
-      final ownerName = OwnerProfileStore.ownerName.value;
-      final Uint8List bytes;
-      if (kasLaci) {
-        final reportData = CelciousReportExport.buildCashDrawerDataFromMaps(
-          rows: dataKasLaciTerfilter,
-          periodDateText: _periodeTeksExport,
-          openingCash: kasAwal,
-          currentCash: kasSaatIni,
-          ownerName: ownerName,
-        );
-        bytes = await CelciousReportExport.buildCashDrawerReportPdf(
-          reportData,
-          logoBytes: logoBytes,
-        );
-      } else {
-        final reportData = CelciousReportExport.buildTransactionDataFromMaps(
-          rows: dataLaporanTerfilter,
-          periodDateText: _periodeTeksExport,
-          ownerName: ownerName,
-        );
-        bytes = await CelciousReportExport.buildTransactionReportPdf(
-          reportData,
-          logoBytes: logoBytes,
-        );
-      }
-
-      if (bytes.isEmpty) {
-        throw StateError('Berkas PDF kosong dan tidak dapat disimpan.');
-      }
-      await _simpanFileEkspor(
-        namaFile: namaFile,
-        bytes: bytes,
-        ekstensi: 'pdf',
-        mimeType: MimeType.pdf,
-      );
-      try {
-        await ApiService.post('laporan', {
-          'jenis_laporan': kasLaci ? 'Laporan Kas Laci Kasir (PDF)' : 'Laporan Keuangan Kasir (PDF)',
-          'periode': _periodeTeksExport,
-        });
-      } catch (_) {}
-      if (!mounted) {
-        return false;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Laporan PDF berhasil disimpan.')),
-      );
-      return true;
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menyimpan PDF: $error')),
-        );
-      }
-      return false;
-    }
-  }
-}
-// ==================================================================
-// DONUT CHART
-// ==================================================================
-
-class DonutChartPainter extends CustomPainter {
-  final Color qrisColor;
-  final Color cashColor;
-  final String? selected;
-  final double qrisShare;
-
-  DonutChartPainter({
-    required this.qrisColor,
-    required this.cashColor,
-    required this.selected,
-    required this.qrisShare,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    double stroke = 12;
-
-    double radius = (size.width / 2) - stroke;
-
-    Offset center = Offset(size.width / 2, size.height / 2);
-
-    Paint paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.butt
-      ..strokeWidth = stroke;
-
-    // ==========================================================
-    // QRIS
-    // ==========================================================
-
-    paint.color = qrisColor;
-
-    if (selected == "QRIS") {
-      paint.strokeWidth = 15;
-    } else {
-      paint.strokeWidth = stroke;
-    }
-
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -math.pi / 2,
-      math.pi * 2 * qrisShare.clamp(0, 1).toDouble(),
-      false,
-      paint,
-    );
-
-    // ==========================================================
-    // CASH
-    // ==========================================================
-
-    paint.color = cashColor;
-
-    if (selected == "Cash") {
-      paint.strokeWidth = 15;
-    } else {
-      paint.strokeWidth = stroke;
-    }
-
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -math.pi / 2 + math.pi * 2 * qrisShare.clamp(0, 1).toDouble(),
-      math.pi * 2 * (1 - qrisShare.clamp(0, 1).toDouble()),
-      false,
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(DonutChartPainter oldDelegate) {
-    return oldDelegate.selected != selected ||
-        oldDelegate.qrisShare != qrisShare;
   }
 }

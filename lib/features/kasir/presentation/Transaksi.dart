@@ -42,8 +42,8 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
     TransactionStore.unfinishedOrders.addListener(_muatPesananTersimpan);
     _muatPesananTersimpan();
     _sinkronisasiPesananDariServer();
-    // Sinkronisasi otomatis setiap 7 detik (dengan guard agar tidak menumpuk di jaringan mobile)
-    _pollingTimer = Timer.periodic(const Duration(seconds: 7), (_) {
+    // Sinkronisasi otomatis setiap 10 detik (dengan guard agar tidak menumpuk di jaringan mobile)
+    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted) _sinkronisasiPesananDariServer();
     });
   }
@@ -792,7 +792,70 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
   void konfirmasiPesananSelesai(Map<String, dynamic> data, int index) {
     if (index < 0 || data['selesai'] == true) return;
 
-    showDialog(
+    final sudahLunas =
+        (data['bayar']?.toString().trim().toLowerCase() ?? '') == 'lunas';
+
+    // Jika belum dibayar, tampilkan peringatan agar kasir selesaikan pembayaran dulu
+    if (!sudahLunas) {
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            backgroundColor: navy,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: Color(0xFFFFC107),
+                  size: 24,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Lakukan Pembayaran Dahulu',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              'Pesanan ${data['nama']} belum dibayar. Silakan selesaikan pembayaran terlebih dahulu sebelum menandai pesanan selesai.',
+              style: const TextStyle(color: Colors.white, fontSize: 13.5),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text(
+                  'Tutup',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: green,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  tampilkanDetailPesanan(index);
+                },
+                child: const Text('Bayar Sekarang'),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+
+    showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
@@ -802,11 +865,11 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
             borderRadius: BorderRadius.circular(16),
           ),
           title: const Text(
-            'Konfirmasi Pesanan',
+            'Konfirmasi Pesanan Selesai',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           content: Text(
-            'Apakah pesanan ${data['nama']} sudah selesai disiapkan dan diserahkan?',
+            'Pembayaran sudah lunas. Apakah pesanan ${data['nama']} sudah selesai disiapkan dan diserahkan ke pelanggan?',
             style: const TextStyle(color: Colors.white, fontSize: 14),
           ),
           actions: [
@@ -815,7 +878,7 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
                 Navigator.pop(dialogContext);
               },
               child: const Text(
-                'Tidak',
+                'Belum',
                 style: TextStyle(color: Colors.white70),
               ),
             ),
@@ -849,7 +912,7 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
                   );
                 }
               },
-              child: const Text('Ya'),
+              child: const Text('Ya, Selesai'),
             ),
           ],
         );

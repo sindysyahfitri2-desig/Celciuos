@@ -87,8 +87,11 @@ class _QrisDirectDialogState extends State<QrisDirectDialog> {
     try {
       final waktu = DateTime.now();
       _waktuTransaksi = waktu;
-      final kodeUnik = waktu.microsecondsSinceEpoch.toString();
-      final kode = {'id': 'CC-Q-$kodeUnik', 'display': 'CC-Q-$kodeUnik'};
+      // Gunakan kode harian singkat (mis. CC-1125-001) dan sinkronkan dengan kode resmi server
+      final kode = CashierTransactionService.createOrderCode(
+        cart: widget.cart,
+        time: waktu,
+      );
       _kodePesanan = kode;
 
       final hasil = await CashierTransactionService.createQrisPayment(
@@ -102,6 +105,11 @@ class _QrisDirectDialogState extends State<QrisDirectDialog> {
 
       final data = hasil['data'] as Map<String, dynamic>?;
       final payment = hasil['payment'] as Map<String, dynamic>?;
+
+      final serverKode = data?['kode']?.toString().trim();
+      if (serverKode != null && serverKode.isNotEmpty) {
+        _kodePesanan = {'id': serverKode, 'display': serverKode};
+      }
 
       final idTrx = data?['id_transaksi'];
       final qr = payment?['qr_url']?.toString();

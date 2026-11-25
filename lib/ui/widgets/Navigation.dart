@@ -18,7 +18,7 @@ const appNavy = Color(0xff103456);
 
 const _navigationItems = <_NavigationItem>[
   _NavigationItem('Kasir', Icons.point_of_sale_rounded),
-  _NavigationItem('Laporan keuangan', Icons.bar_chart_rounded),
+  _NavigationItem('Riwayat', Icons.history_rounded),
   _NavigationItem('Produk', Icons.local_drink_outlined),
   _NavigationItem('Transaksi', Icons.account_balance_wallet_rounded),
 ];
@@ -200,6 +200,7 @@ class AppNavigationShell extends StatefulWidget {
 class _AppNavigationShellState extends State<AppNavigationShell> {
   int selectedMenu = 0;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+  final List<Widget?> _cachedTabs = List<Widget?>.filled(4, null);
 
   void _selectMenu(int index) {
     setState(() {
@@ -272,42 +273,40 @@ class _AppNavigationShellState extends State<AppNavigationShell> {
   }
 
   Widget _animatedContent() {
+    // Pertahankan halaman tab (Laporan, Produk, Transaksi) di memori agar
+    // perpindahan menu Kasir instan (0 ms) tanpa muat ulang dari server.
+    if (selectedMenu > 0 && selectedMenu < _cachedTabs.length) {
+      _cachedTabs[selectedMenu] ??= _buildCachedTab(selectedMenu);
+    }
+
     return ColoredBox(
       color: appPageBackground,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 180),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) =>
-            FadeTransition(opacity: animation, child: child),
-        child: KeyedSubtree(
-          key: ValueKey<int>(selectedMenu),
-          child: _selectedPage(),
-        ),
+      child: IndexedStack(
+        index: selectedMenu,
+        children: [
+          widget.cashierBuilder(context),
+          _cachedTabs[1] ?? const SizedBox.shrink(),
+          _cachedTabs[2] ?? const SizedBox.shrink(),
+          _cachedTabs[3] ?? const SizedBox.shrink(),
+        ],
       ),
     );
   }
 
-  Widget _selectedPage() {
-    switch (selectedMenu) {
-      case 0:
-        return widget.cashierBuilder(context);
-
+  Widget _buildCachedTab(int index) {
+    switch (index) {
       case 1:
         return LaporanPage(namaKasir: widget.namaKasir);
-
       case 2:
         return const ProdukPage();
-
       case 3:
         return PesananBelumSelesaiPage(
           onKeLaporan: () {
             _selectMenu(1);
           },
         );
-
       default:
-        return widget.cashierBuilder(context);
+        return const SizedBox.shrink();
     }
   }
 }
@@ -326,7 +325,7 @@ class AppBottomNavigation extends StatelessWidget {
   final int selectedMenu;
   final ValueChanged<int> onMenuSelected;
 
-  static const labels = ['Kasir', 'Laporan', 'Produk', 'Transaksi', 'Kas'];
+  static const labels = ['Kasir', 'Riwayat', 'Produk', 'Transaksi', 'Kas'];
 
   @override
   Widget build(BuildContext context) {

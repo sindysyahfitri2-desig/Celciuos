@@ -1,6 +1,8 @@
 import 'package:kasir_celcious_coffe/data/api_service.dart';
 
 class DashboardService {
+  static Map<String, dynamic>? cachedData;
+
   Future<Map<String, dynamic>> ambilDashboard() async {
     final now = DateTime.now();
     final todayIso =
@@ -8,7 +10,7 @@ class DashboardService {
     final response = await ApiService.get(
       'transaksi',
       query: {'tanggal': todayIso, 'status_bayar': 'lunas'},
-    ).timeout(const Duration(seconds: 15));
+    ).timeout(const Duration(seconds: 25));
     final rawTransactions = response['data'];
     if (rawTransactions is! List) {
       throw const FormatException(
@@ -68,7 +70,7 @@ class DashboardService {
       }
     }
 
-    return {
+    final result = {
       'ringkasan': {
         'omzet_hari_ini': omzetHariIni,
         'total_transaksi': totalTransaksi,
@@ -84,6 +86,8 @@ class DashboardService {
           {'jam': jam.toString().padLeft(2, '0'), 'total': omzetPerJam[jam]},
       ],
     };
+    cachedData = result;
+    return result;
   }
 
   static double _number(dynamic value) =>

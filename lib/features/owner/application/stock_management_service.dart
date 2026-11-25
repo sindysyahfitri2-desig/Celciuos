@@ -3,13 +3,50 @@ import 'package:kasir_celcious_coffe/data/api_service.dart';
 class StockManagementService {
   StockManagementService._();
 
+  static const Duration _cacheTtl = Duration(seconds: 25);
+  static Map<String, dynamic>? _dashboardCache;
+  static DateTime? _dashboardAt;
+  static final Map<String, List<Map<String, dynamic>>> _bahanCache = {};
+  static final Map<String, DateTime> _bahanAt = {};
+  static final Map<String, List<Map<String, dynamic>>> _resepCache = {};
+  static final Map<String, DateTime> _resepAt = {};
+
+  static bool _isFresh(DateTime? at) =>
+      at != null && DateTime.now().difference(at) < _cacheTtl;
+
+  static void invalidateCache() {
+    _dashboardCache = null;
+    _dashboardAt = null;
+    _bahanCache.clear();
+    _bahanAt.clear();
+    _resepCache.clear();
+    _resepAt.clear();
+  }
+
+  static Future<void> prefetch() async {
+    try {
+      await Future.wait([
+        getDashboard().catchError((_) => <String, dynamic>{}),
+        getBahanBaku().catchError((_) => <Map<String, dynamic>>[]),
+      ]);
+    } catch (_) {}
+  }
+
   // ============================================================
   // DASHBOARD STOK
   // ============================================================
 
-  static Future<Map<String, dynamic>> getDashboard() async {
+  static Future<Map<String, dynamic>> getDashboard({
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh && _dashboardCache != null && _isFresh(_dashboardAt)) {
+      return _dashboardCache!;
+    }
     final res = await ApiService.get('stok/dashboard');
-    return (res['data'] as Map<String, dynamic>?) ?? {};
+    final data = (res['data'] as Map<String, dynamic>?) ?? {};
+    _dashboardCache = data;
+    _dashboardAt = DateTime.now();
+    return data;
   }
 
   // ============================================================
@@ -20,6 +57,7 @@ class StockManagementService {
     String? search,
     String? status,
     String? statusStok,
+    bool forceRefresh = false,
   }) async {
     final query = <String, String>{};
     if (search != null && search.isNotEmpty) query['q'] = search;
@@ -28,10 +66,18 @@ class StockManagementService {
       query['status_stok'] = statusStok;
     }
 
+    final key = '${search ?? ''}|${status ?? ''}|${statusStok ?? ''}';
+    if (!forceRefresh && _bahanCache.containsKey(key) && _isFresh(_bahanAt[key])) {
+      return _bahanCache[key]!;
+    }
+
     final res = await ApiService.get('bahan-baku', query: query);
     final data = res['data'];
     if (data is List) {
-      return data.whereType<Map<String, dynamic>>().toList();
+      final list = data.whereType<Map<String, dynamic>>().toList();
+      _bahanCache[key] = list;
+      _bahanAt[key] = DateTime.now();
+      return list;
     }
     return [];
   }
@@ -59,6 +105,7 @@ class StockManagementService {
       'harga_beli': hargaBeli,
       'status': status,
     });
+    invalidateCache();
     return (res['data'] as Map<String, dynamic>?) ?? {};
   }
 
@@ -81,11 +128,14 @@ class StockManagementService {
     if (status != null) body['status'] = status;
 
     final res = await ApiService.put('bahan-baku/$id', body);
+    invalidateCache();
     return (res['data'] as Map<String, dynamic>?) ?? {};
   }
 
   static Future<Map<String, dynamic>> deleteBahanBaku(int id) async {
-    return await ApiService.delete('bahan-baku/$id');
+    final res = await ApiService.delete('bahan-baku/$id');
+    invalidateCache();
+    return res;
   }
 
   // ============================================================
@@ -112,6 +162,7 @@ class StockManagementService {
       if (catatan != null && catatan.isNotEmpty) 'catatan': catatan,
       'catat_ke_kas': catatKeKas,
     });
+    invalidateCache();
     return (res['data'] as Map<String, dynamic>?) ?? {};
   }
 
@@ -133,6 +184,7 @@ class StockManagementService {
       if (satuan != null) 'satuan': satuan,
       if (catatan != null && catatan.isNotEmpty) 'catatan': catatan,
     });
+    invalidateCache();
     return (res['data'] as Map<String, dynamic>?) ?? {};
   }
 
@@ -195,15 +247,24 @@ class StockManagementService {
   static Future<List<Map<String, dynamic>>> getResepProduk({
     int? idProduk,
     String? search,
+    bool forceRefresh = false,
   }) async {
     final query = <String, String>{};
     if (idProduk != null) query['id_produk'] = idProduk.toString();
     if (search != null && search.isNotEmpty) query['search'] = search;
 
+    final key = '${idProduk ?? ''}|${search ?? ''}';
+    if (!forceRefresh && _resepCache.containsKey(key) && _isFresh(_resepAt[key])) {
+      return _resepCache[key]!;
+    }
+
     final res = await ApiService.get('resep', query: query);
     final data = res['data'];
     if (data is List) {
-      return data.whereType<Map<String, dynamic>>().toList();
+      final list = data.whereType<Map<String, dynamic>>().toList();
+      _resepCache[key] = list;
+      _resepAt[key] = DateTime.now();
+      return list;
     }
     return [];
   }
@@ -216,10 +277,12 @@ class StockManagementService {
       'id_produk': idProduk,
       'items': items,
     });
+    invalidateCache();
     return (res['data'] as Map<String, dynamic>?) ?? {};
   }
 
   static Future<void> hapusResepItem(int idResep) async {
     await ApiService.delete('resep/$idResep');
+    invalidateCache();
   }
 }

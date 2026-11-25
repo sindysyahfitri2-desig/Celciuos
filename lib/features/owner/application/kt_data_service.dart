@@ -1,6 +1,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:kasir_celcious_coffe/data/api_service.dart';
+import 'package:kasir_celcious_coffe/data/produk_data.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 import 'package:kasir_celcious_coffe/features/owner/application/kt_model.dart';
 
@@ -22,14 +23,14 @@ class KtDataService {
 
     return RekapShift(
       tanggal: DateTime(2026, 10, 26),
-      namaShift: 'Sift Sore',
-      rentangJam: '15.00-20.00',
+      namaShift: 'Sift Malam',
+      rentangJam: '18.00-00.00',
       namaKasir: kasir,
       statusShift: 'Balance/Tepat',
       fotoKasirAsset: 'assets/images/kasir.png',
 
       modalAwal: 3500000,
-      serahTerima: '20.00 wib',
+      serahTerima: '18.00 wib',
 
       penjualanTunai: 1000000,
       jumlahTransaksiTunai: 58,
@@ -72,15 +73,70 @@ class KtDataService {
   // DATA ASLI DARI BACKEND API (REAL-TIME OWNER)
   // ==========================================================
 
+  static String? _resolveFotoStafUrl(Map? userMap) {
+    if (userMap == null) return null;
+    final rawFoto = userMap['foto']?.toString().trim();
+    if (rawFoto != null && rawFoto.isNotEmpty) {
+      final fileName = rawFoto.split('/').last.split('\\').last;
+      if (fileName.isNotEmpty) {
+        return '${ApiService.baseUrl}/foto-staf/$fileName';
+      }
+    }
+    final rawFotoUrl = userMap['foto_url']?.toString().trim();
+    if (rawFotoUrl != null && rawFotoUrl.isNotEmpty) {
+      if (rawFotoUrl.contains('/foto-staf/')) {
+        final fileName = rawFotoUrl.split('/').last.split('?').first;
+        if (fileName.isNotEmpty) {
+          return '${ApiService.baseUrl}/foto-staf/$fileName';
+        }
+      }
+      return rawFotoUrl;
+    }
+    return null;
+  }
+
+  static String? _resolveFotoProduk(Map? produkMap, String? fallbackName) {
+    if (produkMap != null) {
+      final raw = produkMap['gambar']?.toString().trim() ?? '';
+      if (raw.isNotEmpty) {
+        if (raw.startsWith('http://') || raw.startsWith('https://')) {
+          return raw;
+        }
+        if (raw.startsWith('assets/')) {
+          return raw;
+        }
+        final fileName = raw.split('/').last.split('\\').last;
+        if (fileName.isNotEmpty) {
+          return '${ApiService.baseUrl}/foto-produk/$fileName';
+        }
+      }
+    }
+    final targetName = (produkMap?['nama_produk']?.toString() ?? fallbackName ?? '')
+        .trim()
+        .toLowerCase();
+    if (targetName.isNotEmpty) {
+      for (final p in ProdukData.produk.value) {
+        final name = (p['name']?.toString() ?? '').trim().toLowerCase();
+        if (name == targetName || name.contains(targetName) || targetName.contains(name)) {
+          final img = p['image']?.toString().trim();
+          if (img != null && img.isNotEmpty) return img;
+        }
+      }
+    }
+    return null;
+  }
+
   static Future<RekapShift?> fetchDariBackend(String namaKasirDefault) async {
     try {
       final results = await Future.wait([
         ApiService.get('shift/aktif').catchError((_) => <String, dynamic>{}),
         ApiService.get('transaksi').catchError((_) => <String, dynamic>{}),
+        ApiService.get('laporan/shift').catchError((_) => <String, dynamic>{}),
+        ApiService.get('kasir-profil').catchError((_) => <String, dynamic>{}),
       ]);
 
       final shiftWrap = results[0]['data'];
-      final shiftMap = (shiftWrap is Map && shiftWrap['shift'] is Map)
+      final shiftAktifMap = (shiftWrap is Map && shiftWrap['shift'] is Map)
           ? Map<String, dynamic>.from(shiftWrap['shift'] as Map)
           : null;
 
@@ -89,32 +145,72 @@ class KtDataService {
           ? trxListRaw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
           : <Map<String, dynamic>>[];
 
+      final daftarShiftRaw = results[2]['data'];
+      final daftarShift = daftarShiftRaw is List
+          ? daftarShiftRaw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+          : <Map<String, dynamic>>[];
+
+      final kasirProfilRaw = results[3]['data'];
+      final kasirProfilList = kasirProfilRaw is List
+          ? kasirProfilRaw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+          : <Map<String, dynamic>>[];
+
+      // Gunakan shift aktif bila sedang buka; jika sudah ditutup/belum buka,
+      // ambil shift terakhir agar profil & foto kasir tetap tampil akurat.
+      final shiftMap = shiftAktifMap ?? (daftarShift.isNotEmpty ? daftarShift.first : null);
+
       if (shiftMap == null && trxList.isEmpty) return null;
 
       final kasir2 = shiftMap?['kasir2'];
       final kasir1 = shiftMap?['kasir1'];
-      final activeKasir = (kasir2 is Map && (kasir2['nama']?.toString().trim().isNotEmpty ?? false))
+      Map? activeKasir = (kasir2 is Map && (kasir2['nama']?.toString().trim().isNotEmpty ?? false))
           ? kasir2
           : (kasir1 is Map ? kasir1 : null);
-      final kasir = (activeKasir != null && (activeKasir['nama']?.toString().trim().isNotEmpty ?? false))
+
+      // Fallback dari transaksi terbaru bila data kasir shift kosong
+      if (activeKasir == null) {
+        for (final t in trxList) {
+          if (t['pengguna'] is Map &&
+              (t['pengguna']['nama']?.toString().trim().isNotEmpty ?? false)) {
+            activeKasir = t['pengguna'] as Map;
+            break;
+          }
+        }
+      }
+
+      String kasir = (activeKasir != null && (activeKasir['nama']?.toString().trim().isNotEmpty ?? false))
           ? activeKasir['nama'].toString()
           : namaKasirDefault;
 
-      String? fotoKasir;
-      final rawFotoUrl = activeKasir?['foto_url']?.toString().trim();
-      final rawFoto = activeKasir?['foto']?.toString().trim();
-      if (rawFoto != null && rawFoto.isNotEmpty) {
-        final fileName = rawFoto.split('/').last.split('\\').last;
-        fotoKasir = '${ApiService.baseUrl}/foto-staf/$fileName';
-      } else if (rawFotoUrl != null && rawFotoUrl.isNotEmpty) {
-        fotoKasir = rawFotoUrl;
+      String? fotoKasir = _resolveFotoStafUrl(activeKasir);
+
+      // Fallback foto dari daftar profil kasir aktif jika activeKasir belum punya foto
+      if (fotoKasir == null && kasirProfilList.isNotEmpty) {
+        final matched = kasirProfilList.cast<Map?>().firstWhere(
+          (p) => (p?['nama']?.toString().trim().toLowerCase() ?? '') == kasir.trim().toLowerCase(),
+          orElse: () => null,
+        );
+        fotoKasir = _resolveFotoStafUrl(matched);
+        if (fotoKasir == null && activeKasir == null) {
+          final firstWithPhoto = kasirProfilList.cast<Map?>().firstWhere(
+            (p) => _resolveFotoStafUrl(p) != null,
+            orElse: () => kasirProfilList.first,
+          );
+          if (firstWithPhoto != null) {
+            fotoKasir = _resolveFotoStafUrl(firstWithPhoto);
+            final namaFallback = firstWithPhoto['nama']?.toString().trim();
+            if (kasir == namaKasirDefault && namaFallback != null && namaFallback.isNotEmpty) {
+              kasir = namaFallback;
+            }
+          }
+        }
       }
 
       final dibuka = DateTime.tryParse(shiftMap?['dibuka_pada']?.toString() ?? '')?.toLocal();
       final modalAwal = double.tryParse(shiftMap?['kas_awal']?.toString() ?? '') ?? 0.0;
 
       // Filter transaksi hari ini (atau shift aktif jika tersedia)
-      final idShiftAktif = shiftMap?['id_shift'];
+      final idShiftAktif = shiftAktifMap?['id_shift'];
       final today = DateTime.now();
       final transaksiRelevan = trxList.where((t) {
         if (idShiftAktif != null) {
@@ -169,11 +265,13 @@ class KtDataService {
         final details = (t['detail_transaksi'] as List? ?? []).whereType<Map>().toList();
         var totalQty = 0;
         String? firstMenu;
+        Map? firstProdukMap;
         for (final d in details) {
           final q = int.tryParse('${d['jumlah'] ?? 1}') ?? 1;
           totalQty += q;
           if (firstMenu == null && d['produk'] is Map) {
-            firstMenu = d['produk']['nama_produk']?.toString();
+            firstProdukMap = d['produk'] as Map;
+            firstMenu = firstProdukMap['nama_produk']?.toString();
           }
         }
         final pelanggan = t['nama_pelanggan']?.toString() ?? '';
@@ -185,6 +283,8 @@ class KtDataService {
             ? t['pengguna']['nama'].toString()
             : kasir;
 
+        final fotoProduk = _resolveFotoProduk(firstProdukMap, firstMenu);
+
         daftar.add(
           TransaksiKasir(
             id: t['kode']?.toString() ?? '#${t['id_transaksi']}',
@@ -193,18 +293,24 @@ class KtDataService {
             totalHarga: total,
             lunas: lunas,
             metodeBayar: isQris ? 'QRIS' : 'Cash',
-            fotoAsset: 'assets/images/kopi.png',
+            fotoAsset: fotoProduk,
+            extraItemCount: details.length > 1 ? details.length - 1 : 0,
           ),
         );
       }
 
-      final sore = (dibuka?.hour ?? today.hour) >= 15;
+      final jamAcuan = dibuka?.hour ?? today.hour;
+      final isShiftMalam = (shiftMap?['id_kasir_2'] != null) || (jamAcuan >= 18 || jamAcuan < 6);
+      final statusShift = shiftAktifMap != null
+          ? 'Berjalan'
+          : (shiftMap != null ? 'Selesai' : 'Tidak Aktif');
+
       return RekapShift(
         tanggal: dibuka ?? today,
-        namaShift: sore ? 'Sift Sore' : 'Sift Pagi',
-        rentangJam: sore ? '15.00-20.00' : '05.00-15.00',
+        namaShift: isShiftMalam ? 'Sift Malam' : 'Sift Pagi',
+        rentangJam: isShiftMalam ? '18.00-00.00' : '11.00-17.00',
         namaKasir: kasir,
-        statusShift: shiftMap == null ? 'Tidak Aktif' : 'Berjalan',
+        statusShift: statusShift,
         fotoKasirAsset: fotoKasir,
         modalAwal: modalAwal,
         serahTerima: dibuka == null ? '-' : '${formatJam(dibuka)} wib',
@@ -323,12 +429,13 @@ class KtDataService {
       );
     }
 
-    final sore = (dibuka?.hour ?? 0) >= 15;
+    final jamAcuan = dibuka?.hour ?? DateTime.now().hour;
+    final isShiftMalam = jamAcuan >= 18 || jamAcuan < 6;
 
     return RekapShift(
       tanggal: dibuka ?? DateTime.now(),
-      namaShift: sore ? 'Sift Sore' : 'Sift Pagi',
-      rentangJam: sore ? '15.00-20.00' : '05.00-15.00',
+      namaShift: isShiftMalam ? 'Sift Malam' : 'Sift Pagi',
+      rentangJam: isShiftMalam ? '18.00-00.00' : '11.00-17.00',
       namaKasir: kasir,
       statusShift: shift == null ? 'Tidak Aktif' : 'Berjalan',
       fotoKasirAsset: 'assets/images/kasir.png',

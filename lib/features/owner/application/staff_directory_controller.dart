@@ -36,6 +36,33 @@ class Staff {
 }
 
 class StaffDirectoryController extends ChangeNotifier {
+  static List<Staff>? _cachedActive;
+  static List<Staff>? _cachedInactive;
+
+  StaffDirectoryController() {
+    if (_cachedActive != null) {
+      staff = List<Staff>.from(_cachedActive!);
+    }
+  }
+
+  static Future<void> prefetch() async {
+    try {
+      final res = await ApiService.get(
+        'pengguna',
+        query: {'role': 'kasir', 'status': 'aktif'},
+      );
+      if (res['data'] is List) {
+        _cachedActive = (res['data'] as List)
+            .map(
+              (item) => Staff.fromJson(
+                Map<String, dynamic>.from(item as Map),
+              ),
+            )
+            .toList();
+      }
+    } catch (_) {}
+  }
+
   List<Staff> staff = [];
 
   String searchQuery = '';
@@ -62,17 +89,24 @@ class StaffDirectoryController extends ChangeNotifier {
     if (showInactive == value) return;
 
     showInactive = value;
-    staff = [];
+    final cached = value ? _cachedInactive : _cachedActive;
+    staff = cached != null ? List<Staff>.from(cached) : [];
     notifyListeners();
     fetchStaff();
   }
 
   Future<void> fetchStaff() async {
     final requestedInactive = showInactive;
+    final cached = requestedInactive ? _cachedInactive : _cachedActive;
+    final hasCached = cached != null && cached.isNotEmpty;
 
-    isLoading = true;
-    errorMessage = null;
-    notifyListeners();
+    if (!hasCached) {
+      isLoading = true;
+      errorMessage = null;
+      notifyListeners();
+    } else {
+      errorMessage = null;
+    }
 
     try {
       final res = await ApiService.get(
@@ -86,13 +120,19 @@ class StaffDirectoryController extends ChangeNotifier {
       if (requestedInactive != showInactive) return;
 
       if (res['data'] is List) {
-        staff = (res['data'] as List)
+        final loaded = (res['data'] as List)
             .map(
               (item) => Staff.fromJson(
                 Map<String, dynamic>.from(item as Map),
               ),
             )
             .toList();
+        staff = loaded;
+        if (requestedInactive) {
+          _cachedInactive = List<Staff>.from(loaded);
+        } else {
+          _cachedActive = List<Staff>.from(loaded);
+        }
       }
     } catch (e) {
       errorMessage = e.toString().replaceAll('Exception: ', '');

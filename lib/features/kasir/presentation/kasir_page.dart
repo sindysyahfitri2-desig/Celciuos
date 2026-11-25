@@ -5,6 +5,7 @@ import 'package:kasir_celcious_coffe/data/produk_data.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 import 'package:kasir_celcious_coffe/features/kasir/application/cashier_cart_controller.dart';
 import 'package:kasir_celcious_coffe/features/kasir/application/cashier_shift_service.dart';
+import 'package:kasir_celcious_coffe/features/reports/application/report_service.dart';
 import 'package:kasir_celcious_coffe/ui/pages/home_page.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/Navigation.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
@@ -441,6 +442,13 @@ class _kasirPageState extends State<kasirPage> {
     });
     ProdukData.loadFromApi();
     TransactionStore.syncStoreRates();
+    // Pre-warm laporan setelah layar Kasir stabil agar tidak membebani antrean awal
+    Future.delayed(const Duration(milliseconds: 2200), () {
+      if (!mounted) return;
+      ReportService.prefetchCurrentMonth(
+        cashierFallback: namaKasir.isEmpty ? 'Kasir' : namaKasir,
+      );
+    });
     _produkSyncTimer = Timer.periodic(
       const Duration(seconds: 45),
       (_) {

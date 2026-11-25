@@ -115,6 +115,9 @@ class LaporanPreviewData {
     this.totalNonTunai,
     this.totalTransaksi,
     this.rows = const [],
+    this.drawerRows = const [],
+    this.openingCash = 0,
+    this.currentCash = 0,
     this.pendapatanItems = const [],
     this.bebanItems = const [],
     this.pajakPersen = 0,
@@ -135,6 +138,9 @@ class LaporanPreviewData {
   final int? totalTransaksi;
 
   final List<LaporanPreviewRow> rows;
+  final List<Map<String, String>> drawerRows;
+  final num openingCash;
+  final num currentCash;
   final List<LaporanNominalItem> pendapatanItems;
   final List<LaporanNominalItem> bebanItems;
   final double pajakPersen;
@@ -282,6 +288,54 @@ ComputedFinancialReport _computeReport({
   );
 }
 
+CelciousCashDrawerReportData _computeCashDrawerReport({
+  required LaporanPreviewData? data,
+  required String tanggalLaporan,
+}) {
+  final now = DateTime.now();
+  final periodDateText = tanggalLaporan.trim().isEmpty
+      ? CelciousReportExport.formatTanggalIndonesia(now)
+      : tanggalLaporan.trim();
+
+  final base = CelciousReportExport.buildCashDrawerDataFromMaps(
+    rows: data?.drawerRows ?? const <Map<String, String>>[],
+    periodDateText: periodDateText,
+    openingCash: data?.openingCash ?? 0,
+    currentCash: data?.currentCash ?? 0,
+    ownerName: data?.namaOwner,
+  );
+
+  return CelciousCashDrawerReportData(
+    storeName: kCelciousStoreName,
+    address: (data?.alamatToko.trim().isNotEmpty == true)
+        ? data!.alamatToko.trim()
+        : kCelciousAddress,
+    contactLine: (data?.kontakToko.trim().isNotEmpty == true)
+        ? data!.kontakToko.trim()
+        : kCelciousContact,
+    reportTitle: 'LAPORAN KAS LACI CELCIOUS COFFEE',
+    periodDateText: periodDateText,
+    openingCash: base.openingCash,
+    currentCash: base.currentCash,
+    siangRows: base.siangRows,
+    malamRows: base.malamRows,
+    totalSiang: base.totalSiang,
+    totalMalam: base.totalMalam,
+    kasirSiang: CelciousReportExport.resolveCashierName(
+      base.siangRows.map((e) => e.namaKasir),
+      explicit: data?.namaKasirSiang,
+      fallback: kCelciousDefaultKasirSiang,
+    ),
+    kasirMalam: CelciousReportExport.resolveCashierName(
+      base.malamRows.map((e) => e.namaKasir),
+      explicit: data?.namaKasirMalam,
+      fallback: kCelciousDefaultKasirMalam,
+    ),
+    ownerName: base.ownerName,
+    locationDate: 'Langkat, $periodDateText',
+  );
+}
+
 // ============================================================
 // HALAMAN KELOLA LAPORAN (ADMIN / OWNER)
 // ============================================================
@@ -310,6 +364,9 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
   bool _userPickedDate = false;
   bool _loadingRemote = false;
   List<LaporanPreviewRow>? _remoteRows;
+  List<Map<String, String>>? _remoteDrawerRows;
+  num _remoteOpeningCash = 0;
+  num _remoteCurrentCash = 0;
 
   @override
   void initState() {
@@ -328,6 +385,7 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
         widget.tanggalLaporan != oldWidget.tanggalLaporan) {
       _userPickedDate = false;
       _remoteRows = null;
+      _remoteDrawerRows = null;
     }
   }
 
@@ -374,6 +432,9 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
       if (mounted) {
         setState(() {
           _remoteRows = fetched;
+          _remoteDrawerRows = snapshot.drawerRows;
+          _remoteOpeningCash = snapshot.openingCash;
+          _remoteCurrentCash = snapshot.currentCash;
           _loadingRemote = false;
         });
       }
@@ -397,6 +458,9 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
     final base = widget.previewData;
     return LaporanPreviewData(
       rows: _remoteRows!,
+      drawerRows: _remoteDrawerRows ?? base?.drawerRows ?? const [],
+      openingCash: _remoteOpeningCash,
+      currentCash: _remoteCurrentCash,
       namaKasir: base?.namaKasir ?? 'Kasir',
       namaKasirSiang: base?.namaKasirSiang,
       namaKasirMalam: base?.namaKasirMalam,
@@ -414,7 +478,13 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
     tanggalLaporan: _activeTanggalText,
   );
 
-  bool get _isMatch {
+  CelciousCashDrawerReportData get _cashDrawerReport =>
+      _computeCashDrawerReport(
+        data: _effectivePreviewData,
+        tanggalLaporan: _activeTanggalText,
+      );
+
+  bool get _isTransaksiMatch {
     final keyword = _searchController.text.trim().toLowerCase();
     if (keyword.isEmpty) return true;
     final r = _report;
@@ -423,6 +493,19 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
         r.kasirSiang.toLowerCase().contains(keyword) ||
         r.kasirMalam.toLowerCase().contains(keyword) ||
         'transaksi'.contains(keyword) ||
+        'celcious'.contains(keyword);
+  }
+
+  bool get _isKasLaciMatch {
+    final keyword = _searchController.text.trim().toLowerCase();
+    if (keyword.isEmpty) return true;
+    final r = _cashDrawerReport;
+    return r.reportTitle.toLowerCase().contains(keyword) ||
+        r.periodDateText.toLowerCase().contains(keyword) ||
+        r.kasirSiang.toLowerCase().contains(keyword) ||
+        r.kasirMalam.toLowerCase().contains(keyword) ||
+        'kas laci'.contains(keyword) ||
+        'laci'.contains(keyword) ||
         'celcious'.contains(keyword);
   }
 
@@ -438,6 +521,7 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
       _selectedDate = picked;
       _userPickedDate = true;
       _remoteRows = null;
+      _remoteDrawerRows = null;
     });
     await _syncFromBackend();
   }
@@ -454,9 +538,23 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
     );
   }
 
+  void _openCashDrawerPreview() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LaporanKasLaciPreviewPage(
+          report: _cashDrawerReport,
+          judul: _cashDrawerReport.reportTitle,
+          onExported: widget.onDownload,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final report = _report;
+    final cashDrawerReport = _cashDrawerReport;
+    final hasAnyMatch = _isTransaksiMatch || _isKasLaciMatch;
 
     return SizedBox.expand(
       child: ColoredBox(
@@ -467,6 +565,11 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
             final isPhone = width < 600;
             final isTablet = width >= 600 && width < 1024;
             final pad = isPhone ? 16.0 : (isTablet ? 24.0 : 30.0);
+            final cardWidth = isPhone
+                ? ((width - pad * 2 - 14) / 2).clamp(150.0, 210.0)
+                : isTablet
+                    ? 210.0
+                    : 226.0;
 
             return SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
@@ -518,18 +621,24 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
                     ),
                   ],
                   SizedBox(height: isPhone ? 18 : 24),
-                  if (_isMatch)
-                    Align(
-                      alignment: Alignment.topLeft,
-                      child: _ReportDocumentCard(
-                        report: report,
-                        cardWidth: isPhone
-                            ? 188.0
-                            : isTablet
-                                ? 210.0
-                                : 226.0,
-                        onTap: _openPreview,
-                      ),
+                  if (hasAnyMatch)
+                    Wrap(
+                      spacing: isPhone ? 14 : 20,
+                      runSpacing: isPhone ? 14 : 20,
+                      children: [
+                        if (_isTransaksiMatch)
+                          _ReportDocumentCard(
+                            report: report,
+                            cardWidth: cardWidth,
+                            onTap: _openPreview,
+                          ),
+                        if (_isKasLaciMatch)
+                          _CashDrawerDocumentCard(
+                            report: cashDrawerReport,
+                            cardWidth: cardWidth,
+                            onTap: _openCashDrawerPreview,
+                          ),
+                      ],
                     )
                   else
                     Container(
@@ -939,11 +1048,11 @@ class _FinancialReportDocument extends StatelessWidget {
           const SizedBox(height: 18),
 
           // --------------------------------------------------
-          // 1. SIFT SIANG
+          // 1. SIFT PAGI (SHIFT 1)
           // --------------------------------------------------
           _ShiftReportTable(
             title:
-                '1. Sift Siang ( Pukul 11:00 - 16:00 ) : ${report.kasirSiang}',
+                '1. Sift Pagi ( Pukul 11:00 - 17:00 ) : ${report.kasirSiang}',
             rows: thumbnailPreview
                 ? report.siangRows.take(5).toList()
                 : report.siangRows,
@@ -954,11 +1063,11 @@ class _FinancialReportDocument extends StatelessWidget {
           const SizedBox(height: 20),
 
           // --------------------------------------------------
-          // 2. SIFT MALAM
+          // 2. SIFT MALAM (SHIFT 2)
           // --------------------------------------------------
           _ShiftReportTable(
             title:
-                '2. Sift Malam ( Pukul 16:00 - 00:00 ) : ${report.kasirMalam}',
+                '2. Sift Malam ( Pukul 18:00 - 00:00 ) : ${report.kasirMalam}',
             rows: thumbnailPreview
                 ? report.malamRows.take(5).toList()
                 : report.malamRows,
@@ -996,7 +1105,7 @@ class _FinancialReportDocument extends StatelessWidget {
           Row(
             children: [
               _signatureColumn('(${report.ownerName})', 'Owner'),
-              _signatureColumn('(${report.kasirSiang})', 'Kasir Siang'),
+              _signatureColumn('(${report.kasirSiang})', 'Kasir Pagi'),
               _signatureColumn('(${report.kasirMalam})', 'Kasir Malam'),
             ],
           ),
@@ -1407,6 +1516,804 @@ class _LaporanDocumentPreviewPageState
                         ),
                       )
                     : _FinancialReportDocument(report: widget.report),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+
+// ============================================================
+// KARTU PRATINJAU DOKUMEN LAPORAN KAS LACI (OWNER)
+// ============================================================
+
+class _CashDrawerDocumentCard extends StatefulWidget {
+  const _CashDrawerDocumentCard({
+    required this.report,
+    required this.cardWidth,
+    required this.onTap,
+  });
+
+  final CelciousCashDrawerReportData report;
+  final double cardWidth;
+  final VoidCallback onTap;
+
+  @override
+  State<_CashDrawerDocumentCard> createState() =>
+      _CashDrawerDocumentCardState();
+}
+
+class _CashDrawerDocumentCardState extends State<_CashDrawerDocumentCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(0, _hovered ? -4 : 0, 0),
+        width: widget.cardWidth,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _hovered
+                ? _navy.withValues(alpha: 0.35)
+                : const Color(0xFFD1DEE9),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _navy.withValues(alpha: _hovered ? 0.22 : 0.12),
+              blurRadius: _hovered ? 18 : 10,
+              offset: Offset(0, _hovered ? 8 : 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: widget.onTap,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(7, 7, 7, 6),
+                  child: AspectRatio(
+                    aspectRatio: 0.72,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFD9E2EC)),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: IgnorePointer(
+                        child: FittedBox(
+                          fit: BoxFit.fitWidth,
+                          alignment: Alignment.topCenter,
+                          clipBehavior: Clip.hardEdge,
+                          child: SizedBox(
+                            width: 660,
+                            child: _CashDrawerReportDocument(
+                              report: widget.report,
+                              thumbnailPreview: true,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(9, 7, 9, 9),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEAF3FB),
+                    borderRadius: BorderRadius.vertical(
+                      bottom: Radius.circular(15),
+                    ),
+                    border: Border(
+                      top: BorderSide(color: Color(0xFFCDE0F0)),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A5B82),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.point_of_sale_rounded,
+                          color: Colors.white,
+                          size: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.report.reportTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: _navy,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              'Periode ${widget.report.periodDateText}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: _muted,
+                                fontSize: 8.8,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.open_in_new_rounded,
+                        color: _navy,
+                        size: 13,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// KOMPONEN DOKUMEN LAPORAN KAS LACI PER SHIFT (BERLOGO)
+// ============================================================
+
+class _CashDrawerReportDocument extends StatelessWidget {
+  const _CashDrawerReportDocument({
+    required this.report,
+    this.thumbnailPreview = false,
+  });
+
+  final CelciousCashDrawerReportData report;
+  final bool thumbnailPreview;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(30, 26, 30, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: const BoxDecoration(
+                  color: _logoBlue,
+                  shape: BoxShape.circle,
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: const AppBrandingLogo(
+                  height: 60,
+                  fit: BoxFit.cover,
+                  fallbackIcon: Icons.local_cafe_rounded,
+                  fallbackIconSize: 28,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      report.storeName,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: _navy,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      report.address,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: _muted,
+                        fontSize: 10.5,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      report.contactLine,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: _muted,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 74),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+          Container(height: 2, color: _navy),
+          const SizedBox(height: 14),
+
+          Text(
+            report.reportTitle,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: _navy,
+              fontSize: 14.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Periode ${report.periodDateText}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF334B61),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // Ringkasan Kas Awal & Kas Saat Ini
+          Row(
+            children: [
+              Expanded(
+                child: _cashSummaryBox(
+                  'Kas Awal Shift',
+                  CelciousReportExport.formatRupiah(report.openingCash),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _cashSummaryBox(
+                  'Kas Saat Ini (Sistem)',
+                  CelciousReportExport.formatRupiah(report.currentCash),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          _CashDrawerShiftTable(
+            title:
+                '1. Sift Pagi ( Pukul 11:00 - 17:00 ) : ${report.kasirSiang}',
+            rows: thumbnailPreview
+                ? report.siangRows.take(5).toList()
+                : report.siangRows,
+            totalAmount: report.totalSiang,
+            placeholderRows: thumbnailPreview ? 4 : 5,
+          ),
+
+          const SizedBox(height: 20),
+
+          _CashDrawerShiftTable(
+            title:
+                '2. Sift Malam ( Pukul 18:00 - 00:00 ) : ${report.kasirMalam}',
+            rows: thumbnailPreview
+                ? report.malamRows.take(5).toList()
+                : report.malamRows,
+            totalAmount: report.totalMalam,
+            placeholderRows: thumbnailPreview ? 4 : 5,
+          ),
+
+          const SizedBox(height: 36),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Mengetahui :',
+                style: TextStyle(
+                  color: _navy,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                report.locationDate,
+                style: const TextStyle(
+                  color: _navy,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 52),
+          Row(
+            children: [
+              _signatureColumn('(${report.ownerName})', 'Owner'),
+              _signatureColumn('(${report.kasirSiang})', 'Kasir Pagi'),
+              _signatureColumn('(${report.kasirMalam})', 'Kasir Malam'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cashSummaryBox(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: _subtotalBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFC5D7E8)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: _muted,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: _navy,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w900,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _signatureColumn(String name, String role) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            name,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: _navy,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            role,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: _muted,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CashDrawerShiftTable extends StatelessWidget {
+  const _CashDrawerShiftTable({
+    required this.title,
+    required this.rows,
+    required this.totalAmount,
+    this.placeholderRows = 5,
+  });
+
+  final String title;
+  final List<CelciousCashDrawerShiftRow> rows;
+  final num totalAmount;
+  final int placeholderRows;
+
+  @override
+  Widget build(BuildContext context) {
+    final emptyZero = rows.isEmpty && totalAmount == 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: _navy,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Table(
+          border: TableBorder.all(color: _tableBorder, width: 0.9),
+          columnWidths: const {
+            0: FixedColumnWidth(36),
+            1: FixedColumnWidth(76),
+            2: FixedColumnWidth(54),
+            3: FlexColumnWidth(1.6),
+            4: FlexColumnWidth(2.4),
+            5: FlexColumnWidth(1.8),
+          },
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          children: [
+            TableRow(
+              decoration: const BoxDecoration(color: _navyBar),
+              children: [
+                for (final label in const [
+                  'No',
+                  'Tanggal',
+                  'Jam',
+                  'Nama Kasir',
+                  'Keterangan',
+                  'Nominal',
+                ])
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10.2,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            if (rows.isEmpty)
+              for (var i = 0; i < placeholderRows; i++)
+                TableRow(
+                  children: [
+                    for (var c = 0; c < 6; c++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 8,
+                        ),
+                        child: Text(
+                          c == 5 ? 'Rp.' : '',
+                          style: const TextStyle(
+                            color: _muted,
+                            fontSize: 10.5,
+                          ),
+                        ),
+                      ),
+                  ],
+                )
+            else
+              for (final item in rows)
+                TableRow(
+                  children: [
+                    _cell('${item.no}', align: TextAlign.center),
+                    _cell(item.tanggal, align: TextAlign.center),
+                    _cell(item.jam, align: TextAlign.center),
+                    _cell(item.namaKasir),
+                    _cell(item.keterangan),
+                    _cell(
+                      item.nominalText,
+                      align: TextAlign.right,
+                      bold: true,
+                      color: item.jenis == 'keluar'
+                          ? const Color(0xFFC0392B)
+                          : const Color(0xFF007A51),
+                    ),
+                  ],
+                ),
+            TableRow(
+              decoration: const BoxDecoration(color: _subtotalBg),
+              children: [
+                _cell('Total', align: TextAlign.center, bold: true),
+                const SizedBox.shrink(),
+                const SizedBox.shrink(),
+                const SizedBox.shrink(),
+                const SizedBox.shrink(),
+                _cell(
+                  emptyZero
+                      ? 'Rp.'
+                      : CelciousReportExport.formatRupiah(totalAmount),
+                  align: emptyZero ? TextAlign.left : TextAlign.right,
+                  bold: true,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _cell(
+    String text, {
+    TextAlign align = TextAlign.left,
+    bool bold = false,
+    Color? color,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 8),
+      child: Text(
+        text,
+        textAlign: align,
+        style: TextStyle(
+          color: color ?? (bold ? _navy : const Color(0xFF1D3247)),
+          fontSize: 10.3,
+          fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// HALAMAN PRATINJAU DOKUMEN LAPORAN KAS LACI (OWNER)
+// ============================================================
+
+class LaporanKasLaciPreviewPage extends StatefulWidget {
+  const LaporanKasLaciPreviewPage({
+    super.key,
+    required this.report,
+    required this.judul,
+    this.onExported,
+  });
+
+  final CelciousCashDrawerReportData report;
+  final String judul;
+  final VoidCallback? onExported;
+
+  @override
+  State<LaporanKasLaciPreviewPage> createState() =>
+      _LaporanKasLaciPreviewPageState();
+}
+
+class _LaporanKasLaciPreviewPageState extends State<LaporanKasLaciPreviewPage> {
+  bool _exportingPdf = false;
+  bool _exportingExcel = false;
+
+  Future<void> _exportPdf() async {
+    if (_exportingPdf) return;
+    setState(() => _exportingPdf = true);
+    try {
+      final logoBytes = await CelciousReportExport.loadBrandLogoBytes();
+      final bytes = await CelciousReportExport.buildCashDrawerReportPdf(
+        widget.report,
+        logoBytes: logoBytes,
+      );
+      await _saveExportFile(
+        name: _safeFileName(widget.judul, widget.report.periodDateText),
+        bytes: bytes,
+        fileExtension: 'pdf',
+        mimeType: MimeType.pdf,
+      );
+      widget.onExported?.call();
+      _snack('Laporan Kas Laci PDF berhasil diunduh.');
+    } catch (e) {
+      _snack('Gagal mengunduh PDF: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _exportingPdf = false);
+    }
+  }
+
+  Future<void> _exportExcel() async {
+    if (_exportingExcel) return;
+    setState(() => _exportingExcel = true);
+    try {
+      final logoBytes = await CelciousReportExport.loadBrandLogoBytes();
+      final bytes = CelciousReportExport.buildCashDrawerReportExcel(
+        widget.report,
+        logoBytes: logoBytes,
+      );
+      await _saveExportFile(
+        name: _safeFileName(widget.judul, widget.report.periodDateText),
+        bytes: bytes,
+        fileExtension: 'xlsx',
+        mimeType: MimeType.microsoftExcel,
+      );
+      widget.onExported?.call();
+      _snack('Laporan Kas Laci Excel (.xlsx) berhasil diunduh.');
+    } catch (e) {
+      _snack('Gagal mengunduh Excel: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _exportingExcel = false);
+    }
+  }
+
+  void _snack(String msg, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: error ? Colors.redAccent : _navy,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenW = MediaQuery.sizeOf(context).width;
+    final isPhone = screenW < 600;
+
+    return Scaffold(
+      backgroundColor: _pageBg,
+      appBar: AppBar(
+        backgroundColor: _navy,
+        foregroundColor: Colors.white,
+        elevation: 2,
+        titleSpacing: 4,
+        title: Text(
+          widget.report.reportTitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: isPhone ? 13 : 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        actions: [
+          if (isPhone) ...[
+            IconButton(
+              tooltip: 'Unduh PDF',
+              onPressed: _exportingPdf ? null : _exportPdf,
+              icon: _exportingPdf
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.picture_as_pdf_rounded),
+            ),
+            IconButton(
+              tooltip: 'Unduh Excel',
+              onPressed: _exportingExcel ? null : _exportExcel,
+              icon: _exportingExcel
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.table_chart_rounded),
+            ),
+          ] else ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: FilledButton.icon(
+                onPressed: _exportingPdf ? null : _exportPdf,
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: _navy,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                icon: _exportingPdf
+                    ? const SizedBox(
+                        width: 15,
+                        height: 15,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.picture_as_pdf_rounded, size: 17),
+                label: const Text(
+                  'Unduh PDF',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: FilledButton.icon(
+                onPressed: _exportingExcel ? null : _exportExcel,
+                style: FilledButton.styleFrom(
+                  backgroundColor: _lightBlueBtn,
+                  foregroundColor: _navy,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                icon: _exportingExcel
+                    ? const SizedBox(
+                        width: 15,
+                        height: 15,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _navy,
+                        ),
+                      )
+                    : const Icon(Icons.table_chart_rounded, size: 17),
+                label: const Text(
+                  'Unduh Excel',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+          ],
+        ],
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final pad = isPhone ? 12.0 : 28.0;
+          final availableW = (constraints.maxWidth - pad * 2).clamp(260.0, 760.0);
+
+          return SingleChildScrollView(
+            padding: EdgeInsets.all(pad),
+            child: Center(
+              child: Container(
+                width: availableW,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFFCCD9E6)),
+                  boxShadow: _kCardShadow,
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: availableW < 600
+                    ? FittedBox(
+                        fit: BoxFit.fitWidth,
+                        alignment: Alignment.topCenter,
+                        child: SizedBox(
+                          width: 660,
+                          child: _CashDrawerReportDocument(
+                            report: widget.report,
+                          ),
+                        ),
+                      )
+                    : _CashDrawerReportDocument(report: widget.report),
               ),
             ),
           );

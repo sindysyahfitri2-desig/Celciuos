@@ -206,9 +206,9 @@ class CelciousReportExport {
   static bool isShiftMalam({String? jam, String? tanggal}) {
     final hour = extractHour(jam, tanggal);
     if (hour == null) return false;
-    // Sift Siang: 11:00 - 16:00 (< 16:00 masuk siang agar tidak hilang)
-    // Sift Malam: 16:00 - 00:00 (dan dini hari < 06:00 masuk malam)
-    return hour >= 16 || hour < 6;
+    // Sift Pagi (Shift 1): 11:00 - 17:00 (< 18:00 masuk shift 1 agar tidak hilang)
+    // Sift Malam (Shift 2): 18:00 - 00:00 (dan dini hari < 06:00 masuk malam)
+    return hour >= 18 || hour < 6;
   }
 
   static String resolveOwnerName(String? raw) {
@@ -634,7 +634,7 @@ class CelciousReportExport {
     // 1. Sift Siang
     row = writeShiftTable(
       row,
-      shiftTitle: '1. Sift Siang ( Pukul 11:00 - 16:00 ) : ${r.kasirSiang}',
+      shiftTitle: '1. Sift Pagi ( Pukul 11:00 - 17:00 ) : ${r.kasirSiang}',
       rows: r.siangRows,
       totalAmount: r.totalSiang,
     );
@@ -643,7 +643,7 @@ class CelciousReportExport {
     // 2. Sift Malam
     row = writeShiftTable(
       row,
-      shiftTitle: '2. Sift Malam ( Pukul 16:00 - 00:00 ) : ${r.kasirMalam}',
+      shiftTitle: '2. Sift Malam ( Pukul 18:00 - 00:00 ) : ${r.kasirMalam}',
       rows: r.malamRows,
       totalAmount: r.totalMalam,
     );
@@ -674,7 +674,7 @@ class CelciousReportExport {
     row++;
 
     writeMerged(row, 0, 1, 'Owner', size: 10);
-    writeMerged(row, 2, 3, 'Kasir Siang', size: 10);
+    writeMerged(row, 2, 3, 'Kasir Pagi', size: 10);
     writeMerged(row, 4, 5, 'Kasir Malam', size: 10);
 
     sheet.setRowHeight(0, 24);
@@ -931,7 +931,7 @@ class CelciousReportExport {
     // 1. Sift Siang
     row = writeShiftTable(
       row,
-      shiftTitle: '1. Sift Siang ( Pukul 11:00 - 16:00 ) : ${r.kasirSiang}',
+      shiftTitle: '1. Sift Pagi ( Pukul 11:00 - 17:00 ) : ${r.kasirSiang}',
       rows: r.siangRows,
       totalAmount: r.totalSiang,
     );
@@ -940,7 +940,7 @@ class CelciousReportExport {
     // 2. Sift Malam
     row = writeShiftTable(
       row,
-      shiftTitle: '2. Sift Malam ( Pukul 16:00 - 00:00 ) : ${r.kasirMalam}',
+      shiftTitle: '2. Sift Malam ( Pukul 18:00 - 00:00 ) : ${r.kasirMalam}',
       rows: r.malamRows,
       totalAmount: r.totalMalam,
     );
@@ -971,7 +971,7 @@ class CelciousReportExport {
     row++;
 
     writeMerged(row, 0, 1, 'Owner', size: 10);
-    writeMerged(row, 2, 3, 'Kasir Siang', size: 10);
+    writeMerged(row, 2, 3, 'Kasir Pagi', size: 10);
     writeMerged(row, 4, 5, 'Kasir Malam', size: 10);
 
     sheet.setRowHeight(0, 24);
@@ -1253,13 +1253,13 @@ class CelciousReportExport {
           ),
           pw.SizedBox(height: 14),
           buildShiftPdfTable(
-            title: '1. Sift Siang ( Pukul 11:00 - 16:00 ) : ${r.kasirSiang}',
+            title: '1. Sift Pagi ( Pukul 11:00 - 17:00 ) : ${r.kasirSiang}',
             rows: r.siangRows,
             total: r.totalSiang,
           ),
           pw.SizedBox(height: 16),
           buildShiftPdfTable(
-            title: '2. Sift Malam ( Pukul 16:00 - 00:00 ) : ${r.kasirMalam}',
+            title: '2. Sift Malam ( Pukul 18:00 - 00:00 ) : ${r.kasirMalam}',
             rows: r.malamRows,
             total: r.totalMalam,
           ),
@@ -1567,13 +1567,13 @@ class CelciousReportExport {
           ),
           pw.SizedBox(height: 14),
           buildShiftPdfTable(
-            title: '1. Sift Siang ( Pukul 11:00 - 16:00 ) : ${r.kasirSiang}',
+            title: '1. Sift Pagi ( Pukul 11:00 - 17:00 ) : ${r.kasirSiang}',
             rows: r.siangRows,
             total: r.totalSiang,
           ),
           pw.SizedBox(height: 16),
           buildShiftPdfTable(
-            title: '2. Sift Malam ( Pukul 16:00 - 00:00 ) : ${r.kasirMalam}',
+            title: '2. Sift Malam ( Pukul 18:00 - 00:00 ) : ${r.kasirMalam}',
             rows: r.malamRows,
             total: r.totalMalam,
           ),
@@ -1710,7 +1710,7 @@ class CelciousReportExport {
           children: [
             for (final sig in [
               ('($ownerName)', 'Owner'),
-              ('($kasirSiang)', 'Kasir Siang'),
+              ('($kasirSiang)', 'Kasir Pagi'),
               ('($kasirMalam)', 'Kasir Malam'),
             ])
               pw.Expanded(

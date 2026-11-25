@@ -63,6 +63,8 @@ class _DashboardOwnerState extends State<DashboardOwner> {
   final Set<String> _readNotificationIds = {};
   Timer? _notifTimer;
   bool _loadingNotif = false;
+  final List<Widget?> _cachedPages = List<Widget?>.filled(7, null);
+  int _cachedPengaturanReqId = -1;
 
   static const menuTitles = [
     'Dashboard',
@@ -81,7 +83,11 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     OwnerProfileStore.ownerName.addListener(_onOwnerProfileChanged);
     OwnerProfileStore.photoBytes.addListener(_onOwnerProfileChanged);
     OwnerProfileStore.photoUrl.addListener(_onOwnerProfileChanged);
-    _muatNotifikasi();
+    // Tunda muat notifikasi 1.5 detik agar Dashboard utama selesai lebih dulu
+    // tanpa berebut antrean dengan server PHP lokal.
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) _muatNotifikasi();
+    });
     _notifTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       if (mounted) _muatNotifikasi();
     });
@@ -115,359 +121,433 @@ class _DashboardOwnerState extends State<DashboardOwner> {
   }
 
   Future<void> _bukaPanelNotifikasi() async {
-    await _muatNotifikasi();
     if (!mounted) return;
 
     OwnerNotifType? filter;
+    bool refreshing = false;
+    bool modalOpen = true;
+    StateSetter? activeModalSetter;
 
-    await showDialog<void>(
-      context: context,
-      builder: (dialogCtx) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final filtered = filter == null
-                ? _notifications
-                : _notifications.where((n) => n.type == filter).toList();
+    Future<void> refreshInBackground() async {
+      if (refreshing) return;
+      refreshing = true;
+      if (modalOpen) activeModalSetter?.call(() {});
+      await _muatNotifikasi();
+      refreshing = false;
+      if (modalOpen) activeModalSetter?.call(() {});
+    }
 
-            Widget chipFilter(String label, OwnerNotifType? value) {
-              final active = filter == value;
-              return InkWell(
-                onTap: () => setModalState(() => filter = value),
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: active ? ownerNavy : const Color(0xFFEAF2F8),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      color: active ? Colors.white : ownerNavy,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              );
-            }
+    // Buka panel INSTAN dengan data yang sudah tersedia, sambil refresh di latar belakang
+    refreshInBackground();
 
-            IconData iconFor(OwnerNotifType type) => switch (type) {
-              OwnerNotifType.stok => Icons.inventory_2_rounded,
-              OwnerNotifType.shift => Icons.point_of_sale_rounded,
-              OwnerNotifType.order => Icons.receipt_long_rounded,
-            };
+    final isPhone = MediaQuery.sizeOf(context).width < 600;
 
-            Color colorFor(OwnerNotificationItem item) {
-              if (item.type == OwnerNotifType.stok) {
-                return item.title.startsWith('Stok Habis')
-                    ? const Color(0xFFDC2626)
-                    : const Color(0xFFD97706);
-              }
-              if (item.type == OwnerNotifType.shift) {
-                return item.isUrgent
-                    ? const Color(0xFFD97706)
-                    : const Color(0xFF16558A);
-              }
-              return item.isUrgent
-                  ? const Color(0xFFD97706)
-                  : const Color(0xFF00875A);
-            }
+    Widget buildPanelContent(BuildContext panelCtx, StateSetter setModalState) {
+      activeModalSetter = setModalState;
 
-            return Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(
-                horizontal: 18,
-                vertical: 24,
+      final filtered = filter == null
+          ? _notifications
+          : _notifications.where((n) => n.type == filter).toList();
+
+      Widget chipFilter(String label, OwnerNotifType? value) {
+        final active = filter == value;
+        return InkWell(
+          onTap: () => setModalState(() => filter = value),
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 6,
+            ),
+            decoration: BoxDecoration(
+              color: active ? ownerNavy : const Color(0xFFEAF2F8),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: active ? Colors.white : ownerNavy,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
               ),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 440,
-                  maxHeight: 560,
+            ),
+          ),
+        );
+      }
+
+      IconData iconFor(OwnerNotifType type) => switch (type) {
+        OwnerNotifType.stok => Icons.inventory_2_rounded,
+        OwnerNotifType.shift => Icons.point_of_sale_rounded,
+        OwnerNotifType.order => Icons.receipt_long_rounded,
+      };
+
+      Color colorFor(OwnerNotificationItem item) {
+        if (item.type == OwnerNotifType.stok) {
+          return item.title.startsWith('Stok Habis')
+              ? const Color(0xFFDC2626)
+              : const Color(0xFFD97706);
+        }
+        if (item.type == OwnerNotifType.shift) {
+          return item.isUrgent
+              ? const Color(0xFFD97706)
+              : const Color(0xFF16558A);
+        }
+        return item.isUrgent
+            ? const Color(0xFFD97706)
+            : const Color(0xFF00875A);
+      }
+
+      final topRadius = isPhone ? 22.0 : 20.0;
+
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: isPhone
+              ? BorderRadius.vertical(top: Radius.circular(topRadius))
+              : BorderRadius.circular(topRadius),
+          boxShadow: _softShadow(lifted: true),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: EdgeInsets.fromLTRB(
+                18,
+                isPhone ? 10 : 16,
+                12,
+                14,
+              ),
+              decoration: BoxDecoration(
+                color: ownerNavy,
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(topRadius),
                 ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: _softShadow(lifted: true),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isPhone) ...[
+                    Container(
+                      width: 38,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white38,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ],
+                  Row(
                     children: [
-                      // Header
-                      Container(
-                        padding: const EdgeInsets.fromLTRB(18, 16, 12, 14),
-                        decoration: const BoxDecoration(
-                          color: ownerNavy,
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(20),
-                          ),
-                        ),
-                        child: Row(
+                      const Icon(
+                        Icons.notifications_active_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(
-                              Icons.notifications_active_rounded,
-                              color: Colors.white,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 10),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Notifikasi Owner',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Stok, Pengawasan Shift & Pesanan Meja',
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 10.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: 'Refresh',
-                              onPressed: () async {
-                                await _muatNotifikasi();
-                                setModalState(() {});
-                              },
-                              icon: const Icon(
-                                Icons.refresh_rounded,
-                                color: Colors.white70,
-                                size: 20,
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: 'Tutup',
-                              onPressed: () => Navigator.of(dialogCtx).pop(),
-                              icon: const Icon(
-                                Icons.close_rounded,
+                            Text(
+                              'Notifikasi Owner',
+                              style: TextStyle(
                                 color: Colors.white,
-                                size: 20,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              'Stok, Pengawasan Shift & Pesanan Meja',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 10.5,
                               ),
                             ),
                           ],
                         ),
                       ),
-
-                      // Filter Chips
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              chipFilter('Semua (${_notifications.length})', null),
-                              const SizedBox(width: 6),
-                              chipFilter('Stok', OwnerNotifType.stok),
-                              const SizedBox(width: 6),
-                              chipFilter('Shift & Kas', OwnerNotifType.shift),
-                              const SizedBox(width: 6),
-                              chipFilter('Pesanan', OwnerNotifType.order),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      const Divider(height: 1),
-
-                      // Daftar Notifikasi
-                      Flexible(
-                        child: filtered.isEmpty
-                            ? const Padding(
-                                padding: EdgeInsets.symmetric(
-                                  vertical: 40,
-                                  horizontal: 20,
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.notifications_off_outlined,
-                                      size: 42,
-                                      color: _mutedText,
-                                    ),
-                                    SizedBox(height: 10),
-                                    Text(
-                                      'Semua aman — tidak ada notifikasi.',
-                                      style: TextStyle(
-                                        color: ownerNavy,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ],
+                      IconButton(
+                        tooltip: 'Refresh',
+                        onPressed: refreshing ? null : refreshInBackground,
+                        icon: refreshing
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white70,
                                 ),
                               )
-                            : ListView.separated(
-                                shrinkWrap: true,
-                                padding: const EdgeInsets.all(12),
-                                itemCount: filtered.length,
-                                separatorBuilder: (_, _) =>
-                                    const SizedBox(height: 8),
-                                itemBuilder: (context, index) {
-                                  final item = filtered[index];
-                                  final unread =
-                                      !_readNotificationIds.contains(item.id);
-                                  final accent = colorFor(item);
-                                  return InkWell(
-                                    borderRadius: BorderRadius.circular(14),
-                                    onTap: () {
-                                      setState(() {
-                                        _readNotificationIds.add(item.id);
-                                      });
-                                      Navigator.of(dialogCtx).pop();
-                                      selectMenu(item.targetMenuIndex);
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: unread
-                                            ? const Color(0xFFF0F7FD)
-                                            : const Color(0xFFF8FAFC),
-                                        borderRadius: BorderRadius.circular(14),
-                                        border: Border.all(
-                                          color: unread
-                                              ? accent.withValues(alpha: 0.35)
-                                              : const Color(0xFFE2E8F0),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                            : const Icon(
+                                Icons.refresh_rounded,
+                                color: Colors.white70,
+                                size: 20,
+                              ),
+                      ),
+                      IconButton(
+                        tooltip: 'Tutup',
+                        onPressed: () => Navigator.of(panelCtx).pop(),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Filter Chips
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    chipFilter('Semua (${_notifications.length})', null),
+                    const SizedBox(width: 6),
+                    chipFilter('Stok', OwnerNotifType.stok),
+                    const SizedBox(width: 6),
+                    chipFilter('Shift & Kas', OwnerNotifType.shift),
+                    const SizedBox(width: 6),
+                    chipFilter('Pesanan', OwnerNotifType.order),
+                  ],
+                ),
+              ),
+            ),
+
+            const Divider(height: 1),
+
+            // Daftar Notifikasi
+            Flexible(
+              child: filtered.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 40,
+                        horizontal: 20,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            refreshing
+                                ? Icons.sync_rounded
+                                : Icons.notifications_off_outlined,
+                            size: 42,
+                            color: _mutedText,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            refreshing
+                                ? 'Memuat notifikasi...'
+                                : 'Semua aman — tidak ada notifikasi.',
+                            style: const TextStyle(
+                              color: ownerNavy,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.all(12),
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final item = filtered[index];
+                        final unread =
+                            !_readNotificationIds.contains(item.id);
+                        final accent = colorFor(item);
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(14),
+                          onTap: () {
+                            setState(() {
+                              _readNotificationIds.add(item.id);
+                            });
+                            Navigator.of(panelCtx).pop();
+                            selectMenu(item.targetMenuIndex);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: unread
+                                  ? const Color(0xFFF0F7FD)
+                                  : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: unread
+                                    ? accent.withValues(alpha: 0.35)
+                                    : const Color(0xFFE2E8F0),
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: accent.withValues(alpha: 0.14),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    iconFor(item.type),
+                                    color: accent,
+                                    size: 19,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
                                         children: [
-                                          Container(
-                                            width: 36,
-                                            height: 36,
-                                            decoration: BoxDecoration(
-                                              color: accent.withValues(
-                                                alpha: 0.14,
+                                          Expanded(
+                                            child: Text(
+                                              item.title,
+                                              style: const TextStyle(
+                                                color: ownerNavy,
+                                                fontSize: 12.5,
+                                                fontWeight: FontWeight.w800,
                                               ),
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                            ),
-                                            child: Icon(
-                                              iconFor(item.type),
-                                              color: accent,
-                                              size: 19,
                                             ),
                                           ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Row(
-                                                  children: [
-                                                    Expanded(
-                                                      child: Text(
-                                                        item.title,
-                                                        style: const TextStyle(
-                                                          color: ownerNavy,
-                                                          fontSize: 12.5,
-                                                          fontWeight:
-                                                              FontWeight.w800,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    Text(
-                                                      item.timeLabel,
-                                                      style: TextStyle(
-                                                        color: item.isUrgent
-                                                            ? accent
-                                                            : _mutedText,
-                                                        fontSize: 10,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                const SizedBox(height: 3),
-                                                Text(
-                                                  item.subtitle,
-                                                  style: const TextStyle(
-                                                    color: _mutedText,
-                                                    fontSize: 11.5,
-                                                    height: 1.35,
-                                                  ),
-                                                ),
-                                              ],
+                                          Text(
+                                            item.timeLabel,
+                                            style: TextStyle(
+                                              color: item.isUrgent
+                                                  ? accent
+                                                  : _mutedText,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
                                             ),
                                           ),
                                         ],
                                       ),
-                                    ),
-                                  );
-                                },
-                              ),
-                      ),
-
-                      // Footer
-                      if (_notifications.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.vertical(
-                              bottom: Radius.circular(20),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Ketuk item untuk buka halaman terkait',
-                                style: TextStyle(
-                                  color: _mutedText,
-                                  fontSize: 10.5,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  setState(() {
-                                    for (final n in _notifications) {
-                                      _readNotificationIds.add(n.id);
-                                    }
-                                  });
-                                  setModalState(() {});
-                                },
-                                child: const Text(
-                                  'Tandai dibaca',
-                                  style: TextStyle(
-                                    color: ownerNavy,
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w700,
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        item.subtitle,
+                                        style: const TextStyle(
+                                          color: _mutedText,
+                                          fontSize: 11.5,
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
+                        );
+                      },
+                    ),
+            ),
+
+            // Footer
+            if (_notifications.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: isPhone
+                      ? BorderRadius.zero
+                      : const BorderRadius.vertical(
+                          bottom: Radius.circular(20),
                         ),
-                    ],
-                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Ketuk item untuk buka halaman terkait',
+                        style: TextStyle(
+                          color: _mutedText,
+                          fontSize: 10.5,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          for (final n in _notifications) {
+                            _readNotificationIds.add(n.id);
+                          }
+                        });
+                        setModalState(() {});
+                      },
+                      child: const Text(
+                        'Tandai dibaca',
+                        style: TextStyle(
+                          color: ownerNavy,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            );
-          },
-        );
-      },
-    );
+          ],
+        ),
+      );
+    }
+
+    if (isPhone) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetCtx) {
+          final maxH = MediaQuery.sizeOf(sheetCtx).height * 0.78;
+          return ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxH),
+            child: StatefulBuilder(
+              builder: (context, setModalState) =>
+                  buildPanelContent(sheetCtx, setModalState),
+            ),
+          );
+        },
+      );
+    } else {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogCtx) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 24,
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 440,
+                maxHeight: 560,
+              ),
+              child: StatefulBuilder(
+                builder: (context, setModalState) =>
+                    buildPanelContent(dialogCtx, setModalState),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    modalOpen = false;
+    activeModalSetter = null;
 
     // Tandai terbaca setelah panel ditutup agar badge tetap bersih
     if (mounted && _notifications.isNotEmpty) {
@@ -653,51 +733,41 @@ class _DashboardOwnerState extends State<DashboardOwner> {
     );
   }
 
-  Widget _content() {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeIn,
-      layoutBuilder: (currentChild, previousChildren) {
-        return Stack(
-          fit: StackFit.expand,
-          alignment: Alignment.topLeft,
-          children: [
-            ...previousChildren,
-            if (currentChild != null) currentChild,
-          ],
-        );
-      },
-      transitionBuilder: (child, animation) {
-        final slide = Tween<Offset>(
-          begin: const Offset(0.02, 0),
-          end: Offset.zero,
-        ).animate(animation);
+  Widget _buildPageForIndex(int index) {
+    return switch (index) {
+      0 => _DashboardBody(namaOwner: _currentOwnerName),
+      1 => _buildLaporan(),
+      2 => const owner_products.ProdukPage(),
+      3 => const ManajemenStokPage(),
+      4 => KelolaTransaksiPage(
+        pakaiDataContoh: false,
+        initialTab: 0,
+        onNavigasiLaporan: () => selectMenu(1),
+      ),
+      5 => const KontrolStafPage(),
+      6 => PengaturanPage(
+        initialOpenProfile: _openProfileOnPengaturan,
+        profileRequestId: _profileRequestId,
+      ),
+      _ => _DashboardBody(namaOwner: _currentOwnerName),
+    };
+  }
 
-        return FadeTransition(
-          opacity: animation,
-          child: SlideTransition(position: slide, child: child),
-        );
-      },
-      child: KeyedSubtree(
-        key: ValueKey(selectedMenu),
-        child: switch (selectedMenu) {
-          0 => _DashboardBody(namaOwner: _currentOwnerName),
-          1 => _buildLaporan(),
-          2 => const owner_products.ProdukPage(),
-          3 => const ManajemenStokPage(),
-          4 => KelolaTransaksiPage(
-            pakaiDataContoh: false,
-            initialTab: 0,
-            onNavigasiLaporan: () => selectMenu(1),
-          ),
-          5 => const KontrolStafPage(),
-          6 => PengaturanPage(
-            initialOpenProfile: _openProfileOnPengaturan,
-            profileRequestId: _profileRequestId,
-          ),
-          _ => _DashboardBody(namaOwner: _currentOwnerName),
-        },
+  Widget _content() {
+    // Pastikan halaman yang dipilih dibangun sekali (lazy) dan dipertahankan
+    // di memori agar perpindahan antar menu Owner instan tanpa loading ulang.
+    if (selectedMenu == 6 && _cachedPengaturanReqId != _profileRequestId) {
+      _cachedPages[6] = _buildPageForIndex(6);
+      _cachedPengaturanReqId = _profileRequestId;
+    } else {
+      _cachedPages[selectedMenu] ??= _buildPageForIndex(selectedMenu);
+    }
+
+    return IndexedStack(
+      index: selectedMenu,
+      children: List<Widget>.generate(
+        menuTitles.length,
+        (i) => _cachedPages[i] ?? const SizedBox.shrink(),
       ),
     );
   }
@@ -877,7 +947,9 @@ class _DashboardBodyState extends State<_DashboardBody>
     with TickerProviderStateMixin {
   late final AnimationController _chartController;
   late final AnimationController _entryController;
-  late final Future<Map<String, dynamic>> _future;
+  Map<String, dynamic>? _dashboardData;
+  bool _isLoading = false;
+  Object? _error;
 
   late final Animation<double> _headerAnimation;
   late final List<Animation<double>> _cardAnimations;
@@ -888,12 +960,12 @@ class _DashboardBodyState extends State<_DashboardBody>
 
     _chartController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1300),
+      duration: const Duration(milliseconds: 1100),
     );
 
     _entryController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1450),
+      duration: const Duration(milliseconds: 1100),
     );
 
     _headerAnimation = CurvedAnimation(
@@ -913,8 +985,13 @@ class _DashboardBodyState extends State<_DashboardBody>
       ),
     );
 
-    _future = _muat();
+    // Tampilkan data cache seketika (0 ms) jika tersedia, lalu segarkan di latar belakang
+    _dashboardData = DashboardService.cachedData;
     _entryController.forward();
+    if (_dashboardData != null) {
+      _chartController.forward();
+    }
+    _muat(silent: _dashboardData != null);
   }
 
   @override
@@ -924,25 +1001,41 @@ class _DashboardBodyState extends State<_DashboardBody>
     super.dispose();
   }
 
-  Future<Map<String, dynamic>> _muat() async {
-    final result = await DashboardService().ambilDashboard();
-    if (mounted) _chartController.forward();
-    return result;
+  Future<void> _muat({bool silent = false}) async {
+    if (!silent && mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
+    try {
+      final result = await DashboardService().ambilDashboard();
+      if (!mounted) return;
+      setState(() {
+        _dashboardData = result;
+        _isLoading = false;
+        _error = null;
+      });
+      if (_chartController.status != AnimationStatus.completed) {
+        _chartController.forward();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        if (_dashboardData == null) _error = e;
+      });
+    }
   }
 
   double _num(dynamic value) => double.tryParse('$value') ?? 0;
 
   Future<void> _refresh() async {
-    setState(() {
-      _entryController
-        ..reset()
-        ..forward();
-    });
-    // Data dashboard dimuat ulang melalui Future baru.
-    // RefreshIndicator akan selesai setelah request ini.
-    await DashboardService().ambilDashboard();
+    await _muat(silent: true);
     if (!mounted) return;
-    setState(() {});
+    _chartController
+      ..reset()
+      ..forward();
   }
 
   Widget _animatedCard(int index, Widget child) {
@@ -963,46 +1056,43 @@ class _DashboardBodyState extends State<_DashboardBody>
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _future,
-      builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return const Center(
-            child: CircularProgressIndicator(color: ownerNavy),
-          );
-        }
+    if (_isLoading && _dashboardData == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: ownerNavy),
+      );
+    }
 
-        if (snap.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.error_outline_rounded,
-                    color: Colors.redAccent,
-                    size: 42,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Terjadi kesalahan:\n${snap.error}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: ownerNavy),
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton.icon(
-                    onPressed: () => setState(() {}),
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Coba Lagi'),
-                  ),
-                ],
+    if (_error != null && _dashboardData == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline_rounded,
+                color: Colors.redAccent,
+                size: 42,
               ),
-            ),
-          );
-        }
+              const SizedBox(height: 12),
+              Text(
+                'Terjadi kesalahan:\n$_error',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: ownerNavy),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () => _muat(),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Coba Lagi'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
-        final data = snap.data ?? {};
+    final data = _dashboardData ?? {};
         final ringkasan = (data['ringkasan'] as Map<String, dynamic>?) ?? {};
         final metode = (data['distribusi_metode'] as List?) ?? [];
 
@@ -1214,8 +1304,6 @@ class _DashboardBodyState extends State<_DashboardBody>
             );
           },
         );
-      },
-    );
   }
 }
 
@@ -1821,6 +1909,9 @@ class _OwnerLaporanLivePage extends StatefulWidget {
 }
 
 class _OwnerLaporanLivePageState extends State<_OwnerLaporanLivePage> {
+  static Map<String, dynamic>? _cachedTokoRes;
+  static Map<String, dynamic>? _cachedShiftRes;
+
   _PeriodeLaporanOwner _periode = _PeriodeLaporanOwner.hariIni;
   bool _loading = true;
   LaporanPreviewData? _previewData;
@@ -1912,8 +2003,16 @@ class _OwnerLaporanLivePageState extends State<_OwnerLaporanLivePage> {
           'laporan/kas-laci',
           query: query,
         ).catchError((_) => <String, dynamic>{}),
-        ApiService.get('pengaturan-toko').catchError((_) => <String, dynamic>{}),
-        ApiService.get('shift/aktif').catchError((_) => <String, dynamic>{}),
+        _cachedTokoRes != null
+            ? Future.value(_cachedTokoRes!)
+            : ApiService.get('pengaturan-toko')
+                .then((v) => _cachedTokoRes = v)
+                .catchError((_) => <String, dynamic>{}),
+        _cachedShiftRes != null && overridePeriode != null
+            ? Future.value(_cachedShiftRes!)
+            : ApiService.get('shift/aktif')
+                .then((v) => _cachedShiftRes = v)
+                .catchError((_) => <String, dynamic>{}),
       ]);
 
       final lapData = res[0]['data'] is Map
@@ -1958,11 +2057,39 @@ class _OwnerLaporanLivePageState extends State<_OwnerLaporanLivePage> {
         );
       }).toList();
 
-      // Beban operasional dari kas laci keluar pada periode yang sama
+      // Beban operasional & data lengkap Laporan Kas Laci pada periode yang sama
       final kasData = res[1]['data'] is Map
           ? Map<String, dynamic>.from(res[1]['data'] as Map)
           : <String, dynamic>{};
+      final kasRingkasan = kasData['ringkasan'] is Map
+          ? Map<String, dynamic>.from(kasData['ringkasan'] as Map)
+          : <String, dynamic>{};
+      final openingCash = _toDouble(kasRingkasan['kas_awal']);
+      final currentCash = _toDouble(kasRingkasan['kas_saat_ini']);
       final kasBaris = (kasData['baris'] as List? ?? const []).whereType<Map>();
+      final drawerRows = kasBaris.map((b) {
+        final rawWaktu = b['waktu']?.toString() ?? '';
+        final dtLocal = DateTime.tryParse(rawWaktu)?.toLocal();
+        final jamText = dtLocal != null
+            ? '${dtLocal.hour.toString().padLeft(2, '0')}:${dtLocal.minute.toString().padLeft(2, '0')}'
+            : '--:--';
+        final jenis = (b['jenis']?.toString() ?? 'masuk').toLowerCase();
+        final jumlah = _toDouble(b['jumlah']);
+        final formatted = jumlah.toInt().toString().replaceAllMapped(
+          RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+          (m) => '${m[1]}.',
+        );
+        return <String, String>{
+          'kasir': b['kasir']?.toString() ?? 'Kasir',
+          'tanggal': rawWaktu,
+          'jam': jamText,
+          'nominal': '${jenis == 'keluar' ? '-' : '+'}$formatted',
+          'keterangan': b['keterangan']?.toString() ?? '',
+          'jenis': jenis,
+          'shiftId': b['id_shift']?.toString() ?? '',
+        };
+      }).toList();
+
       final bebanItems = kasBaris
           .where((b) => b['jenis']?.toString().toLowerCase() == 'keluar')
           .map((b) {
@@ -2058,6 +2185,9 @@ class _OwnerLaporanLivePageState extends State<_OwnerLaporanLivePage> {
           totalNonTunai: totalQris,
           totalTransaksi: totalTrx,
           rows: rows,
+          drawerRows: drawerRows,
+          openingCash: openingCash,
+          currentCash: currentCash,
           pendapatanItems: pendapatanItems,
           bebanItems: bebanItems,
           pajakPersen: ppnPersen > 0 ? ppnPersen : 11,

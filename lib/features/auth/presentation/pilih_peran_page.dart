@@ -17,6 +17,13 @@ class _PilihPeranPageState extends State<PilihPeranPage> {
 
   static const Color navy = Color(0xff082640);
 
+  @override
+  void initState() {
+    super.initState();
+    // Pre-warm daftar profil kasir sejak layar awal agar saat klik "Kasir" langsung muncul
+    PilihProfilPage.prefetch();
+  }
+
   Future<void> _pilihPeran(int index) async {
     if (isNavigating) return;
 
@@ -26,7 +33,7 @@ class _PilihPeranPageState extends State<PilihPeranPage> {
     });
 
     await Future.delayed(
-      const Duration(milliseconds: 300),
+      const Duration(milliseconds: 80),
     );
 
     if (!mounted) return;

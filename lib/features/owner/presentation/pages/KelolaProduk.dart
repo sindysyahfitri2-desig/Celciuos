@@ -39,8 +39,6 @@ List<BoxShadow> _shadowSmall() => const [
   ),
 ];
 
-const _allCategories = '__semua__';
-
 // ============================================================
 // HALAMAN PRODUK
 // ============================================================
@@ -82,6 +80,7 @@ class _ProdukPageState extends State<ProdukPage> {
   );
 
   Timer? _timer;
+  bool _loadingProducts = false;
 
   @override
   void initState() {
@@ -91,7 +90,7 @@ class _ProdukPageState extends State<ProdukPage> {
     _loadProducts();
 
     _timer = Timer.periodic(
-      const Duration(seconds: 10),
+      const Duration(seconds: 35),
       (_) => _loadProducts(showError: false),
     );
   }
@@ -114,13 +113,19 @@ class _ProdukPageState extends State<ProdukPage> {
   // ============================================================
 
   Future<void> _loadProducts({bool showError = true}) async {
+    if (_loadingProducts) return;
+    _loadingProducts = true;
     try {
       await ProdukData.loadFromApi();
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+      }
     } catch (error) {
       if (mounted && showError) {
         _snack('Gagal memuat produk: $error');
       }
+    } finally {
+      _loadingProducts = false;
     }
   }
 
@@ -392,24 +397,45 @@ class _ProdukPageState extends State<ProdukPage> {
   }
 
   // ============================================================
-  // DAFTAR 7 KATEGORI (juga untuk memfilter produk)
+  // TAMBAH & KELOLA KATEGORI (sesuai desain Figma)
   // ============================================================
 
   Future<void> _openCategoryDialog() async {
-    final picked = await showDialog<String>(
+    await showDialog<void>(
       context: context,
       builder: (_) => _CategoryDialog(
-        categories: _categories,
+        initialCategories: List<String>.from(_categories),
         usageCount: _usageCount,
-        activeCategory: _activeCategory,
+        onAddCategory: (name) async {
+          final updated = await ProductManagementService.addCategory(name);
+          if (!mounted) return updated;
+          setState(() {
+            _categories
+              ..clear()
+              ..addAll(updated);
+          });
+          _snack('Kategori "$name" berhasil ditambahkan.');
+          return updated;
+        },
+        onDeleteCategory: (name) async {
+          final updated = await ProductManagementService.deleteCategory(name);
+          if (!mounted) return updated;
+          setState(() {
+            _categories
+              ..clear()
+              ..addAll(updated);
+            if (_activeCategory?.toLowerCase() == name.toLowerCase()) {
+              _activeCategory = null;
+            }
+            if (_selectedCategory?.toLowerCase() == name.toLowerCase()) {
+              _selectedCategory = null;
+            }
+          });
+          _snack('Kategori "$name" berhasil dihapus.');
+          return updated;
+        },
       ),
     );
-
-    if (picked == null || !mounted) return;
-
-    setState(() {
-      _activeCategory = picked == _allCategories ? null : picked;
-    });
   }
 
   // ============================================================
@@ -445,10 +471,9 @@ class _ProdukPageState extends State<ProdukPage> {
               return LayoutBuilder(
                 builder: (context, constraints) {
                   final width = constraints.maxWidth;
-                  final height = constraints.maxHeight;
                   final isPhone = width < 600;
                   final isTablet = width >= 600 && width < 1024;
-                  final isShortViewport = height < 460;
+                  final columns = isPhone ? 1 : (isTablet ? 2 : 3);
 
                   final pad = isPhone
                       ? 14.0
@@ -476,49 +501,37 @@ class _ProdukPageState extends State<ProdukPage> {
                     ),
                   );
 
-                  if (isShortViewport) {
-                    return SingleChildScrollView(
-                      padding: EdgeInsets.only(bottom: 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          topSection,
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: pad),
-                            child: visibleProducts.isEmpty
-                                ? _emptyState()
-                                : _productGrid(
-                                    visibleProducts,
-                                    isPhone: isPhone,
-                                    isTablet: isTablet,
-                                    shrinkWrap: true,
-                                  ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      topSection,
-                      Expanded(
-                        child: visibleProducts.isEmpty
-                            ? SingleChildScrollView(
-                                controller: _gridScrollController,
-                                padding: EdgeInsets.fromLTRB(pad, 4, pad, 24),
+                  // Gunakan SATU pohon widget CustomScrollView yang stabil agar
+                  // kemunculan keyboard di HP & Tablet tidak pernah membongkar TextField
+                  // maupun menutup keyboard secara otomatis (ISO 25010 Portability).
+                  return CustomScrollView(
+                    controller: _gridScrollController,
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    slivers: [
+                      SliverToBoxAdapter(child: topSection),
+                      SliverPadding(
+                        padding: EdgeInsets.fromLTRB(pad, 4, pad, 28),
+                        sliver: visibleProducts.isEmpty
+                            ? SliverToBoxAdapter(
                                 child: Align(
                                   alignment: Alignment.topCenter,
                                   child: _emptyState(),
                                 ),
                               )
-                            : _productGrid(
-                                visibleProducts,
-                                isPhone: isPhone,
-                                isTablet: isTablet,
-                                shrinkWrap: false,
-                                padding: EdgeInsets.fromLTRB(pad, 4, pad, 24),
+                            : SliverGrid(
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: columns,
+                                  crossAxisSpacing: 16,
+                                  mainAxisSpacing: 16,
+                                  mainAxisExtent: 98,
+                                ),
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) =>
+                                      _productCard(visibleProducts[index]),
+                                  childCount: visibleProducts.length,
+                                ),
                               ),
                       ),
                     ],
@@ -749,6 +762,8 @@ class _ProdukPageState extends State<ProdukPage> {
                   controller: _nameController,
                   focusNode: _nameFocus,
                   textCapitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
+                  onSubmitted: (_) => _priceFocus.requestFocus(),
                   style: const TextStyle(
                     color: _navy,
                     fontSize: 14,
@@ -805,6 +820,7 @@ class _ProdukPageState extends State<ProdukPage> {
                   controller: _priceController,
                   focusNode: _priceFocus,
                   keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.done,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   style: const TextStyle(color: _navy, fontSize: 11),
                   decoration: const InputDecoration(
@@ -1072,43 +1088,6 @@ Widget _categoryFilter(bool isPhone) {
     ),
   );
 }
-
-  // ============================================================
-  // GRID PRODUK RESPONSIF
-  // ============================================================
-
-  Widget _productGrid(
-    List<Map<String, dynamic>> products, {
-    required bool isPhone,
-    required bool isTablet,
-    bool shrinkWrap = false,
-    EdgeInsetsGeometry padding = EdgeInsets.zero,
-  }) {
-    final columns = isPhone
-        ? 1
-        : isTablet
-        ? 2
-        : 3;
-
-    return GridView.builder(
-      controller: shrinkWrap ? null : _gridScrollController,
-      shrinkWrap: shrinkWrap,
-      physics: shrinkWrap
-          ? const NeverScrollableScrollPhysics()
-          : const AlwaysScrollableScrollPhysics(),
-      padding: padding,
-      itemCount: products.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: columns,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        mainAxisExtent: 98,
-      ),
-      itemBuilder: (context, index) {
-        return _productCard(products[index]);
-      },
-    );
-  }
 
   // ============================================================
   // KARTU PRODUK (biru di belakang + kartu putih + strip edit)
@@ -1654,133 +1633,437 @@ class _EditProductDialogState extends State<_EditProductDialog> {
 }
 
 // ============================================================
-// DIALOG 7 KATEGORI (ketuk untuk memfilter produk)
+// DIALOG TAMBAH & HAPUS KATEGORI (sesuai desain Figma)
 // ============================================================
 
-class _CategoryDialog extends StatelessWidget {
+class _CategoryDialog extends StatefulWidget {
   const _CategoryDialog({
-    required this.categories,
+    required this.initialCategories,
     required this.usageCount,
-    required this.activeCategory,
+    required this.onAddCategory,
+    required this.onDeleteCategory,
   });
 
-  final List<String> categories;
+  final List<String> initialCategories;
   final int Function(String category) usageCount;
-  final String? activeCategory;
+  final Future<List<String>> Function(String name) onAddCategory;
+  final Future<List<String>> Function(String name) onDeleteCategory;
 
-  Widget _row(
-    BuildContext context, {
-    required String label,
-    required String countText,
-    required String result,
-    required bool selected,
-    required IconData icon,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 9),
-      decoration: BoxDecoration(
-        color: selected ? _lightBlue : Colors.white,
-        borderRadius: BorderRadius.circular(11),
-        boxShadow: _shadowSmall(),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(11),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(11),
-          onTap: () => Navigator.pop(context, result),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-            child: Row(
-              children: [
-                Icon(icon, color: _navy, size: 19),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      color: _navy,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-                Text(
-                  countText,
-                  style: const TextStyle(
-                    color: _muted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
+  @override
+  State<_CategoryDialog> createState() => _CategoryDialogState();
+}
+
+class _CategoryDialogState extends State<_CategoryDialog> {
+  final TextEditingController _newCategoryController = TextEditingController();
+  final GlobalKey _dropdownBoxKey = GlobalKey();
+  late List<String> _categories;
+  String? _selectedCurrent;
+  bool _submitting = false;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _categories = List<String>.from(widget.initialCategories);
+    _selectedCurrent = _categories.isNotEmpty ? _categories.first : null;
+  }
+
+  @override
+  void dispose() {
+    _newCategoryController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSave() async {
+    final name = _newCategoryController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _errorText = 'Masukkan nama kategori baru.');
+      return;
+    }
+
+    setState(() {
+      _submitting = true;
+      _errorText = null;
+    });
+
+    try {
+      final updated = await widget.onAddCategory(name);
+      if (!mounted) return;
+      setState(() {
+        _categories = List<String>.from(updated);
+        _selectedCurrent = _categories.firstWhere(
+          (c) => c.toLowerCase() == name.toLowerCase(),
+          orElse: () => _categories.isNotEmpty ? _categories.first : name,
+        );
+        _newCategoryController.clear();
+        _submitting = false;
+      });
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _errorText = e.toString().replaceAll('Exception: ', '');
+      });
+    }
+  }
+
+  Future<void> _handleDeleteSelected() async {
+    final target = _selectedCurrent;
+    if (target == null || target.isEmpty || _submitting) return;
+
+    final usedCount = widget.usageCount(target);
+    if (usedCount > 0) {
+      setState(() {
+        _errorText =
+            'Kategori "$target" tidak dapat dihapus karena masih dipakai oleh $usedCount produk.';
+      });
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Hapus Kategori',
+          style: TextStyle(color: _navy, fontWeight: FontWeight.w800),
         ),
+        content: Text('Yakin ingin menghapus kategori "$target"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hapus'),
+          ),
+        ],
       ),
     );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _submitting = true;
+      _errorText = null;
+    });
+
+    try {
+      final updated = await widget.onDeleteCategory(target);
+      if (!mounted) return;
+      setState(() {
+        _categories = List<String>.from(updated);
+        _selectedCurrent = _categories.isNotEmpty ? _categories.first : null;
+        _submitting = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _errorText = e.toString().replaceAll('Exception: ', '');
+      });
+    }
+  }
+
+  Future<void> _openCurrentCategoryMenu() async {
+    if (_submitting || _categories.isEmpty) return;
+    final boxContext = _dropdownBoxKey.currentContext;
+    if (boxContext == null) return;
+    final renderBox = boxContext.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (renderBox == null || overlay == null) return;
+
+    final offset = renderBox.localToGlobal(Offset.zero, ancestor: overlay);
+    final size = renderBox.size;
+
+    final picked = await showMenu<String>(
+      context: context,
+      color: Colors.white,
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      constraints: BoxConstraints(minWidth: size.width, maxWidth: size.width),
+      position: RelativeRect.fromLTRB(
+        offset.dx,
+        offset.dy + size.height + 4,
+        overlay.size.width - (offset.dx + size.width),
+        0,
+      ),
+      items: _categories.map((cat) {
+        final selected = cat == _selectedCurrent;
+        final count = widget.usageCount(cat);
+        return PopupMenuItem<String>(
+          value: cat,
+          height: 42,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  cat,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: _navy,
+                    fontSize: 13.5,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '$count produk',
+                style: const TextStyle(
+                  color: _muted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+
+    if (picked != null && mounted) {
+      setState(() {
+        _selectedCurrent = picked;
+        _errorText = null;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final total = categories.fold<int>(0, (sum, c) => sum + usageCount(c));
+    final dropdownValue =
+        (_selectedCurrent != null && _categories.contains(_selectedCurrent))
+            ? _selectedCurrent
+            : (_categories.isNotEmpty ? _categories.first : null);
 
     return Dialog(
       backgroundColor: _navy,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360),
+        constraints: const BoxConstraints(maxWidth: 340),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(22, 18, 22, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Kategori Produk',
-                style: TextStyle(
+              // Bar judul + tombol tutup
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 28),
+                    child: Text(
+                      'Tambah Kategori',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: _submitting ? null : () => Navigator.pop(context),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: Colors.white70,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+
+              // Dropdown "kategori saat ini" + ikon hapus merah
+              const _DialogLabel('kategori saat ini'),
+              Container(
+                key: _dropdownBoxKey,
+                height: 44,
+                decoration: BoxDecoration(
                   color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: const BorderRadius.horizontal(
+                          left: Radius.circular(12),
+                        ),
+                        onTap: _openCurrentCategoryMenu,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              dropdownValue ?? 'Belum ada kategori',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: dropdownValue != null ? _navy : _muted,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (dropdownValue != null)
+                      InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: _submitting ? null : _handleDeleteSelected,
+                        child: const Padding(
+                          padding: EdgeInsets.all(6),
+                          child: Icon(
+                            Icons.delete_outline_rounded,
+                            color: _danger,
+                            size: 19,
+                          ),
+                        ),
+                      ),
+                    InkWell(
+                      borderRadius: const BorderRadius.horizontal(
+                        right: Radius.circular(12),
+                      ),
+                      onTap: _openCurrentCategoryMenu,
+                      child: const Padding(
+                        padding: EdgeInsets.fromLTRB(4, 10, 10, 10),
+                        child: Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: _muted,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 7),
-              const Text(
-                'Tujuh kategori utama Celcious Coffee.\n'
-                'Ketuk salah satu untuk memfilter produk.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70, fontSize: 12),
+
+              const SizedBox(height: 16),
+
+              // Input "Tambah Kategori"
+              const _DialogLabel('Tambah Kategori'),
+              SizedBox(
+                height: 44,
+                child: TextField(
+                  controller: _newCategoryController,
+                  enabled: !_submitting,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _handleSave(),
+                  onChanged: (_) {
+                    if (_errorText != null) setState(() => _errorText = null);
+                  },
+                  style: const TextStyle(
+                    color: _navy,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.white,
+                    hintText: 'Nama kategori baru...',
+                    hintStyle: const TextStyle(
+                      color: Color(0xFF9EB0C4),
+                      fontSize: 12.5,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: _lightBlue,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
               ),
-              const SizedBox(height: 20),
-              _row(
-                context,
-                label: 'Semua kategori',
-                countText: '$total produk',
-                result: _allCategories,
-                selected: activeCategory == null,
-                icon: Icons.apps_rounded,
-              ),
-              ...categories.map((category) {
-                return _row(
-                  context,
-                  label: category,
-                  countText: '${usageCount(category)} produk',
-                  result: category,
-                  selected:
-                      activeCategory?.toLowerCase() == category.toLowerCase(),
-                  icon: Icons.category_rounded,
-                );
-              }),
-              const SizedBox(height: 8),
-              const Text(
-                'Kategori utama dikelola melalui data master backend.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white60, fontSize: 11),
-              ),
-              const SizedBox(height: 18),
-              _DialogSaveButton(
-                onPressed: () => Navigator.pop(context),
-                label: 'Tutup',
+
+              if (_errorText != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _danger.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _danger.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  child: Text(
+                    _errorText!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 22),
+
+              Center(
+                child: ElevatedButton(
+                  onPressed: _submitting ? null : _handleSave,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: _navy,
+                    elevation: 0,
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 42,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: _submitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: _navy,
+                          ),
+                        )
+                      : const Text(
+                          'Simpan',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                ),
               ),
             ],
           ),
@@ -1858,13 +2141,9 @@ class _DialogTextField extends StatelessWidget {
 }
 
 class _DialogSaveButton extends StatelessWidget {
-  const _DialogSaveButton({
-    required this.onPressed,
-    this.label = 'Simpan',
-  });
+  const _DialogSaveButton({required this.onPressed});
 
   final VoidCallback onPressed;
-  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -1877,9 +2156,9 @@ class _DialogSaveButton extends StatelessWidget {
         shape: const StadiumBorder(),
         padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 13),
       ),
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+      child: const Text(
+        'Simpan',
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
       ),
     );
   }

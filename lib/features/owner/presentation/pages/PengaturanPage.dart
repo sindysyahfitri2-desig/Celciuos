@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:kasir_celcious_coffe/data/api_service.dart';
@@ -8,15 +9,17 @@ import 'package:kasir_celcious_coffe/data/app_branding_store.dart';
 import 'package:kasir_celcious_coffe/data/kitchen_receipt_settings_store.dart';
 import 'package:kasir_celcious_coffe/data/owner_profile_store.dart';
 import 'package:kasir_celcious_coffe/data/payment_methods_store.dart';
-import 'package:kasir_celcious_coffe/data/qris_store.dart';
 import 'package:kasir_celcious_coffe/data/receipt_settings_store.dart';
 import 'package:kasir_celcious_coffe/data/sticker_settings_store.dart';
 import 'package:kasir_celcious_coffe/data/transaction_store.dart';
+import 'package:kasir_celcious_coffe/features/auth/presentation/owner_pin_page.dart';
 import 'package:kasir_celcious_coffe/features/settings/application/backup_service.dart';
 import 'package:kasir_celcious_coffe/features/settings/application/settings_service.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
 import 'package:kasir_celcious_coffe/features/settings/application/print_service.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 String _formatPercent(double rate) =>
     (rate * 100).toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
@@ -81,6 +84,9 @@ class _PengaturanPageState extends State<PengaturanPage> {
     text: 'Selamat menikmati, semoga harimu menyenangkan ☕',
   );
   bool _isExporting = false;
+  bool _biometricEnabled = false;
+  bool _biometricBusy = false;
+  final LocalAuthentication _localAuth = LocalAuthentication();
 
   static const String _defaultAlamatToko =
       'Dusun vak111 kampun, Mekar Sawit, Kec. Sawit Seberang, '
@@ -92,9 +98,6 @@ class _PengaturanPageState extends State<PengaturanPage> {
   String ppn = '${_formatPercent(TransactionStore.ppnRate.value)}%';
   String biayaPelayanan = '2%';
   String metodePembayaran = 'QRIS';
-
-  Uint8List? _qrisImageBytes;
-  bool _memuatQris = true;
 
   // urutan baris untuk animasi masuk bertahap
   int _barisKe = 0;
@@ -132,7 +135,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
       }
     });
     _muatProfilOwner();
-    _muatFotoQris();
+    _muatStatusBiometrik();
     _muatPengaturanStruk();
     _muatPengaturanStiker();
     _muatPengaturanStrukDapur();
@@ -160,6 +163,117 @@ class _PengaturanPageState extends State<PengaturanPage> {
     setState(() {
       _ownerNameController.text = OwnerProfileStore.ownerName.value;
     });
+  }
+
+  Future<void> _muatStatusBiometrik() async {
+    if (kIsWeb) {
+      if (mounted) setState(() => _biometricEnabled = false);
+      return;
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final enabled = prefs.getBool(OwnerPinPage.bioEnabledKey) ?? true;
+      final hasToken =
+          (prefs.getString(OwnerPinPage.bioTokenKey)?.isNotEmpty ?? false);
+      if (!mounted) return;
+      setState(() => _biometricEnabled = enabled && hasToken);
+    } catch (_) {}
+  }
+
+  Future<void> _ubahStatusBiometrik(bool aktifkan) async {
+    if (_biometricBusy) return;
+    if (kIsWeb) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Face ID / Sidik Jari hanya tersedia di aplikasi HP/Tablet.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _biometricBusy = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      if (!aktifkan) {
+        await prefs.setBool(OwnerPinPage.bioEnabledKey, false);
+        await prefs.remove(OwnerPinPage.bioTokenKey);
+        await prefs.remove(OwnerPinPage.bioUserKey);
+        if (!mounted) return;
+        setState(() {
+          _biometricEnabled = false;
+          _biometricBusy = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Login Face ID / Sidik Jari dinonaktifkan. Masuk Owner kini hanya menggunakan PIN.',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      // Aktifkan kembali: pastikan perangkat mendukung & minta verifikasi biometrik 1x
+      final supported = await _localAuth.isDeviceSupported();
+      final canCheck = await _localAuth.canCheckBiometrics;
+      if (!supported && !canCheck) {
+        if (!mounted) return;
+        setState(() => _biometricBusy = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Perangkat ini tidak mendukung Face ID / Sidik Jari.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      final ok = await _localAuth.authenticate(
+        localizedReason:
+            'Verifikasi Face ID / Sidik Jari untuk mengaktifkan login cepat Owner',
+        biometricOnly: false,
+      );
+      if (!ok) {
+        if (!mounted) return;
+        setState(() => _biometricBusy = false);
+        return;
+      }
+
+      final token = await ApiService.getToken();
+      final user = await ApiService.getUser();
+      await prefs.setBool(OwnerPinPage.bioEnabledKey, true);
+      if (token != null && token.isNotEmpty && user != null) {
+        await prefs.setString(OwnerPinPage.bioTokenKey, token);
+        await prefs.setString(OwnerPinPage.bioUserKey, jsonEncode(user));
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _biometricEnabled = true;
+        _biometricBusy = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Login Face ID / Sidik Jari berhasil diaktifkan.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _biometricBusy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal mengubah pengaturan biometrik: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _pilihFotoOwner() async {
@@ -461,62 +575,6 @@ class _PengaturanPageState extends State<PengaturanPage> {
         SnackBar(
           content: Text('Gagal menyimpan pengaturan struk dapur: $error'),
         ),
-      );
-    }
-  }
-
-  // ==========================================================
-  // MUAT FOTO QRIS
-  // ==========================================================
-
-  Future<void> _muatFotoQris() async {
-    try {
-      final bytes = await QrisStore.loadImageBytes();
-
-      if (!mounted) return;
-
-      setState(() {
-        _qrisImageBytes = bytes;
-        _memuatQris = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-
-      setState(() => _memuatQris = false);
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal memuat foto QRIS: $error')));
-    }
-  }
-
-  Future<void> pilihFotoQris() async {
-    final XFile? foto = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 90,
-    );
-
-    if (foto == null) return;
-
-    try {
-      final bytes = await foto.readAsBytes();
-
-      await QrisStore.saveImageBytes(bytes);
-
-      if (!mounted) return;
-
-      setState(() {
-        _qrisImageBytes = bytes;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Foto QRIS berhasil disimpan')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menyimpan foto QRIS: $error')),
       );
     }
   }
@@ -1811,28 +1869,9 @@ class _PengaturanPageState extends State<PengaturanPage> {
                           titleSize: titleSize,
                           horizontalPadding: horizontalPadding,
                           isMobile: isMobile,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              paymentControl(
-                                size: contentSize,
-                                isMobile: isMobile,
-                              ),
-                              // muncul halus hanya setelah foto QRIS ditambahkan (tombol +)
-                              AnimatedSize(
-                                duration: const Duration(milliseconds: 350),
-                                curve: Curves.easeOutCubic,
-                                alignment: Alignment.topRight,
-                                child: _qrisImageBytes != null
-                                    ? SizedBox(
-                                        width: isMobile ? 300 : 390,
-                                        child: previewFotoQris(
-                                          isMobile: isMobile,
-                                        ),
-                                      )
-                                    : const SizedBox.shrink(),
-                              ),
-                            ],
+                          child: paymentControl(
+                            size: contentSize,
+                            isMobile: isMobile,
                           ),
                         ),
 
@@ -1910,6 +1949,38 @@ class _PengaturanPageState extends State<PengaturanPage> {
                               style: TextStyle(fontSize: contentSize - 1),
                             ),
                             style: TextButton.styleFrom(foregroundColor: navy),
+                          ),
+                        ),
+
+                        // KEAMANAN BIOMETRIK (FACE ID / SIDIK JARI)
+                        settingRow(
+                          title: 'Login Face ID / Sidik Jari',
+                          titleSize: titleSize,
+                          horizontalPadding: horizontalPadding,
+                          isMobile: isMobile,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _biometricEnabled ? 'Aktif' : 'Nonaktif',
+                                style: TextStyle(
+                                  color: _biometricEnabled
+                                      ? const Color(0xFF0F7A2A)
+                                      : Colors.black54,
+                                  fontSize: contentSize - 1,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Switch(
+                                value: _biometricEnabled,
+                                activeThumbColor: Colors.white,
+                                activeTrackColor: navy,
+                                onChanged: _biometricBusy
+                                    ? null
+                                    : _ubahStatusBiometrik,
+                              ),
+                            ],
                           ),
                         ),
 
@@ -3623,7 +3694,6 @@ class _PengaturanPageState extends State<PengaturanPage> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            flex: 5,
             child: Text(
               title,
               maxLines: 2,
@@ -3632,15 +3702,16 @@ class _PengaturanPageState extends State<PengaturanPage> {
                 color: navy,
                 fontSize: titleSize,
                 fontWeight: FontWeight.w500,
+                height: 1.25,
               ),
             ),
           ),
 
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
 
-          Flexible(
-            flex: 6,
-            child: Align(alignment: Alignment.centerRight, child: child),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: isMobile ? 190 : 380),
+            child: child,
           ),
         ],
       ),
@@ -3773,7 +3844,7 @@ class _PengaturanPageState extends State<PengaturanPage> {
   }
 
   // ==========================================================
-  // PAYMENT CONTROL (hanya QRIS & Cash + tombol unggah foto QRIS)
+  // PAYMENT CONTROL (hanya QRIS Midtrans & Cash)
   // ==========================================================
 
   Widget paymentControl({required double size, required bool isMobile}) {
@@ -3789,184 +3860,64 @@ class _PengaturanPageState extends State<PengaturanPage> {
             ? metodePembayaran
             : safeMethods.first;
 
-        return Wrap(
-          alignment: WrapAlignment.end,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 6,
-          children: [
-            Container(
-              height: isMobile ? 34 : 38,
-              constraints: BoxConstraints(
-                minWidth: isMobile ? 102 : 132,
-                maxWidth: isMobile ? 145 : 180,
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: const Color(0xFFA8CBE9),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: navy.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: selected,
-                  isDense: true,
-                  isExpanded: true,
-                  dropdownColor: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  icon: Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    size: isMobile ? 18 : 20,
-                    color: navy,
-                  ),
-                  style: TextStyle(
-                    color: navy,
-                    fontSize: isMobile ? 12.5 : 13.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  items: [
-                    for (final m in safeMethods)
-                      DropdownMenuItem<String>(
-                        value: m,
-                        child: Text(
-                          m,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() => metodePembayaran = value);
-                  },
-                ),
-              ),
+        return Container(
+          height: isMobile ? 36 : 38,
+          constraints: BoxConstraints(
+            minWidth: isMobile ? 115 : 140,
+            maxWidth: isMobile ? 150 : 185,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: const Color(0xFFA8CBE9),
+              width: 1.2,
             ),
-            SizedBox(
-              height: isMobile ? 34 : 38,
-              child: OutlinedButton.icon(
-                onPressed: pilihFotoQris,
-                icon: Icon(
-                  Icons.qr_code_2_rounded,
-                  size: isMobile ? 16 : 18,
-                ),
-                label: Text(
-                  _qrisImageBytes == null ? 'Foto QRIS' : 'Ganti QRIS',
-                  style: TextStyle(
-                    fontSize: isMobile ? 12 : 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: navy,
-                  backgroundColor: Colors.white,
-                  side: const BorderSide(color: Color(0xFFA8CBE9), width: 1.2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 10 : 14,
-                  ),
-                ),
+            boxShadow: [
+              BoxShadow(
+                color: navy.withValues(alpha: 0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
               ),
+            ],
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: selected,
+              isDense: true,
+              isExpanded: true,
+              dropdownColor: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              icon: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: isMobile ? 18 : 20,
+                color: navy,
+              ),
+              style: TextStyle(
+                color: navy,
+                fontSize: isMobile ? 12.5 : 13.5,
+                fontWeight: FontWeight.w700,
+              ),
+              items: [
+                for (final m in safeMethods)
+                  DropdownMenuItem<String>(
+                    value: m,
+                    child: Text(
+                      m,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => metodePembayaran = value);
+              },
             ),
-          ],
+          ),
         );
       },
-    );
-  }
-
-  // ==========================================================
-  // PREVIEW QRIS
-  // ==========================================================
-
-  Widget previewFotoQris({required bool isMobile}) {
-    return Container(
-      margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xffc8d9e8)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: isMobile ? 68 : 86,
-            height: isMobile ? 68 : 86,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: _memuatQris
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : _qrisImageBytes != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.memory(
-                      _qrisImageBytes!,
-                      fit: BoxFit.contain,
-                      width: isMobile ? 68 : 86,
-                      height: isMobile ? 68 : 86,
-                    ),
-                  )
-                : Icon(Icons.qr_code_2, color: navy, size: isMobile ? 36 : 46),
-          ),
-
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Foto QRIS pembayaran',
-                  style: normalStyle(isMobile ? 12 : 14),
-                ),
-
-                const SizedBox(height: 4),
-
-                Text(
-                  _qrisImageBytes == null
-                      ? 'Belum ada foto QRIS khusus. Tekan tombol + untuk memilih foto.'
-                      : 'Foto ini akan ditampilkan saat kasir memilih QRIS.',
-                  style: TextStyle(
-                    color: navy.withOpacity(0.72),
-                    fontSize: isMobile ? 10 : 12,
-                  ),
-                ),
-
-                const SizedBox(height: 5),
-
-                TextButton.icon(
-                  onPressed: pilihFotoQris,
-                  icon: const Icon(Icons.photo_library_outlined, size: 16),
-                  label: const Text('Ganti foto'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: navy,
-                    padding: EdgeInsets.zero,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 

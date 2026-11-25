@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:kasir_celcious_coffe/ui/pages/LaporanPage.dart';
 
 import 'package:kasir_celcious_coffe/features/owner/application/kt_data_service.dart';
@@ -55,6 +56,8 @@ class _KelolaTransaksiPageState extends State<KelolaTransaksiPage> {
   late RekapShift rekap;
   int tabDipilih = 0; // 0 = Riwayat, 1 = Modal & Keuntungan
   String kataCari = '';
+  Timer? _autoSyncTimer;
+  bool _isSyncing = false;
 
   final List<Listenable> _sumberData = KtDataService.sumberData;
 
@@ -68,18 +71,31 @@ class _KelolaTransaksiPageState extends State<KelolaTransaksiPage> {
         s.addListener(_muatUlang);
       }
       _sinkronisasiDariBackend();
+      // Auto-refresh setiap 15 detik agar ketika kasir baru login / buka shift /
+      // ada transaksi baru, layar Owner di HP langsung ikut ter-update otomatis.
+      _autoSyncTimer = Timer.periodic(
+        const Duration(seconds: 15),
+        (_) => _sinkronisasiDariBackend(),
+      );
     }
   }
 
   Future<void> _sinkronisasiDariBackend() async {
-    final dariServer = await KtDataService.fetchDariBackend(widget.namaKasir);
-    if (dariServer != null && mounted) {
-      setState(() => rekap = dariServer);
+    if (_isSyncing) return;
+    _isSyncing = true;
+    try {
+      final dariServer = await KtDataService.fetchDariBackend(widget.namaKasir);
+      if (dariServer != null && mounted) {
+        setState(() => rekap = dariServer);
+      }
+    } finally {
+      _isSyncing = false;
     }
   }
 
   @override
   void dispose() {
+    _autoSyncTimer?.cancel();
     if (!widget.pakaiDataContoh) {
       for (final s in _sumberData) {
         s.removeListener(_muatUlang);
@@ -96,7 +112,7 @@ class _KelolaTransaksiPageState extends State<KelolaTransaksiPage> {
 
   void _muatUlang() {
     if (!mounted) return;
-    setState(() => rekap = _ambilData());
+    _sinkronisasiDariBackend();
   }
 
   // Daftar transaksi setelah difilter kotak "Cari"
@@ -265,13 +281,17 @@ class _KelolaTransaksiPageState extends State<KelolaTransaksiPage> {
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 600;
 
-          return SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(
-              compact ? 14 : 24,
-              compact ? 16 : 22,
-              compact ? 14 : 24,
-              28,
-            ),
+          return RefreshIndicator(
+            onRefresh: _sinkronisasiDariBackend,
+            color: KtWarna.navy,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                compact ? 14 : 24,
+                compact ? 16 : 22,
+                compact ? 14 : 24,
+                28,
+              ),
             // Di layar lebar, isi dibatasi supaya tidak terlalu melebar.
             child: Center(
               child: ConstrainedBox(
@@ -362,6 +382,7 @@ class _KelolaTransaksiPageState extends State<KelolaTransaksiPage> {
                 ),
               ),
             ),
+          ),
           );
         },
       ),
@@ -527,7 +548,7 @@ class BarisChip extends StatelessWidget {
   });
 
   final String tanggalText; // "Senin, 26 Oktober 2026"
-  final String shiftText; // "Sift Sore (15.00-20.00)"
+  final String shiftText; // "Sift Pagi (11.00-17.00)" / "Sift Malam (18.00-00.00)"
   final VoidCallback onUnduh;
 
   @override
@@ -636,8 +657,8 @@ class ProfilKasirCard extends StatelessWidget {
   });
 
   final String nama;
-  final String namaShift; // "Sift Sore"
-  final String rentangJam; // "15.00-20.00"
+  final String namaShift; // "Sift Pagi" / "Sift Malam"
+  final String rentangJam; // "11.00-17.00" / "18.00-00.00"
   final String status; // "Balance/Tepat"
   final String? fotoAsset;
 

@@ -169,6 +169,7 @@ class TransaksiKasir {
   final bool lunas;
   final String metodeBayar;
   final String? fotoAsset;
+  final int extraItemCount;
 
   const TransaksiKasir({
     required this.id,
@@ -178,6 +179,7 @@ class TransaksiKasir {
     required this.lunas,
     required this.metodeBayar,
     this.fotoAsset,
+    this.extraItemCount = 0,
   });
 
   String get labelStatus =>

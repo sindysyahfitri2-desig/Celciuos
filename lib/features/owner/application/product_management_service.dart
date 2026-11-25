@@ -45,37 +45,91 @@ class ProductManagementService {
     return _categoryRecords;
   }
 
-  /// Memastikan tujuh kategori utama tersedia di database.
-  /// Kategori lama tidak dihapus.
-  static Future<void> _ensureCanonicalCategories() async {
-    await _fetchCategories();
+  static List<String> _extractSortedNames() {
+    final defaults = ProdukData.defaultKategoriProduk;
+    // Sembunyikan 3 kategori sisa seeder lama (ID 1, 2, 4: Coffee, Non-Coffee, Snack)
+    // yang sudah tidak dipakai (produk_count == 0), sementara kategori baru (ID > 10)
+    // yang dibuat Owner akan selalu tampil.
+    const legacyUnusedNames = {'coffee', 'non-coffee', 'snack'};
+    final fromServer = _categoryRecords
+        .where((r) {
+          final id = int.tryParse('${r['id_kategori'] ?? 0}') ?? 0;
+          final count = int.tryParse('${r['produk_count'] ?? 0}') ?? 0;
+          final nameLower = (r['nama_kategori']?.toString() ?? '')
+              .trim()
+              .toLowerCase();
+          if (id > 0 && id <= 4 && count == 0 && legacyUnusedNames.contains(nameLower)) {
+            return false;
+          }
+          return true;
+        })
+        .map((r) => (r['nama_kategori']?.toString() ?? '').trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
 
-    for (final category in ProdukData.kategoriProduk) {
-      final exists = _categoryRecords.any((record) {
-        final name = record['nama_kategori']?.toString() ?? '';
-        return name.toLowerCase() == category.toLowerCase();
-      });
+    final ordered = <String>[];
+    final seen = <String>{};
 
-      if (!exists) {
-        await ApiService.post('kategori', {
-          'nama_kategori': category,
-        });
-
-        await _fetchCategories();
+    // Urutkan kategori utama terlebih dahulu bila ada di database
+    for (final d in defaults) {
+      final match = fromServer.firstWhere(
+        (s) => s.toLowerCase() == d.toLowerCase(),
+        orElse: () => '',
+      );
+      if (match.isNotEmpty && seen.add(match.toLowerCase())) {
+        ordered.add(match);
       }
     }
-  }
-
-  static Future<List<String>?> loadCategories() async {
-    await _ensureCanonicalCategories();
-
-    return List<String>.from(ProdukData.kategoriProduk);
-  }
-
-  static Future<void> _ensureCategoriesLoaded() async {
-    if (!_categoriesLoaded) {
-      await _ensureCanonicalCategories();
+    // Tambahkan kategori baru/lainnya dari database
+    for (final s in fromServer) {
+      if (seen.add(s.toLowerCase())) {
+        ordered.add(s);
+      }
     }
+
+    if (ordered.isNotEmpty) {
+      ProdukData.syncCategories(ordered);
+    }
+    return ordered.isNotEmpty ? ordered : List<String>.from(ProdukData.kategoriProduk);
+  }
+
+  /// Mengambil seluruh kategori dinamis dari database Laravel.
+  static Future<List<String>> loadCategories() async {
+    await _fetchCategories();
+    return _extractSortedNames();
+  }
+
+  /// Menambahkan kategori baru ke database Laravel (POST /api/kategori).
+  static Future<List<String>> addCategory(String name) async {
+    final clean = name.trim();
+    if (clean.isEmpty) {
+      throw const FormatException('Nama kategori wajib diisi.');
+    }
+    await ApiService.post('kategori', {'nama_kategori': clean});
+    await _fetchCategories();
+    return _extractSortedNames();
+  }
+
+  /// Menghapus kategori dari database Laravel (DELETE /api/kategori/{id}).
+  static Future<List<String>> deleteCategory(String name) async {
+    if (!_categoriesLoaded || _categoryRecords.isEmpty) {
+      await _fetchCategories();
+    }
+    final clean = name.trim().toLowerCase();
+    final matches = _categoryRecords.where((item) {
+      final n = (item['nama_kategori']?.toString() ?? '').trim().toLowerCase();
+      return n == clean;
+    });
+    if (matches.isEmpty) {
+      throw Exception('Kategori "$name" tidak ditemukan di server.');
+    }
+    final id = matches.first['id_kategori'];
+    if (id == null) {
+      throw Exception('ID kategori tidak valid.');
+    }
+    await ApiService.delete('kategori/$id');
+    await _fetchCategories();
+    return _extractSortedNames();
   }
 
   // ============================================================
@@ -93,10 +147,8 @@ class ProductManagementService {
   // SIMPAN KATEGORI
   // ============================================================
 
-  /// Kategori utama bersifat tetap.
-  /// Kategori lama di database tidak dihapus.
   static Future<void> saveCategories(List<String> categories) async {
-    await _ensureCanonicalCategories();
+    await loadCategories();
   }
 
   // ============================================================
@@ -104,32 +156,30 @@ class ProductManagementService {
   // ============================================================
 
   static Future<int> _getCategoryId(String category) async {
-    await _ensureCanonicalCategories();
-
-    final normalizedCategory = ProdukData.kategoriProduk.firstWhere(
-      (item) => item.toLowerCase() == category.trim().toLowerCase(),
-      orElse: () => '',
-    );
-
-    if (normalizedCategory.isEmpty) {
-      throw Exception(
-        'Kategori "$category" tidak termasuk kategori utama.',
-      );
+    if (!_categoriesLoaded || _categoryRecords.isEmpty) {
+      await _fetchCategories();
     }
 
-    final selected = _categoryRecords.where((item) {
-      final name = item['nama_kategori']?.toString() ?? '';
-      return name.toLowerCase() == normalizedCategory.toLowerCase();
+    final clean = category.trim().toLowerCase();
+    var selected = _categoryRecords.where((item) {
+      final name = (item['nama_kategori']?.toString() ?? '').trim().toLowerCase();
+      return name == clean;
     });
 
     if (selected.isEmpty) {
-      throw Exception(
-        'Kategori "$normalizedCategory" tidak ditemukan di server.',
-      );
+      await _fetchCategories();
+      selected = _categoryRecords.where((item) {
+        final name =
+            (item['nama_kategori']?.toString() ?? '').trim().toLowerCase();
+        return name == clean;
+      });
+    }
+
+    if (selected.isEmpty) {
+      throw Exception('Kategori "$category" tidak ditemukan di server.');
     }
 
     final id = selected.first['id_kategori'];
-
     if (id == null) {
       throw Exception('ID kategori tidak ditemukan.');
     }

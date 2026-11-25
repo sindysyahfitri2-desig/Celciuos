@@ -22,7 +22,7 @@ class ProdukData {
   // Nanti kategori ini juga digunakan oleh halaman Kasir.
   // ==========================================================
 
-  static const List<String> kategoriProduk = [
+  static const List<String> defaultKategoriProduk = [
     'Americano',
     'Sanger',
     'Refresh',
@@ -31,6 +31,28 @@ class ProdukData {
     'Non Coffee',
     'Food',
   ];
+
+  static final List<String> kategoriProduk = List<String>.from(
+    defaultKategoriProduk,
+  );
+
+  static void syncCategories(List<String> names) {
+    final clean = <String>[];
+    final seen = <String>{};
+    for (final raw in names) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) continue;
+      final key = trimmed.toLowerCase();
+      if (seen.add(key)) {
+        clean.add(trimmed);
+      }
+    }
+    if (clean.isNotEmpty) {
+      kategoriProduk
+        ..clear()
+        ..addAll(clean);
+    }
+  }
 
   // ==========================================================
   // DATA PRODUK DEFAULT
@@ -416,8 +438,6 @@ class ProdukData {
   /// lalu fallback pintar ke aset bawaan jika produk belum punya foto di server.
   static String _resolveServerImage(Map<String, dynamic> p, String nama) {
     final serverBase = ApiService.baseUrl.replaceFirst(RegExp(r'/api/?$'), '');
-    final updatedAt = Uri.encodeComponent(p['updated_at']?.toString() ?? '');
-    final cacheQuery = updatedAt.isEmpty ? '' : '?v=$updatedAt';
 
     final rawUrl = p['gambar_url']?.toString().trim() ?? '';
     final rawPath = p['gambar']?.toString().trim() ?? '';
@@ -425,17 +445,17 @@ class ProdukData {
     if (rawUrl.isNotEmpty) {
       final parsed = Uri.tryParse(rawUrl);
       if (parsed != null && parsed.path.isNotEmpty) {
-        return '$serverBase${parsed.path}$cacheQuery';
+        return '$serverBase${parsed.path}';
       }
       if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
-        return '$rawUrl$cacheQuery';
+        return rawUrl;
       }
       final normalizedPath = rawUrl.startsWith('/') ? rawUrl : '/$rawUrl';
-      return '$serverBase$normalizedPath$cacheQuery';
+      return '$serverBase$normalizedPath';
     }
 
     if (rawPath.startsWith('http://') || rawPath.startsWith('https://')) {
-      return '$rawPath$cacheQuery';
+      return rawPath;
     }
 
     return _gambarFallbackDariNama(nama);
@@ -629,15 +649,39 @@ class ProdukData {
       );
     }
 
-    await ApiService.patch(
-      'produk/${id.toInt()}/status',
-      {
-        'status': isActive ? 'aktif' : 'nonaktif',
-      },
-    );
+    final targetId = id.toInt();
+    final previousList = produk.value
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
 
-    await loadFromApi(
-      throwOnError: true,
-    );
+    // Optimistic UI: ubah switch langsung (0 ms) agar terasa instan,
+    // lalu sinkronkan ke backend di belakang layar.
+    final updatedList = previousList.map((item) {
+      final itemId = item['id_produk'];
+      if (itemId is num && itemId.toInt() == targetId) {
+        return <String, dynamic>{
+          ...item,
+          'is_active': isActive,
+        };
+      }
+      return item;
+    }).toList();
+
+    produk.value = updatedList;
+    _lastApiSignature = jsonEncode(updatedList);
+
+    try {
+      await ApiService.patch(
+        'produk/$targetId/status',
+        {
+          'status': isActive ? 'aktif' : 'nonaktif',
+        },
+      );
+    } catch (e) {
+      // Kembalikan status semula bila server gagal menyimpan
+      produk.value = previousList;
+      _lastApiSignature = jsonEncode(previousList);
+      rethrow;
+    }
   }
 }

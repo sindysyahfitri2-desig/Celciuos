@@ -17,13 +17,17 @@ const Color navy = Color(0xFF103657);
 class OwnerPinPage extends StatefulWidget {
   const OwnerPinPage({super.key});
 
+  static const String bioEnabledKey = 'owner_biometric_enabled';
+  static const String bioTokenKey = 'owner_biometric_token';
+  static const String bioUserKey = 'owner_biometric_user';
+
   @override
   State<OwnerPinPage> createState() => _OwnerPinPageState();
 }
 
 class _OwnerPinPageState extends State<OwnerPinPage> {
-  static const _bioTokenKey = 'owner_biometric_token';
-  static const _bioUserKey = 'owner_biometric_user';
+  static const _bioTokenKey = OwnerPinPage.bioTokenKey;
+  static const _bioUserKey = OwnerPinPage.bioUserKey;
 
   final TextEditingController _pin = TextEditingController();
   final FocusNode _focusNode = FocusNode();
@@ -32,6 +36,7 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
   bool _loading = false;
   bool _pinInvalid = false;
   bool _biometricSupported = false;
+  bool _biometricEnabled = true;
   bool _biometricEnrolledOnApp = false;
   String _biometricLabel = 'Face ID / Biometrik';
   bool _textPasswordMode = false;
@@ -49,7 +54,9 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
       final canCheck = await _localAuth.canCheckBiometrics;
       final types = await _localAuth.getAvailableBiometrics();
       final prefs = await SharedPreferences.getInstance();
+      final enabled = prefs.getBool(OwnerPinPage.bioEnabledKey) ?? true;
       final hasSavedOwner =
+          enabled &&
           (prefs.getString(_bioTokenKey)?.isNotEmpty ?? false) &&
           (prefs.getString(_bioUserKey)?.isNotEmpty ?? false);
 
@@ -64,6 +71,7 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
       if (!mounted) return;
       setState(() {
         _biometricSupported = supported || canCheck;
+        _biometricEnabled = enabled;
         _biometricEnrolledOnApp = hasSavedOwner;
         _biometricLabel = label;
       });
@@ -74,15 +82,19 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
 
   Future<void> _resetBiometrik() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(OwnerPinPage.bioEnabledKey, false);
     await prefs.remove(_bioTokenKey);
     await prefs.remove(_bioUserKey);
     if (!mounted) return;
     setState(() {
+      _biometricEnabled = false;
       _biometricEnrolledOnApp = false;
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Biometrik di perangkat ini berhasil di-reset.'),
+        content: Text(
+          'Biometrik dinonaktifkan. Anda dapat mengaktifkannya kembali di Pengaturan Owner.',
+        ),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -94,6 +106,8 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
   }) async {
     if (kIsWeb) return;
     final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool(OwnerPinPage.bioEnabledKey) ?? true;
+    if (!enabled) return;
     await prefs.setString(_bioTokenKey, token);
     await prefs.setString(_bioUserKey, jsonEncode(user));
   }
@@ -546,7 +560,7 @@ class _OwnerPinPageState extends State<OwnerPinPage> {
                       ],
 
                       // TOMBOL FACE ID / BIOMETRIK (ANDROID / iOS / WINDOWS)
-                      if (_biometricSupported) ...[
+                      if (_biometricSupported && _biometricEnabled) ...[
                         const SizedBox(height: 18),
                         SizedBox(
                           width: double.infinity,

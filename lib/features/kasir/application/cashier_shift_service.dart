@@ -29,9 +29,8 @@ class CashierShiftService {
     return data is Map ? Map<String, dynamic>.from(data) : null;
   }
 
-  /// Samakan data lokal dengan backend (dipanggil setelah login kasir).
-  static Future<void> syncFromBackend() async {
-    final data = await fetchAktif();
+  /// Terapkan data shift dari backend ke store lokal tanpa request ulang.
+  static Future<void> applyShiftData(Map<String, dynamic>? data) async {
     final localOpen = TransactionStore.activeShift.value?['status'] == 'open';
 
     if (data == null) {
@@ -46,6 +45,12 @@ class CashierShiftService {
         openingCash: double.tryParse(shift['kas_awal'].toString()) ?? 0,
       );
     }
+  }
+
+  /// Samakan data lokal dengan backend (dipanggil setelah login kasir).
+  static Future<void> syncFromBackend() async {
+    final data = await fetchAktif();
+    await applyShiftData(data);
   }
 
   static Future<CashierShiftData> startShift({

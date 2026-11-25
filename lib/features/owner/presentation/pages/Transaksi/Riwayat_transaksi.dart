@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kasir_celcious_coffe/features/owner/application/kt_model.dart';
+import 'package:kasir_celcious_coffe/ui/widgets/product_image.dart';
 
 /// Panel besar navy "Riwayat Transaksi Kasir" berisi daftar transaksi.
 class RiwayatTransaksiPanel extends StatelessWidget {
@@ -19,7 +20,7 @@ class RiwayatTransaksiPanel extends StatelessWidget {
     return Container(
       width: double.infinity,
       constraints: const BoxConstraints(minHeight: 320),
-      padding: const EdgeInsets.fromLTRB(10, 12, 10, 4),
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 6),
       decoration: BoxDecoration(
         color: KtWarna.navy,
         borderRadius: BorderRadius.circular(14),
@@ -30,31 +31,35 @@ class RiwayatTransaksiPanel extends StatelessWidget {
         children: [
           // ---------- Judul panel ----------
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 2),
             child: Row(
               children: [
                 const Text(
                   'Riwayat Transaksi Kasir',
                   style: TextStyle(
                     color: Color(0xffe8f0f8),
-                    fontSize: 18,
+                    fontSize: 17,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(5),
-                    border: Border.all(color: Colors.white54, width: 1.5),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.white54, width: 1.2),
                   ),
-                  child: const Icon(Icons.point_of_sale, color: KtWarna.navy, size: 18),
+                  child: const Icon(
+                    Icons.point_of_sale,
+                    color: KtWarna.navy,
+                    size: 17,
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
           // ---------- Isi ----------
           if (daftar.isEmpty)
@@ -63,7 +68,7 @@ class RiwayatTransaksiPanel extends StatelessWidget {
               child: Center(
                 child: Text(
                   'Belum ada transaksi',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                  style: TextStyle(color: Colors.white70, fontSize: 12.5),
                 ),
               ),
             )
@@ -81,7 +86,7 @@ class RiwayatTransaksiPanel extends StatelessWidget {
 }
 
 // ==============================================================
-// WIDGET: kartu satu transaksi (putih)
+// WIDGET: kartu satu transaksi (putih, responsif HP & desktop)
 // ==============================================================
 class TransaksiItemCard extends StatelessWidget {
   const TransaksiItemCard({
@@ -92,107 +97,247 @@ class TransaksiItemCard extends StatelessWidget {
   });
 
   final TransaksiKasir data;
-  final VoidCallback onHapus; // dipanggil saat tombol merah ditekan
+  final VoidCallback onHapus;
   final VoidCallback? onDetail;
 
-  static const TextStyle _gaya = TextStyle(
+  static const TextStyle _gayaDesktop = TextStyle(
     color: KtWarna.navy,
-    fontSize: 7,
+    fontSize: 10.5,
     fontWeight: FontWeight.w700,
   );
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onDetail,
-      child: Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.fromLTRB(4, 4, 10, 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: KtGaya.bayangan,
-      ),
-      child: Row(
-        children: [
-          // ---------- Foto menu ----------
-          ClipRRect(
-            borderRadius: BorderRadius.circular(5),
-            child: SizedBox(
-              width: 74,
-              height: 52,
-              child: data.fotoAsset == null
-                  ? _fotoKosong()
-                  : Image.asset(
-                      data.fotoAsset!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _fotoKosong(),
-                    ),
-            ),
-          ),
-          const SizedBox(width: 8),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 460;
 
-          // ---------- Detail ----------
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _baris('Kasir', Text(data.kasir, style: _gaya, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                _baris('Total Pesanan', Text(data.ringkasanItem, style: _gaya, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                _baris('Total Harga', Text(formatRupiah(data.totalHarga, spasi: false), style: _gaya)),
-                _baris('Status Pembayaran', _badgeStatus()),
-              ],
-            ),
-          ),
-          const SizedBox(width: 6),
-
-          // ---------- Tombol merah ----------
-          GestureDetector(
-            onTap: onHapus,
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onDetail,
+            borderRadius: BorderRadius.circular(11),
             child: Container(
-              width: 46,
-              height: 20,
-              decoration: BoxDecoration(
-                gradient: KtGaya.gradasiMerah,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: KtGaya.bayangan,
+              margin: const EdgeInsets.only(bottom: 9),
+              padding: EdgeInsets.symmetric(
+                horizontal: isCompact ? 9 : 10,
+                vertical: isCompact ? 8 : 8,
               ),
-              child: const Icon(Icons.delete_outline, color: Colors.white, size: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(11),
+                boxShadow: KtGaya.bayanganRingan,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // ---------- Foto produk pertama + badge +N ----------
+                  _thumbnailProduk(isCompact),
+                  SizedBox(width: isCompact ? 10 : 12),
+
+                  // ---------- Detail transaksi ----------
+                  Expanded(
+                    child: isCompact ? _detailCompact() : _detailDesktop(),
+                  ),
+                  SizedBox(width: isCompact ? 8 : 10),
+
+                  // ---------- Tombol batal/hapus (ringkas di HP) ----------
+                  InkWell(
+                    onTap: onHapus,
+                    borderRadius: BorderRadius.circular(isCompact ? 9 : 12),
+                    child: Container(
+                      width: isCompact ? 32 : 42,
+                      height: isCompact ? 32 : 26,
+                      decoration: BoxDecoration(
+                        gradient: KtGaya.gradasiMerah,
+                        borderRadius: BorderRadius.circular(isCompact ? 9 : 13),
+                        boxShadow: KtGaya.bayanganRingan,
+                      ),
+                      child: Icon(
+                        Icons.delete_outline_rounded,
+                        color: Colors.white,
+                        size: isCompact ? 17 : 15,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
-      ),
-    ),
+        );
+      },
     );
   }
 
-  // Satu baris "Label : isi" (label lebarnya tetap supaya titik dua rata)
+  Widget _thumbnailProduk(bool isCompact) {
+    final w = isCompact ? 56.0 : 72.0;
+    final h = isCompact ? 56.0 : 58.0;
+    final hasPhoto = data.fotoAsset != null && data.fotoAsset!.trim().isNotEmpty;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(isCompact ? 9 : 8),
+      child: SizedBox(
+        width: w,
+        height: h,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              color: const Color(0xffe6eff8),
+              child: hasPhoto
+                  ? ProductImage(image: data.fotoAsset, fit: BoxFit.cover)
+                  : _fotoKosong(),
+            ),
+            if (data.extraItemCount > 0)
+              Positioned(
+                right: 3,
+                bottom: 3,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: KtWarna.navy.withValues(alpha: 0.86),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.75),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Text(
+                    '+${data.extraItemCount}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      height: 1.1,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Tata letak lega & nyaman dibaca khusus layar HP (tidak sumpek).
+  Widget _detailCompact() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          data.ringkasanItem,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: KtWarna.navy,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                data.kasir,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: KtWarna.abuTeks,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const Text(
+              '  •  ',
+              style: TextStyle(color: KtWarna.abuTeks, fontSize: 10),
+            ),
+            Text(
+              formatRupiah(data.totalHarga, spasi: false),
+              style: const TextStyle(
+                color: KtWarna.navy,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        _badgeStatus(compact: true),
+      ],
+    );
+  }
+
+  /// Tata letak label sejajar untuk layar tablet/desktop.
+  Widget _detailDesktop() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _baris(
+          'Kasir',
+          Text(
+            data.kasir,
+            style: _gayaDesktop,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        _baris(
+          'Pesanan',
+          Text(
+            data.ringkasanItem,
+            style: _gayaDesktop,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        _baris(
+          'Total Harga',
+          Text(
+            formatRupiah(data.totalHarga, spasi: false),
+            style: _gayaDesktop,
+          ),
+        ),
+        _baris('Status', _badgeStatus(compact: false)),
+      ],
+    );
+  }
+
   Widget _baris(String label, Widget isi) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 1.5),
       child: Row(
         children: [
-          SizedBox(width: 62, child: Text(label, style: _gaya)),
-          const Text(': ', style: _gaya),
+          SizedBox(width: 72, child: Text(label, style: _gayaDesktop)),
+          const Text(': ', style: _gayaDesktop),
           Flexible(child: isi),
         ],
       ),
     );
   }
 
-  Widget _badgeStatus() {
+  Widget _badgeStatus({required bool compact}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 9,
+        vertical: compact ? 2.5 : 2,
+      ),
       decoration: BoxDecoration(
         gradient: data.lunas ? KtGaya.gradasiHijau : null,
         color: data.lunas ? null : KtWarna.oranye,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         data.labelStatus,
-        style: const TextStyle(
+        style: TextStyle(
           color: Colors.white,
-          fontSize: 6,
+          fontSize: compact ? 9.2 : 9,
           fontWeight: FontWeight.w800,
         ),
       ),
@@ -200,9 +345,8 @@ class TransaksiItemCard extends StatelessWidget {
   }
 
   Widget _fotoKosong() {
-    return Container(
-      color: const Color(0xffe6eff8),
-      child: const Icon(Icons.local_cafe, color: KtWarna.navy, size: 26),
+    return const Center(
+      child: Icon(Icons.local_cafe_rounded, color: KtWarna.navy, size: 24),
     );
   }
 }

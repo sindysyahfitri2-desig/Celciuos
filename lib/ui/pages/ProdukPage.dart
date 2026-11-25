@@ -54,7 +54,7 @@ class _ProdukPageState extends State<ProdukPage> {
     super.initState();
     _refreshProducts();
     _syncTimer = Timer.periodic(
-      const Duration(seconds: 30),
+      const Duration(seconds: 35),
       (_) => _refreshProducts(),
     );
   }
@@ -72,7 +72,9 @@ class _ProdukPageState extends State<ProdukPage> {
     _isRefreshing = true;
     try {
       await ProdukData.loadFromApi();
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+      }
     } finally {
       _isRefreshing = false;
     }

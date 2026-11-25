@@ -6,9 +6,31 @@ import 'package:kasir_celcious_coffe/features/kasir/application/cashier_shift_se
 import 'package:kasir_celcious_coffe/features/kasir/presentation/kasir_page.dart';
 import 'package:kasir_celcious_coffe/features/auth/presentation/pilih_peran_page.dart';
 import 'package:kasir_celcious_coffe/data/produk_data.dart';
+import 'package:kasir_celcious_coffe/data/transaction_store.dart';
 
 class PilihProfilPage extends StatefulWidget {
   const PilihProfilPage({super.key});
+
+  static List<Map<String, dynamic>>? _cachedKasir;
+  static Future<List<Map<String, dynamic>>>? _inFlightPrefetch;
+
+  static Future<List<Map<String, dynamic>>> prefetch({bool force = false}) {
+    if (!force && _inFlightPrefetch != null) return _inFlightPrefetch!;
+    final future = () async {
+      try {
+        final res = await ApiService.get('kasir-profil');
+        final list = (res['data'] as List? ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+        _cachedKasir = list;
+        return list;
+      } finally {
+        _inFlightPrefetch = null;
+      }
+    }();
+    _inFlightPrefetch = future;
+    return future;
+  }
 
   @override
   State<PilihProfilPage> createState() => _PilihProfilPageState();
@@ -26,24 +48,26 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
   @override
   void initState() {
     super.initState();
-    _loadKasir();
+    final cached = PilihProfilPage._cachedKasir;
+    if (cached != null && cached.isNotEmpty) {
+      _kasir = List<Map<String, dynamic>>.from(cached);
+      _loading = false;
+    }
+    _loadKasir(silent: !_loading);
   }
 
   // ==========================================
   // LOAD DATA KASIR
   // ==========================================
 
-  Future<void> _loadKasir() async {
+  Future<void> _loadKasir({bool silent = false}) async {
     try {
-      final res = await ApiService.get('kasir-profil');
+      final list = await PilihProfilPage.prefetch(force: silent);
 
       if (!mounted) return;
 
       setState(() {
-        _kasir = (res['data'] as List)
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .toList();
-
+        _kasir = List<Map<String, dynamic>>.from(list);
         _loading = false;
       });
     } catch (e) {
@@ -53,13 +77,15 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
         _loading = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.toString().replaceAll('Exception: ', ''),
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString().replaceAll('Exception: ', ''),
+            ),
           ),
-        ),
-      );
+        );
+      }
     }
   }
 
@@ -297,11 +323,19 @@ class _PilihProfilPageState extends State<PilihProfilPage> {
         );
       }
 
-      // Jalankan sinkronisasi shift & muat produk SECARA PARALEL agar login cepat (< 1 detik)
-      await Future.wait([
-        CashierShiftService.syncFromBackend().catchError((_) {}),
-        ProdukData.loadFromApi().catchError((_) {}),
-      ]);
+      // Gunakan shift_aktif langsung dari respon login-pin agar hemat 1 roundtrip jaringan!
+      if (res.containsKey('shift_aktif')) {
+        final rawShift = res['shift_aktif'];
+        await CashierShiftService.applyShiftData(
+          rawShift is Map ? Map<String, dynamic>.from(rawShift) : null,
+        );
+      } else {
+        await CashierShiftService.syncFromBackend().catchError((_) {});
+      }
+
+      // Pre-load produk & tarif PPN di latar belakang tanpa menahan perpindahan layar
+      ProdukData.loadFromApi().catchError((_) {});
+      TransactionStore.syncStoreRates().catchError((_) {});
 
       if (!mounted) return;
 

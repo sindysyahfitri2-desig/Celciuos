@@ -5,6 +5,21 @@ import 'package:kasir_celcious_coffe/data/api_service.dart';
 class ReportService {
   ReportService._();
 
+  static ReportSnapshot? lastFetchedSnapshot;
+
+  static Future<void> prefetchCurrentMonth({
+    required String cashierFallback,
+  }) async {
+    try {
+      final now = DateTime.now();
+      await fetch(
+        dari: DateTime(now.year, now.month, 1),
+        sampai: DateTime(now.year, now.month + 1, 0),
+        cashierFallback: cashierFallback,
+      );
+    } catch (_) {}
+  }
+
   static ReportSnapshot load({required String cashierFallback}) {
     final unfinishedById = <String, Map<String, dynamic>>{};
     for (final order in TransactionStore.unfinishedOrders.value) {
@@ -225,12 +240,14 @@ class ReportService {
       };
     }).toList();
 
-    return ReportSnapshot(
+    final snapshot = ReportSnapshot(
       openingCash: _num(ringkasan['kas_awal']),
       currentCash: _num(ringkasan['kas_saat_ini']),
       transactionRows: transactionRows,
       drawerRows: drawerRows,
     );
+    lastFetchedSnapshot = snapshot;
+    return snapshot;
   }
 
   static bool _isPaid(Map<String, dynamic> transaction) {
