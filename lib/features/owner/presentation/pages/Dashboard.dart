@@ -2044,12 +2044,25 @@ class _OwnerLaporanLivePageState extends State<_OwnerLaporanLivePage> {
           0,
           (sum, d) => sum + (int.tryParse('${d['jumlah'] ?? 0}') ?? 0),
         );
+        final pesananItems = details
+            .map((d) {
+              final nama = ((d['produk'] is Map ? d['produk']['nama_produk'] : null) ??
+                      d['nama_produk'] ??
+                      'Menu')
+                  .toString()
+                  .trim();
+              final q = int.tryParse('${d['jumlah'] ?? 1}') ?? 1;
+              return q > 1 ? '$nama ($q)' : nama;
+            })
+            .where((s) => s.isNotEmpty)
+            .toList();
 
         return LaporanPreviewRow(
           tanggal: rawWaktu.isNotEmpty ? rawWaktu : _formatTglRow(rawWaktu),
           idPemesanan: kode,
           jam: jamText,
           namaKasir: kasir,
+          pesanan: pesananItems.isEmpty ? '-' : pesananItems.join(', '),
           jumlahPemesanan: qtySum > 0 ? qtySum : 1,
           keterangan: ket,
           metode: metode,

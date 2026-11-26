@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:kasir_celcious_coffe/data/api_service.dart';
+import 'package:kasir_celcious_coffe/features/owner/presentation/pages/stok/manajemen_stok_page.dart';
 import 'package:kasir_celcious_coffe/features/reports/application/celcious_report_export.dart';
 import 'package:kasir_celcious_coffe/features/reports/application/report_service.dart';
 import 'package:kasir_celcious_coffe/ui/widgets/app_branding_logo.dart';
@@ -83,6 +84,7 @@ class LaporanPreviewRow {
     this.idPemesanan,
     this.jam,
     this.namaKasir,
+    this.pesanan,
     this.jumlahPemesanan = 1,
   });
 
@@ -93,6 +95,7 @@ class LaporanPreviewRow {
   final String? idPemesanan;
   final String? jam;
   final String? namaKasir;
+  final String? pesanan;
   final int jumlahPemesanan;
 }
 
@@ -221,6 +224,11 @@ ComputedFinancialReport _computeReport({
     final jam = _extractJamText(row);
     final kasir = _extractKasir(row, fallbackKasir);
     final qty = row.jumlahPemesanan <= 0 ? 1 : row.jumlahPemesanan;
+    final pesananRaw = (row.pesanan ?? '').trim();
+    final pesanan = pesananRaw.isEmpty ? '-' : pesananRaw;
+    final metodeRaw = row.metode.trim();
+    final metode =
+        (metodeRaw.isEmpty || metodeRaw == '-') ? 'Cash' : metodeRaw;
     if (CelciousReportExport.isShiftMalam(jam: jam, tanggal: row.tanggal)) {
       malamList.add(
         CelciousShiftTransactionRow(
@@ -230,6 +238,8 @@ ComputedFinancialReport _computeReport({
           namaKasir: kasir,
           jumlahPemesanan: qty,
           totalHarga: row.nominal,
+          pesanan: pesanan,
+          metodePembayaran: metode,
         ),
       );
     } else {
@@ -241,6 +251,8 @@ ComputedFinancialReport _computeReport({
           namaKasir: kasir,
           jumlahPemesanan: qty,
           totalHarga: row.nominal,
+          pesanan: pesanan,
+          metodePembayaran: metode,
         ),
       );
     }
@@ -333,6 +345,10 @@ CelciousCashDrawerReportData _computeCashDrawerReport({
     ),
     ownerName: base.ownerName,
     locationDate: 'Langkat, $periodDateText',
+    allRows: base.allRows,
+    totalPemasukan: base.totalPemasukan,
+    totalPengeluaran: base.totalPengeluaran,
+    saldoAkhir: base.saldoAkhir,
   );
 }
 
@@ -422,6 +438,7 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
               jam: t['jam'] ?? '-',
               idPemesanan: id,
               namaKasir: kasir,
+              pesanan: t['pesanan'],
               jumlahPemesanan: qty <= 0 ? 1 : qty,
               keterangan: '$id - $kasir',
               metode: t['pembayaran'] ?? '-',
@@ -506,6 +523,20 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
         r.kasirMalam.toLowerCase().contains(keyword) ||
         'kas laci'.contains(keyword) ||
         'laci'.contains(keyword) ||
+        'pengeluaran'.contains(keyword) ||
+        'celcious'.contains(keyword);
+  }
+
+  bool get _isStokMatch {
+    final keyword = _searchController.text.trim().toLowerCase();
+    if (keyword.isEmpty) return true;
+    return 'laporan manajemen stok, analisis penjualan produk & waste'
+            .contains(keyword) ||
+        _activeTanggalText.toLowerCase().contains(keyword) ||
+        'stok'.contains(keyword) ||
+        'produk'.contains(keyword) ||
+        'waste'.contains(keyword) ||
+        'bahan'.contains(keyword) ||
         'celcious'.contains(keyword);
   }
 
@@ -550,11 +581,19 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
     );
   }
 
+  void _openStockReportPreview() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const LaporanStokPreviewPage(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final report = _report;
     final cashDrawerReport = _cashDrawerReport;
-    final hasAnyMatch = _isTransaksiMatch || _isKasLaciMatch;
+    final hasAnyMatch = _isTransaksiMatch || _isKasLaciMatch || _isStokMatch;
 
     return SizedBox.expand(
       child: ColoredBox(
@@ -637,6 +676,16 @@ class _KelolaLaporanContentState extends State<KelolaLaporanContent> {
                             report: cashDrawerReport,
                             cardWidth: cardWidth,
                             onTap: _openCashDrawerPreview,
+                          ),
+                        if (_isStokMatch)
+                          _StockReportDocumentCard(
+                            periodText: _activeTanggalText,
+                            storeName: report.storeName,
+                            address: report.address,
+                            contactLine: report.contactLine,
+                            ownerName: report.ownerName,
+                            cardWidth: cardWidth,
+                            onTap: _openStockReportPreview,
                           ),
                       ],
                     )
@@ -1175,12 +1224,13 @@ class _ShiftReportTable extends StatelessWidget {
         Table(
           border: TableBorder.all(color: _tableBorder, width: 0.9),
           columnWidths: const {
-            0: FixedColumnWidth(40),
-            1: FlexColumnWidth(2.1),
-            2: FixedColumnWidth(62),
-            3: FlexColumnWidth(2.0),
-            4: FlexColumnWidth(1.6),
-            5: FlexColumnWidth(2.0),
+            0: FixedColumnWidth(44),
+            1: FixedColumnWidth(48),
+            2: FlexColumnWidth(1.5),
+            3: FlexColumnWidth(2.3),
+            4: FixedColumnWidth(54),
+            5: FixedColumnWidth(66),
+            6: FlexColumnWidth(1.6),
           },
           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
           children: [
@@ -1189,15 +1239,16 @@ class _ShiftReportTable extends StatelessWidget {
               children: [
                 for (final label in const [
                   'No',
-                  'ID Pemesanan',
                   'Jam',
-                  'Nama Kasir',
-                  'Jumlah Pemesanan',
+                  'No. Struk',
+                  'Pesanan',
+                  'Jumlah Pesanan',
+                  'Metode Pembayaran',
                   'Total Harga',
                 ])
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
+                      horizontal: 5,
                       vertical: 8,
                     ),
                     child: Text(
@@ -1205,7 +1256,7 @@ class _ShiftReportTable extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 10.2,
+                        fontSize: 9.8,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -1216,17 +1267,17 @@ class _ShiftReportTable extends StatelessWidget {
               for (var i = 0; i < placeholderRows; i++)
                 TableRow(
                   children: [
-                    for (var c = 0; c < 6; c++)
+                    for (var c = 0; c < 7; c++)
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
+                          horizontal: 6,
                           vertical: 8,
                         ),
                         child: Text(
-                          c == 5 ? 'Rp.' : '',
+                          c == 6 ? 'Rp.' : '',
                           style: const TextStyle(
                             color: _muted,
-                            fontSize: 10.5,
+                            fontSize: 10.2,
                           ),
                         ),
                       ),
@@ -1237,10 +1288,11 @@ class _ShiftReportTable extends StatelessWidget {
                 TableRow(
                   children: [
                     _cell('${item.no}', align: TextAlign.center),
-                    _cell(item.idPemesanan),
                     _cell(item.jam, align: TextAlign.center),
-                    _cell(item.namaKasir),
+                    _cell(item.idPemesanan),
+                    _cell(item.pesanan),
                     _cell('${item.jumlahPemesanan}', align: TextAlign.center),
+                    _cell(item.metodePembayaran, align: TextAlign.center),
                     _cell(
                       CelciousReportExport.formatRupiah(item.totalHarga),
                       align: TextAlign.right,
@@ -1252,6 +1304,7 @@ class _ShiftReportTable extends StatelessWidget {
               decoration: const BoxDecoration(color: _subtotalBg),
               children: [
                 _cell('Total', align: TextAlign.center, bold: true),
+                const SizedBox.shrink(),
                 const SizedBox.shrink(),
                 const SizedBox.shrink(),
                 const SizedBox.shrink(),
@@ -1797,48 +1850,29 @@ class _CashDrawerReportDocument extends StatelessWidget {
 
           const SizedBox(height: 14),
 
-          // Ringkasan Kas Awal & Kas Saat Ini
-          Row(
-            children: [
-              Expanded(
-                child: _cashSummaryBox(
-                  'Kas Awal Shift',
-                  CelciousReportExport.formatRupiah(report.openingCash),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _cashSummaryBox(
-                  'Kas Saat Ini (Sistem)',
-                  CelciousReportExport.formatRupiah(report.currentCash),
-                ),
-              ),
-            ],
+          // Modal Awal (sesuai format akuntansi kas laci)
+          _cashSummaryBox(
+            'Modal Awal',
+            CelciousReportExport.formatRupiah(report.openingCash),
           ),
 
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
 
-          _CashDrawerShiftTable(
-            title:
-                '1. Sift Pagi ( Pukul 11:00 - 17:00 ) : ${report.kasirSiang}',
+          // Tabel 7-kolom kronologis dengan running Saldo
+          _CashDrawerAccountingTable(
             rows: thumbnailPreview
-                ? report.siangRows.take(5).toList()
-                : report.siangRows,
-            totalAmount: report.totalSiang,
-            placeholderRows: thumbnailPreview ? 4 : 5,
+                ? report.allRows.take(6).toList()
+                : report.allRows,
+            totalPemasukan: report.totalPemasukan,
+            totalPengeluaran: report.totalPengeluaran,
+            saldoAkhir: report.saldoAkhir,
+            placeholderRows: thumbnailPreview ? 5 : 6,
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
 
-          _CashDrawerShiftTable(
-            title:
-                '2. Sift Malam ( Pukul 18:00 - 00:00 ) : ${report.kasirMalam}',
-            rows: thumbnailPreview
-                ? report.malamRows.take(5).toList()
-                : report.malamRows,
-            totalAmount: report.totalMalam,
-            placeholderRows: thumbnailPreview ? 4 : 5,
-          ),
+          // Ringkasan Rekonsiliasi: Uang Kas Di Laci & Selisih Kas
+          _cashReconciliationBox(report),
 
           const SizedBox(height: 36),
 
@@ -1869,6 +1903,78 @@ class _CashDrawerReportDocument extends StatelessWidget {
               _signatureColumn('(${report.ownerName})', 'Owner'),
               _signatureColumn('(${report.kasirSiang})', 'Kasir Pagi'),
               _signatureColumn('(${report.kasirMalam})', 'Kasir Malam'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cashReconciliationBox(CelciousCashDrawerReportData report) {
+    final selisih = report.selisihKas;
+    final statusLabel = selisih == 0
+        ? '(Balance / Tepat)'
+        : selisih > 0
+            ? '(Lebih)'
+            : '(Kurang)';
+    final selisihColor = selisih == 0
+        ? const Color(0xFF007A51)
+        : selisih > 0
+            ? const Color(0xFF1A5B82)
+            : const Color(0xFFC0392B);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: _subtotalBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFC5D7E8)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Uang Kas Di Laci',
+                style: TextStyle(
+                  color: _muted,
+                  fontSize: 10.8,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                CelciousReportExport.formatRupiah(report.currentCash),
+                style: const TextStyle(
+                  color: _navy,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w900,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Selisih Kas',
+                style: TextStyle(
+                  color: _muted,
+                  fontSize: 10.8,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                '${CelciousReportExport.formatRupiah(selisih)} $statusLabel',
+                style: TextStyle(
+                  color: selisihColor,
+                  fontSize: 11.2,
+                  fontWeight: FontWeight.w900,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
             ],
           ),
         ],
@@ -1938,130 +2044,147 @@ class _CashDrawerReportDocument extends StatelessWidget {
   }
 }
 
-class _CashDrawerShiftTable extends StatelessWidget {
-  const _CashDrawerShiftTable({
-    required this.title,
+class _CashDrawerAccountingTable extends StatelessWidget {
+  const _CashDrawerAccountingTable({
     required this.rows,
-    required this.totalAmount,
-    this.placeholderRows = 5,
+    required this.totalPemasukan,
+    required this.totalPengeluaran,
+    required this.saldoAkhir,
+    this.placeholderRows = 6,
   });
 
-  final String title;
   final List<CelciousCashDrawerShiftRow> rows;
-  final num totalAmount;
+  final num totalPemasukan;
+  final num totalPengeluaran;
+  final num saldoAkhir;
   final int placeholderRows;
 
   @override
   Widget build(BuildContext context) {
-    final emptyZero = rows.isEmpty && totalAmount == 0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Table(
+      border: TableBorder.all(color: _tableBorder, width: 0.9),
+      columnWidths: const {
+        0: FixedColumnWidth(44),
+        1: FixedColumnWidth(50),
+        2: FlexColumnWidth(1.3),
+        3: FlexColumnWidth(2.1),
+        4: FlexColumnWidth(1.5),
+        5: FlexColumnWidth(1.5),
+        6: FlexColumnWidth(1.6),
+      },
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: _navy,
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Table(
-          border: TableBorder.all(color: _tableBorder, width: 0.9),
-          columnWidths: const {
-            0: FixedColumnWidth(36),
-            1: FixedColumnWidth(76),
-            2: FixedColumnWidth(54),
-            3: FlexColumnWidth(1.6),
-            4: FlexColumnWidth(2.4),
-            5: FlexColumnWidth(1.8),
-          },
-          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        TableRow(
+          decoration: const BoxDecoration(color: _navyBar),
           children: [
+            for (final label in const [
+              'No',
+              'Waktu',
+              'Nama Kasir',
+              'Keterangan',
+              'Pemasukan',
+              'Pengeluaran',
+              'Saldo',
+            ])
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 5,
+                  vertical: 8,
+                ),
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9.8,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        if (rows.isEmpty)
+          for (var i = 0; i < placeholderRows; i++)
             TableRow(
-              decoration: const BoxDecoration(color: _navyBar),
               children: [
-                for (final label in const [
-                  'No',
-                  'Tanggal',
-                  'Jam',
-                  'Nama Kasir',
-                  'Keterangan',
-                  'Nominal',
-                ])
+                for (var c = 0; c < 7; c++)
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 6,
                       vertical: 8,
                     ),
                     child: Text(
-                      label,
-                      textAlign: TextAlign.center,
+                      c >= 4 ? 'Rp.' : '',
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: _muted,
                         fontSize: 10.2,
-                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
               ],
-            ),
-            if (rows.isEmpty)
-              for (var i = 0; i < placeholderRows; i++)
-                TableRow(
-                  children: [
-                    for (var c = 0; c < 6; c++)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 8,
-                        ),
-                        child: Text(
-                          c == 5 ? 'Rp.' : '',
-                          style: const TextStyle(
-                            color: _muted,
-                            fontSize: 10.5,
-                          ),
-                        ),
-                      ),
-                  ],
-                )
-            else
-              for (final item in rows)
-                TableRow(
-                  children: [
-                    _cell('${item.no}', align: TextAlign.center),
-                    _cell(item.tanggal, align: TextAlign.center),
-                    _cell(item.jam, align: TextAlign.center),
-                    _cell(item.namaKasir),
-                    _cell(item.keterangan),
-                    _cell(
-                      item.nominalText,
-                      align: TextAlign.right,
-                      bold: true,
-                      color: item.jenis == 'keluar'
-                          ? const Color(0xFFC0392B)
-                          : const Color(0xFF007A51),
-                    ),
-                  ],
-                ),
+            )
+        else
+          for (final item in rows)
             TableRow(
-              decoration: const BoxDecoration(color: _subtotalBg),
               children: [
-                _cell('Total', align: TextAlign.center, bold: true),
-                const SizedBox.shrink(),
-                const SizedBox.shrink(),
-                const SizedBox.shrink(),
-                const SizedBox.shrink(),
+                _cell('${item.no}', align: TextAlign.center),
+                _cell(item.jam, align: TextAlign.center),
+                _cell(item.namaKasir),
+                _cell(item.keterangan),
                 _cell(
-                  emptyZero
-                      ? 'Rp.'
-                      : CelciousReportExport.formatRupiah(totalAmount),
-                  align: emptyZero ? TextAlign.left : TextAlign.right,
+                  item.pemasukan != null
+                      ? CelciousReportExport.formatRupiah(item.pemasukan!)
+                      : '-',
+                  align: item.pemasukan != null
+                      ? TextAlign.right
+                      : TextAlign.center,
+                  bold: item.pemasukan != null,
+                  color: item.pemasukan != null
+                      ? const Color(0xFF007A51)
+                      : _muted,
+                ),
+                _cell(
+                  item.pengeluaran != null
+                      ? CelciousReportExport.formatRupiah(item.pengeluaran!)
+                      : '-',
+                  align: item.pengeluaran != null
+                      ? TextAlign.right
+                      : TextAlign.center,
+                  bold: item.pengeluaran != null,
+                  color: item.pengeluaran != null
+                      ? const Color(0xFFC0392B)
+                      : _muted,
+                ),
+                _cell(
+                  CelciousReportExport.formatRupiah(item.saldo),
+                  align: TextAlign.right,
                   bold: true,
                 ),
               ],
+            ),
+        TableRow(
+          decoration: const BoxDecoration(color: _subtotalBg),
+          children: [
+            _cell('Total', align: TextAlign.center, bold: true),
+            const SizedBox.shrink(),
+            const SizedBox.shrink(),
+            const SizedBox.shrink(),
+            _cell(
+              CelciousReportExport.formatRupiah(totalPemasukan),
+              align: TextAlign.right,
+              bold: true,
+              color: const Color(0xFF007A51),
+            ),
+            _cell(
+              CelciousReportExport.formatRupiah(totalPengeluaran),
+              align: TextAlign.right,
+              bold: true,
+              color: const Color(0xFFC0392B),
+            ),
+            _cell(
+              CelciousReportExport.formatRupiah(saldoAkhir),
+              align: TextAlign.right,
+              bold: true,
             ),
           ],
         ),
@@ -2076,13 +2199,13 @@ class _CashDrawerShiftTable extends StatelessWidget {
     Color? color,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
       child: Text(
         text,
         textAlign: align,
         style: TextStyle(
           color: color ?? (bold ? _navy : const Color(0xFF1D3247)),
-          fontSize: 10.3,
+          fontSize: 10.0,
           fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
           fontFeatures: const [FontFeature.tabularFigures()],
         ),
@@ -2319,6 +2442,422 @@ class _LaporanKasLaciPreviewPageState extends State<LaporanKasLaciPreviewPage> {
           );
         },
       ),
+    );
+  }
+}
+
+
+// ============================================================
+// KARTU PRATINJAU DOKUMEN LAPORAN STOK & PRODUK (OWNER)
+// ============================================================
+
+class _StockReportDocumentCard extends StatefulWidget {
+  const _StockReportDocumentCard({
+    required this.periodText,
+    required this.storeName,
+    required this.address,
+    required this.contactLine,
+    required this.ownerName,
+    required this.cardWidth,
+    required this.onTap,
+  });
+
+  final String periodText;
+  final String storeName;
+  final String address;
+  final String contactLine;
+  final String ownerName;
+  final double cardWidth;
+  final VoidCallback onTap;
+
+  @override
+  State<_StockReportDocumentCard> createState() =>
+      _StockReportDocumentCardState();
+}
+
+class _StockReportDocumentCardState extends State<_StockReportDocumentCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(0, _hovered ? -4 : 0, 0),
+        width: widget.cardWidth,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _hovered
+                ? _navy.withValues(alpha: 0.35)
+                : const Color(0xFFD1DEE9),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _navy.withValues(alpha: _hovered ? 0.22 : 0.12),
+              blurRadius: _hovered ? 18 : 10,
+              offset: Offset(0, _hovered ? 8 : 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: widget.onTap,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(7, 7, 7, 6),
+                  child: AspectRatio(
+                    aspectRatio: 0.72,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFD9E2EC)),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: IgnorePointer(
+                        child: FittedBox(
+                          fit: BoxFit.fitWidth,
+                          alignment: Alignment.topCenter,
+                          clipBehavior: Clip.hardEdge,
+                          child: SizedBox(
+                            width: 660,
+                            child: _StockReportThumbnailDocument(
+                              storeName: widget.storeName,
+                              address: widget.address,
+                              contactLine: widget.contactLine,
+                              periodText: widget.periodText,
+                              ownerName: widget.ownerName,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(9, 7, 9, 9),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEAF3FB),
+                    borderRadius: BorderRadius.vertical(
+                      bottom: Radius.circular(15),
+                    ),
+                    border: Border(
+                      top: BorderSide(color: Color(0xFFCDE0F0)),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0E6B4E),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.inventory_2_rounded,
+                          color: Colors.white,
+                          size: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'LAPORAN STOK & PRODUK',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: _navy,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              'Stok, Penjualan Produk & Waste',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: _muted,
+                                fontSize: 8.8,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.open_in_new_rounded,
+                        color: _navy,
+                        size: 13,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StockReportThumbnailDocument extends StatelessWidget {
+  const _StockReportThumbnailDocument({
+    required this.storeName,
+    required this.address,
+    required this.contactLine,
+    required this.periodText,
+    required this.ownerName,
+  });
+
+  final String storeName;
+  final String address;
+  final String contactLine;
+  final String periodText;
+  final String ownerName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(30, 26, 30, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: const BoxDecoration(
+                  color: _logoBlue,
+                  shape: BoxShape.circle,
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: const AppBrandingLogo(
+                  height: 60,
+                  fit: BoxFit.cover,
+                  fallbackIcon: Icons.local_cafe_rounded,
+                  fallbackIconSize: 28,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      storeName,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: _navy,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      address,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: _muted,
+                        fontSize: 10.5,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      contactLine,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: _muted,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 74),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(height: 2, color: _navy),
+          const SizedBox(height: 14),
+          const Text(
+            'LAPORAN MANAJEMEN STOK, ANALISIS PENJUALAN & WASTE',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: _navy,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Periode $periodText',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF334B61),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 18),
+          _miniSection('1. Kondisi Stok Bahan Baku', const [
+            'No',
+            'Nama Bahan',
+            'Sisa Stok',
+            'Status',
+          ]),
+          const SizedBox(height: 16),
+          _miniSection('2. Analisis Penjualan Produk', const [
+            'No',
+            'Nama Produk',
+            'Terjual',
+            'Omzet',
+          ]),
+          const SizedBox(height: 16),
+          _miniSection('3. Riwayat Stok Masuk & Waste', const [
+            'No',
+            'Bahan',
+            'Jenis',
+            'Jumlah',
+          ]),
+          const SizedBox(height: 28),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Column(
+              children: [
+                Text(
+                  '($ownerName)',
+                  style: const TextStyle(
+                    color: _navy,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const Text(
+                  'Owner',
+                  style: TextStyle(
+                    color: _muted,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniSection(String title, List<String> cols) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: _navy,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Table(
+          border: TableBorder.all(color: _tableBorder, width: 0.9),
+          children: [
+            TableRow(
+              decoration: const BoxDecoration(color: _navyBar),
+              children: [
+                for (final c in cols)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 7,
+                    ),
+                    child: Text(
+                      c,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            for (var i = 0; i < 3; i++)
+              TableRow(
+                children: [
+                  for (var j = 0; j < cols.length; j++)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                      child: Text('', style: TextStyle(fontSize: 10)),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================
+// HALAMAN DETAIL LAPORAN STOK, PENJUALAN PRODUK & WASTE (OWNER)
+// ============================================================
+
+class LaporanStokPreviewPage extends StatelessWidget {
+  const LaporanStokPreviewPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final isPhone = MediaQuery.sizeOf(context).width < 600;
+    return Scaffold(
+      backgroundColor: _pageBg,
+      appBar: AppBar(
+        backgroundColor: _navy,
+        foregroundColor: Colors.white,
+        elevation: 2,
+        titleSpacing: 4,
+        title: Text(
+          'LAPORAN STOK, PRODUK & WASTE',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: isPhone ? 13 : 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+      body: const LaporanStokEmbeddedView(),
     );
   }
 }

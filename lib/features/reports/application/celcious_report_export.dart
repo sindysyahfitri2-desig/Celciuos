@@ -51,6 +51,8 @@ class CelciousShiftTransactionRow {
     required this.namaKasir,
     required this.jumlahPemesanan,
     required this.totalHarga,
+    this.pesanan = '-',
+    this.metodePembayaran = 'Cash',
   });
 
   final int no;
@@ -59,6 +61,8 @@ class CelciousShiftTransactionRow {
   final String namaKasir;
   final int jumlahPemesanan;
   final num totalHarga;
+  final String pesanan;
+  final String metodePembayaran;
 }
 
 class CelciousTransactionReportData {
@@ -106,6 +110,9 @@ class CelciousCashDrawerShiftRow {
     required this.jenis,
     required this.nominalSigned,
     required this.nominalText,
+    this.pemasukan,
+    this.pengeluaran,
+    this.saldo = 0,
   });
 
   final int no;
@@ -116,6 +123,9 @@ class CelciousCashDrawerShiftRow {
   final String jenis;
   final num nominalSigned;
   final String nominalText;
+  final num? pemasukan;
+  final num? pengeluaran;
+  final num saldo;
 }
 
 class CelciousCashDrawerReportData {
@@ -135,6 +145,10 @@ class CelciousCashDrawerReportData {
     required this.kasirMalam,
     required this.ownerName,
     required this.locationDate,
+    this.allRows = const [],
+    this.totalPemasukan = 0,
+    this.totalPengeluaran = 0,
+    this.saldoAkhir = 0,
   });
 
   final String storeName;
@@ -152,6 +166,12 @@ class CelciousCashDrawerReportData {
   final String kasirMalam;
   final String ownerName;
   final String locationDate;
+  final List<CelciousCashDrawerShiftRow> allRows;
+  final num totalPemasukan;
+  final num totalPengeluaran;
+  final num saldoAkhir;
+
+  num get selisihKas => currentCash - saldoAkhir;
 }
 
 // ============================================================
@@ -289,6 +309,11 @@ class CelciousReportExport {
       final kasir = (r['kasir'] ?? 'Kasir').trim();
       final qty = int.tryParse((r['jumlah'] ?? '1').trim()) ?? 1;
       final total = parseNominal(r['total']);
+      final pesananRaw = (r['pesanan'] ?? '').trim();
+      final pesanan = pesananRaw.isEmpty ? '-' : pesananRaw;
+      final metodeRaw = (r['pembayaran'] ?? '').trim();
+      final metode =
+          (metodeRaw.isEmpty || metodeRaw == '-') ? 'Cash' : metodeRaw;
 
       if (isShiftMalam(jam: jam, tanggal: rawTanggal)) {
         malam.add(
@@ -299,6 +324,8 @@ class CelciousReportExport {
             namaKasir: kasir.isEmpty ? 'Kasir' : kasir,
             jumlahPemesanan: qty <= 0 ? 1 : qty,
             totalHarga: total,
+            pesanan: pesanan,
+            metodePembayaran: metode,
           ),
         );
       } else {
@@ -310,6 +337,8 @@ class CelciousReportExport {
             namaKasir: kasir.isEmpty ? 'Kasir' : kasir,
             jumlahPemesanan: qty <= 0 ? 1 : qty,
             totalHarga: total,
+            pesanan: pesanan,
+            metodePembayaran: metode,
           ),
         );
       }
@@ -350,6 +379,7 @@ class CelciousReportExport {
   }) {
     final siang = <CelciousCashDrawerShiftRow>[];
     final malam = <CelciousCashDrawerShiftRow>[];
+    final allRows = <CelciousCashDrawerShiftRow>[];
 
     String formatDateShort(String? raw) {
       if (raw == null || raw.trim().isEmpty) return '-';
@@ -358,6 +388,11 @@ class CelciousReportExport {
       return '${dt.day.toString().padLeft(2, '0')}/'
           '${dt.month.toString().padLeft(2, '0')}/${dt.year}';
     }
+
+    num runningSaldo = openingCash;
+    num totalPemasukan = 0;
+    num totalPengeluaran = 0;
+    bool skippedInitialOpening = false;
 
     for (final r in rows) {
       final rawTanggal = r['tanggal'] ?? '';
@@ -368,34 +403,72 @@ class CelciousReportExport {
       final jenis = (r['jenis'] ?? 'masuk').trim().toLowerCase();
       final rawNom = (r['nominal'] ?? '0').trim();
       final absNom = parseNominal(rawNom).abs();
+
+      // Modal awal sudah tampil di header "Modal Awal : Rp. ...", jadi lewati 1 baris
+      // "Kas awal shift" pertama yang nilainya sama agar saldo berjalan akurat 100%.
+      if (!skippedInitialOpening &&
+          openingCash > 0 &&
+          ket.toLowerCase() == 'kas awal shift' &&
+          (absNom - openingCash).abs() < 0.01) {
+        skippedInitialOpening = true;
+        continue;
+      }
+
       final signed = jenis == 'keluar' ? -absNom : absNom;
       final prefix = jenis == 'keluar' ? '-Rp. ' : '+Rp. ';
       final nominalText = '$prefix${formatAngka(absNom)}';
+      final num? masukVal = jenis == 'keluar' ? null : absNom;
+      final num? keluarVal = jenis == 'keluar' ? absNom : null;
+
+      if (masukVal != null) totalPemasukan += masukVal;
+      if (keluarVal != null) totalPengeluaran += keluarVal;
+      runningSaldo = runningSaldo + (masukVal ?? 0) - (keluarVal ?? 0);
+
+      final itemAll = CelciousCashDrawerShiftRow(
+        no: allRows.length + 1,
+        tanggal: formatDateShort(rawTanggal),
+        jam: jam,
+        namaKasir: kasir.isEmpty ? 'Kasir' : kasir,
+        keterangan: ket.isEmpty ? '-' : ket,
+        jenis: jenis,
+        nominalSigned: signed,
+        nominalText: nominalText,
+        pemasukan: masukVal,
+        pengeluaran: keluarVal,
+        saldo: runningSaldo,
+      );
+      allRows.add(itemAll);
 
       if (isShiftMalam(jam: jam, tanggal: rawTanggal)) {
         malam.add(
           CelciousCashDrawerShiftRow(
             no: malam.length + 1,
-            tanggal: formatDateShort(rawTanggal),
+            tanggal: itemAll.tanggal,
             jam: jam,
-            namaKasir: kasir.isEmpty ? 'Kasir' : kasir,
-            keterangan: ket.isEmpty ? '-' : ket,
+            namaKasir: itemAll.namaKasir,
+            keterangan: itemAll.keterangan,
             jenis: jenis,
             nominalSigned: signed,
             nominalText: nominalText,
+            pemasukan: masukVal,
+            pengeluaran: keluarVal,
+            saldo: runningSaldo,
           ),
         );
       } else {
         siang.add(
           CelciousCashDrawerShiftRow(
             no: siang.length + 1,
-            tanggal: formatDateShort(rawTanggal),
+            tanggal: itemAll.tanggal,
             jam: jam,
-            namaKasir: kasir.isEmpty ? 'Kasir' : kasir,
-            keterangan: ket.isEmpty ? '-' : ket,
+            namaKasir: itemAll.namaKasir,
+            keterangan: itemAll.keterangan,
             jenis: jenis,
             nominalSigned: signed,
             nominalText: nominalText,
+            pemasukan: masukVal,
+            pengeluaran: keluarVal,
+            saldo: runningSaldo,
           ),
         );
       }
@@ -422,6 +495,10 @@ class CelciousReportExport {
       ),
       ownerName: resolveOwnerName(ownerName),
       locationDate: 'Langkat, $periodDateText',
+      allRows: allRows,
+      totalPemasukan: totalPemasukan,
+      totalPengeluaran: totalPengeluaran,
+      saldoAkhir: runningSaldo,
     );
   }
 
@@ -496,7 +573,7 @@ class CelciousReportExport {
       writeMerged(
         row++,
         0,
-        5,
+        6,
         shiftTitle,
         bold: true,
         size: 11,
@@ -505,10 +582,11 @@ class CelciousReportExport {
 
       const headers = [
         'No',
-        'ID Pemesanan',
         'Jam',
-        'Nama Kasir',
-        'Jumlah Pemesanan',
+        'No. Struk',
+        'Pesanan',
+        'Jumlah Pesanan',
+        'Metode Pembayaran',
         'Total Harga',
       ];
       final headerStyle = xl.CellStyle(
@@ -542,9 +620,9 @@ class CelciousReportExport {
 
       if (rows.isEmpty) {
         for (var i = 0; i < 6; i++) {
-          for (var c = 0; c < 6; c++) {
+          for (var c = 0; c < 7; c++) {
             final cell = sheet.cell(idx(c, row));
-            if (c == 5) {
+            if (c == 6) {
               cell.value = xl.TextCellValue('Rp.');
               cell.cellStyle = dataStyle(xl.HorizontalAlign.Left);
             } else {
@@ -560,18 +638,21 @@ class CelciousReportExport {
             ..value = xl.IntCellValue(item.no)
             ..cellStyle = dataStyle(xl.HorizontalAlign.Center);
           sheet.cell(idx(1, row))
-            ..value = xl.TextCellValue(item.idPemesanan)
-            ..cellStyle = dataStyle(xl.HorizontalAlign.Left);
-          sheet.cell(idx(2, row))
             ..value = xl.TextCellValue(item.jam)
             ..cellStyle = dataStyle(xl.HorizontalAlign.Center);
+          sheet.cell(idx(2, row))
+            ..value = xl.TextCellValue(item.idPemesanan)
+            ..cellStyle = dataStyle(xl.HorizontalAlign.Center);
           sheet.cell(idx(3, row))
-            ..value = xl.TextCellValue(item.namaKasir)
+            ..value = xl.TextCellValue(item.pesanan)
             ..cellStyle = dataStyle(xl.HorizontalAlign.Left);
           sheet.cell(idx(4, row))
             ..value = xl.IntCellValue(item.jumlahPemesanan)
             ..cellStyle = dataStyle(xl.HorizontalAlign.Center);
           sheet.cell(idx(5, row))
+            ..value = xl.TextCellValue(item.metodePembayaran)
+            ..cellStyle = dataStyle(xl.HorizontalAlign.Center);
+          sheet.cell(idx(6, row))
             ..value = xl.TextCellValue(formatRupiah(item.totalHarga))
             ..cellStyle = dataStyle(xl.HorizontalAlign.Right);
           row++;
@@ -582,7 +663,7 @@ class CelciousReportExport {
       writeMerged(
         row,
         0,
-        4,
+        5,
         'Total',
         bold: true,
         size: 10,
@@ -590,7 +671,7 @@ class CelciousReportExport {
         bg: subBgHex,
         bordered: true,
       );
-      final totalCell = sheet.cell(idx(5, row));
+      final totalCell = sheet.cell(idx(6, row));
       final emptyZero = rows.isEmpty && totalAmount == 0;
       totalCell.value = xl.TextCellValue(
         emptyZero ? 'Rp.' : formatRupiah(totalAmount),
@@ -614,12 +695,12 @@ class CelciousReportExport {
 
     var row = 0;
     // Kop Surat (logo akan ditanam di kiri atas kolom A baris 1-3)
-    writeMerged(row++, 0, 5, r.storeName, bold: true, size: 15);
-    writeMerged(row++, 0, 5, r.address, size: 10);
+    writeMerged(row++, 0, 6, r.storeName, bold: true, size: 15);
+    writeMerged(row++, 0, 6, r.address, size: 10);
     writeMerged(
       row++,
       0,
-      5,
+      6,
       r.contactLine,
       size: 10,
       bottomBorder: headerDivider,
@@ -627,11 +708,11 @@ class CelciousReportExport {
     row++;
 
     // Judul & Periode
-    writeMerged(row++, 0, 5, r.reportTitle, bold: true, size: 13);
-    writeMerged(row++, 0, 5, 'Periode ${r.periodDateText}', bold: true, size: 11);
+    writeMerged(row++, 0, 6, r.reportTitle, bold: true, size: 13);
+    writeMerged(row++, 0, 6, 'Periode ${r.periodDateText}', bold: true, size: 11);
     row++;
 
-    // 1. Sift Siang
+    // 1. Sift Pagi
     row = writeShiftTable(
       row,
       shiftTitle: '1. Sift Pagi ( Pukul 11:00 - 17:00 ) : ${r.kasirSiang}',
@@ -653,7 +734,7 @@ class CelciousReportExport {
     writeMerged(
       row,
       0,
-      1,
+      2,
       'Mengetahui :',
       size: 10,
       align: xl.HorizontalAlign.Left,
@@ -661,31 +742,32 @@ class CelciousReportExport {
     writeMerged(
       row,
       4,
-      5,
+      6,
       r.locationDate,
       size: 10,
       align: xl.HorizontalAlign.Center,
     );
     row += 4;
 
-    writeMerged(row, 0, 1, '(${r.ownerName})', bold: true, size: 10);
-    writeMerged(row, 2, 3, '(${r.kasirSiang})', bold: true, size: 10);
-    writeMerged(row, 4, 5, '(${r.kasirMalam})', bold: true, size: 10);
+    writeMerged(row, 0, 2, '(${r.ownerName})', bold: true, size: 10);
+    writeMerged(row, 3, 4, '(${r.kasirSiang})', bold: true, size: 10);
+    writeMerged(row, 5, 6, '(${r.kasirMalam})', bold: true, size: 10);
     row++;
 
-    writeMerged(row, 0, 1, 'Owner', size: 10);
-    writeMerged(row, 2, 3, 'Kasir Pagi', size: 10);
-    writeMerged(row, 4, 5, 'Kasir Malam', size: 10);
+    writeMerged(row, 0, 2, 'Owner', size: 10);
+    writeMerged(row, 3, 4, 'Kasir Pagi', size: 10);
+    writeMerged(row, 5, 6, 'Kasir Malam', size: 10);
 
     sheet.setRowHeight(0, 24);
     sheet.setRowHeight(1, 18);
     sheet.setRowHeight(2, 18);
-    sheet.setColumnWidth(0, 10);
-    sheet.setColumnWidth(1, 20);
-    sheet.setColumnWidth(2, 11);
-    sheet.setColumnWidth(3, 22);
-    sheet.setColumnWidth(4, 20);
-    sheet.setColumnWidth(5, 22);
+    sheet.setColumnWidth(0, 8);
+    sheet.setColumnWidth(1, 10);
+    sheet.setColumnWidth(2, 16);
+    sheet.setColumnWidth(3, 30);
+    sheet.setColumnWidth(4, 16);
+    sheet.setColumnWidth(5, 18);
+    sheet.setColumnWidth(6, 20);
 
     final rawBytes = excel.encode();
     if (rawBytes == null) throw Exception('File Excel gagal dibuat.');
@@ -758,140 +840,14 @@ class CelciousReportExport {
       }
     }
 
-    int writeShiftTable(
-      int startRow, {
-      required String shiftTitle,
-      required List<CelciousCashDrawerShiftRow> rows,
-      required num totalAmount,
-    }) {
-      var row = startRow;
-      writeMerged(
-        row++,
-        0,
-        5,
-        shiftTitle,
-        bold: true,
-        size: 11,
-        align: xl.HorizontalAlign.Left,
-      );
-
-      const headers = [
-        'No',
-        'Tanggal',
-        'Jam',
-        'Nama Kasir',
-        'Keterangan',
-        'Nominal',
-      ];
-      final headerStyle = xl.CellStyle(
-        bold: true,
-        fontSize: 10,
-        horizontalAlign: xl.HorizontalAlign.Center,
-        verticalAlign: xl.VerticalAlign.Center,
-        backgroundColorHex: navyHex,
-        fontColorHex: xl.ExcelColor.white,
-        leftBorder: thinBorder,
-        rightBorder: thinBorder,
-        topBorder: thinBorder,
-        bottomBorder: thinBorder,
-      );
-      for (var c = 0; c < headers.length; c++) {
-        final cell = sheet.cell(idx(c, row));
-        cell.value = xl.TextCellValue(headers[c]);
-        cell.cellStyle = headerStyle;
-      }
-      row++;
-
-      xl.CellStyle dataStyle(xl.HorizontalAlign align) => xl.CellStyle(
-        fontSize: 10,
-        horizontalAlign: align,
-        verticalAlign: xl.VerticalAlign.Center,
-        leftBorder: thinBorder,
-        rightBorder: thinBorder,
-        topBorder: thinBorder,
-        bottomBorder: thinBorder,
-      );
-
-      if (rows.isEmpty) {
-        for (var i = 0; i < 6; i++) {
-          for (var c = 0; c < 6; c++) {
-            final cell = sheet.cell(idx(c, row));
-            if (c == 5) {
-              cell.value = xl.TextCellValue('Rp.');
-              cell.cellStyle = dataStyle(xl.HorizontalAlign.Left);
-            } else {
-              cell.value = xl.TextCellValue('');
-              cell.cellStyle = dataStyle(xl.HorizontalAlign.Center);
-            }
-          }
-          row++;
-        }
-      } else {
-        for (final item in rows) {
-          sheet.cell(idx(0, row))
-            ..value = xl.IntCellValue(item.no)
-            ..cellStyle = dataStyle(xl.HorizontalAlign.Center);
-          sheet.cell(idx(1, row))
-            ..value = xl.TextCellValue(item.tanggal)
-            ..cellStyle = dataStyle(xl.HorizontalAlign.Center);
-          sheet.cell(idx(2, row))
-            ..value = xl.TextCellValue(item.jam)
-            ..cellStyle = dataStyle(xl.HorizontalAlign.Center);
-          sheet.cell(idx(3, row))
-            ..value = xl.TextCellValue(item.namaKasir)
-            ..cellStyle = dataStyle(xl.HorizontalAlign.Left);
-          sheet.cell(idx(4, row))
-            ..value = xl.TextCellValue(item.keterangan)
-            ..cellStyle = dataStyle(xl.HorizontalAlign.Left);
-          sheet.cell(idx(5, row))
-            ..value = xl.TextCellValue(item.nominalText)
-            ..cellStyle = dataStyle(xl.HorizontalAlign.Right);
-          row++;
-        }
-      }
-
-      // Baris Total
-      writeMerged(
-        row,
-        0,
-        4,
-        'Total',
-        bold: true,
-        size: 10,
-        align: xl.HorizontalAlign.Center,
-        bg: subBgHex,
-        bordered: true,
-      );
-      final totalCell = sheet.cell(idx(5, row));
-      final emptyZero = rows.isEmpty && totalAmount == 0;
-      totalCell.value = xl.TextCellValue(
-        emptyZero ? 'Rp.' : formatRupiah(totalAmount),
-      );
-      totalCell.cellStyle = xl.CellStyle(
-        bold: true,
-        fontSize: 10,
-        horizontalAlign:
-            emptyZero ? xl.HorizontalAlign.Left : xl.HorizontalAlign.Right,
-        verticalAlign: xl.VerticalAlign.Center,
-        backgroundColorHex: subBgHex,
-        fontColorHex: navyHex,
-        leftBorder: thinBorder,
-        rightBorder: thinBorder,
-        topBorder: thinBorder,
-        bottomBorder: thinBorder,
-      );
-      row++;
-      return row;
-    }
-
     var row = 0;
-    // Kop Surat
-    writeMerged(row++, 0, 5, r.storeName, bold: true, size: 15);
-    writeMerged(row++, 0, 5, r.address, size: 10);
+    // Kop Surat (7 kolom: 0..6)
+    writeMerged(row++, 0, 6, r.storeName, bold: true, size: 15);
+    writeMerged(row++, 0, 6, r.address, size: 10);
     writeMerged(
       row++,
       0,
-      5,
+      6,
       r.contactLine,
       size: 10,
       bottomBorder: headerDivider,
@@ -899,50 +855,154 @@ class CelciousReportExport {
     row++;
 
     // Judul & Periode
-    writeMerged(row++, 0, 5, r.reportTitle, bold: true, size: 13);
-    writeMerged(row++, 0, 5, 'Periode ${r.periodDateText}', bold: true, size: 11);
+    writeMerged(row++, 0, 6, r.reportTitle, bold: true, size: 13);
+    writeMerged(row++, 0, 6, 'Periode ${r.periodDateText}', bold: true, size: 11);
     row++;
 
-    // Ringkasan Kas Awal & Kas Saat Ini
+    // Modal Awal
+    writeMerged(
+      row++,
+      0,
+      6,
+      'Modal Awal : ${formatRupiah(r.openingCash)}',
+      bold: true,
+      size: 11,
+      align: xl.HorizontalAlign.Left,
+    );
+
+    const headers = [
+      'No',
+      'Waktu',
+      'Nama Kasir',
+      'Keterangan',
+      'Pemasukan',
+      'Pengeluaran',
+      'Saldo',
+    ];
+    final headerStyle = xl.CellStyle(
+      bold: true,
+      fontSize: 10,
+      horizontalAlign: xl.HorizontalAlign.Center,
+      verticalAlign: xl.VerticalAlign.Center,
+      backgroundColorHex: navyHex,
+      fontColorHex: xl.ExcelColor.white,
+      leftBorder: thinBorder,
+      rightBorder: thinBorder,
+      topBorder: thinBorder,
+      bottomBorder: thinBorder,
+    );
+    for (var c = 0; c < headers.length; c++) {
+      final cell = sheet.cell(idx(c, row));
+      cell.value = xl.TextCellValue(headers[c]);
+      cell.cellStyle = headerStyle;
+    }
+    row++;
+
+    xl.CellStyle dataStyle(xl.HorizontalAlign align, {bool bold = false, xl.ExcelColor? bg}) =>
+        xl.CellStyle(
+          bold: bold,
+          fontSize: 10,
+          horizontalAlign: align,
+          verticalAlign: xl.VerticalAlign.Center,
+          backgroundColorHex: bg ?? xl.ExcelColor.none,
+          fontColorHex: navyHex,
+          leftBorder: thinBorder,
+          rightBorder: thinBorder,
+          topBorder: thinBorder,
+          bottomBorder: thinBorder,
+        );
+
+    final kasRows = r.allRows;
+    if (kasRows.isEmpty) {
+      for (var i = 0; i < 4; i++) {
+        for (var c = 0; c < 7; c++) {
+          final cell = sheet.cell(idx(c, row));
+          if (c >= 4) {
+            cell.value = xl.TextCellValue('Rp.');
+            cell.cellStyle = dataStyle(xl.HorizontalAlign.Left);
+          } else {
+            cell.value = xl.TextCellValue('');
+            cell.cellStyle = dataStyle(xl.HorizontalAlign.Center);
+          }
+        }
+        row++;
+      }
+    } else {
+      for (final item in kasRows) {
+        sheet.cell(idx(0, row))
+          ..value = xl.IntCellValue(item.no)
+          ..cellStyle = dataStyle(xl.HorizontalAlign.Center);
+        sheet.cell(idx(1, row))
+          ..value = xl.TextCellValue('${item.tanggal} ${item.jam}'.trim())
+          ..cellStyle = dataStyle(xl.HorizontalAlign.Center);
+        sheet.cell(idx(2, row))
+          ..value = xl.TextCellValue(item.namaKasir)
+          ..cellStyle = dataStyle(xl.HorizontalAlign.Left);
+        sheet.cell(idx(3, row))
+          ..value = xl.TextCellValue(item.keterangan)
+          ..cellStyle = dataStyle(xl.HorizontalAlign.Left);
+        sheet.cell(idx(4, row))
+          ..value = xl.TextCellValue(
+            item.pemasukan != null ? formatRupiah(item.pemasukan!) : '-',
+          )
+          ..cellStyle = dataStyle(xl.HorizontalAlign.Right);
+        sheet.cell(idx(5, row))
+          ..value = xl.TextCellValue(
+            item.pengeluaran != null ? formatRupiah(item.pengeluaran!) : '-',
+          )
+          ..cellStyle = dataStyle(xl.HorizontalAlign.Right);
+        sheet.cell(idx(6, row))
+          ..value = xl.TextCellValue(formatRupiah(item.saldo))
+          ..cellStyle = dataStyle(xl.HorizontalAlign.Right, bold: true);
+        row++;
+      }
+    }
+
+    // Baris Total
     writeMerged(
       row,
       0,
-      2,
-      'Kas Awal : ${formatRupiah(r.openingCash)}',
+      3,
+      'Total',
+      bold: true,
+      size: 10,
+      align: xl.HorizontalAlign.Center,
+      bg: subBgHex,
+      bordered: true,
+    );
+    sheet.cell(idx(4, row))
+      ..value = xl.TextCellValue(formatRupiah(r.totalPemasukan))
+      ..cellStyle = dataStyle(xl.HorizontalAlign.Right, bold: true, bg: subBgHex);
+    sheet.cell(idx(5, row))
+      ..value = xl.TextCellValue(formatRupiah(r.totalPengeluaran))
+      ..cellStyle = dataStyle(xl.HorizontalAlign.Right, bold: true, bg: subBgHex);
+    sheet.cell(idx(6, row))
+      ..value = xl.TextCellValue(formatRupiah(r.saldoAkhir))
+      ..cellStyle = dataStyle(xl.HorizontalAlign.Right, bold: true, bg: subBgHex);
+    row += 2;
+
+    // Uang Kas Di Laci & Selisih Kas
+    writeMerged(
+      row++,
+      0,
+      6,
+      'Uang Kas Di Laci : ${formatRupiah(r.currentCash)}',
       bold: true,
       size: 10,
       align: xl.HorizontalAlign.Left,
-      bg: subBgHex,
-      bordered: true,
     );
+    final selisih = r.selisihKas;
+    final selisihText = selisih == 0
+        ? 'Rp. 0 (Balance / Tepat)'
+        : '${selisih > 0 ? '+ ' : ''}${formatRupiah(selisih)}';
     writeMerged(
-      row,
-      3,
-      5,
-      'Kas Saat Ini : ${formatRupiah(r.currentCash)}',
+      row++,
+      0,
+      6,
+      'Selisih Kas : $selisihText',
       bold: true,
       size: 10,
-      align: xl.HorizontalAlign.Right,
-      bg: subBgHex,
-      bordered: true,
-    );
-    row += 2;
-
-    // 1. Sift Siang
-    row = writeShiftTable(
-      row,
-      shiftTitle: '1. Sift Pagi ( Pukul 11:00 - 17:00 ) : ${r.kasirSiang}',
-      rows: r.siangRows,
-      totalAmount: r.totalSiang,
-    );
-    row++;
-
-    // 2. Sift Malam
-    row = writeShiftTable(
-      row,
-      shiftTitle: '2. Sift Malam ( Pukul 18:00 - 00:00 ) : ${r.kasirMalam}',
-      rows: r.malamRows,
-      totalAmount: r.totalMalam,
+      align: xl.HorizontalAlign.Left,
     );
     row += 2;
 
@@ -950,7 +1010,7 @@ class CelciousReportExport {
     writeMerged(
       row,
       0,
-      1,
+      2,
       'Mengetahui :',
       size: 10,
       align: xl.HorizontalAlign.Left,
@@ -958,31 +1018,32 @@ class CelciousReportExport {
     writeMerged(
       row,
       4,
-      5,
+      6,
       r.locationDate,
       size: 10,
       align: xl.HorizontalAlign.Center,
     );
     row += 4;
 
-    writeMerged(row, 0, 1, '(${r.ownerName})', bold: true, size: 10);
-    writeMerged(row, 2, 3, '(${r.kasirSiang})', bold: true, size: 10);
-    writeMerged(row, 4, 5, '(${r.kasirMalam})', bold: true, size: 10);
+    writeMerged(row, 0, 2, '(${r.ownerName})', bold: true, size: 10);
+    writeMerged(row, 3, 4, '(${r.kasirSiang})', bold: true, size: 10);
+    writeMerged(row, 5, 6, '(${r.kasirMalam})', bold: true, size: 10);
     row++;
 
-    writeMerged(row, 0, 1, 'Owner', size: 10);
-    writeMerged(row, 2, 3, 'Kasir Pagi', size: 10);
-    writeMerged(row, 4, 5, 'Kasir Malam', size: 10);
+    writeMerged(row, 0, 2, 'Owner', size: 10);
+    writeMerged(row, 3, 4, 'Kasir Pagi', size: 10);
+    writeMerged(row, 5, 6, 'Kasir Malam', size: 10);
 
     sheet.setRowHeight(0, 24);
     sheet.setRowHeight(1, 18);
     sheet.setRowHeight(2, 18);
-    sheet.setColumnWidth(0, 10);
-    sheet.setColumnWidth(1, 15);
-    sheet.setColumnWidth(2, 11);
-    sheet.setColumnWidth(3, 20);
-    sheet.setColumnWidth(4, 28);
-    sheet.setColumnWidth(5, 22);
+    sheet.setColumnWidth(0, 8);
+    sheet.setColumnWidth(1, 18);
+    sheet.setColumnWidth(2, 18);
+    sheet.setColumnWidth(3, 28);
+    sheet.setColumnWidth(4, 18);
+    sheet.setColumnWidth(5, 18);
+    sheet.setColumnWidth(6, 20);
 
     final rawBytes = excel.encode();
     if (rawBytes == null) throw Exception('File Excel gagal dibuat.');
@@ -1019,15 +1080,16 @@ class CelciousReportExport {
           children: [
             for (final h in const [
               'No',
-              'ID Pemesanan',
               'Jam',
-              'Nama Kasir',
-              'Jumlah Pemesanan',
+              'No. Struk',
+              'Pesanan',
+              'Jml',
+              'Metode',
               'Total Harga',
             ])
               pw.Padding(
                 padding: const pw.EdgeInsets.symmetric(
-                  horizontal: 6,
+                  horizontal: 5,
                   vertical: 6,
                 ),
                 child: pw.Text(
@@ -1035,7 +1097,7 @@ class CelciousReportExport {
                   textAlign: pw.TextAlign.center,
                   style: pw.TextStyle(
                     color: PdfColors.white,
-                    fontSize: 8.5,
+                    fontSize: 8.2,
                     fontWeight: pw.FontWeight.bold,
                   ),
                 ),
@@ -1049,15 +1111,15 @@ class CelciousReportExport {
           tableRows.add(
             pw.TableRow(
               children: [
-                for (var c = 0; c < 6; c++)
+                for (var c = 0; c < 7; c++)
                   pw.Padding(
                     padding: const pw.EdgeInsets.symmetric(
-                      horizontal: 6,
+                      horizontal: 5,
                       vertical: 6,
                     ),
                     child: pw.Text(
-                      c == 5 ? 'Rp.' : '',
-                      style: pw.TextStyle(fontSize: 8.5, color: mutedPdf),
+                      c == 6 ? 'Rp.' : '',
+                      style: pw.TextStyle(fontSize: 8.2, color: mutedPdf),
                     ),
                   ),
               ],
@@ -1070,67 +1132,58 @@ class CelciousReportExport {
             pw.TableRow(
               children: [
                 pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 5,
-                  ),
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
                   child: pw.Text(
                     '${item.no}',
                     textAlign: pw.TextAlign.center,
-                    style: const pw.TextStyle(fontSize: 8.5),
+                    style: const pw.TextStyle(fontSize: 8.2),
                   ),
                 ),
                 pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 5,
-                  ),
-                  child: pw.Text(
-                    item.idPemesanan,
-                    style: const pw.TextStyle(fontSize: 8.5),
-                  ),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 5,
-                  ),
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
                   child: pw.Text(
                     item.jam,
                     textAlign: pw.TextAlign.center,
-                    style: const pw.TextStyle(fontSize: 8.5),
+                    style: const pw.TextStyle(fontSize: 8.2),
                   ),
                 ),
                 pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 5,
-                  ),
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
                   child: pw.Text(
-                    item.namaKasir,
-                    style: const pw.TextStyle(fontSize: 8.5),
+                    item.idPemesanan,
+                    textAlign: pw.TextAlign.center,
+                    style: const pw.TextStyle(fontSize: 8.2),
                   ),
                 ),
                 pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 5,
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                  child: pw.Text(
+                    item.pesanan,
+                    style: const pw.TextStyle(fontSize: 8.2),
                   ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
                   child: pw.Text(
                     '${item.jumlahPemesanan}',
                     textAlign: pw.TextAlign.center,
-                    style: const pw.TextStyle(fontSize: 8.5),
+                    style: const pw.TextStyle(fontSize: 8.2),
                   ),
                 ),
                 pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 5,
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                  child: pw.Text(
+                    item.metodePembayaran,
+                    textAlign: pw.TextAlign.center,
+                    style: const pw.TextStyle(fontSize: 8.2),
                   ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
                   child: pw.Text(
                     formatRupiah(item.totalHarga),
                     textAlign: pw.TextAlign.right,
-                    style: const pw.TextStyle(fontSize: 8.5),
+                    style: const pw.TextStyle(fontSize: 8.2),
                   ),
                 ),
               ],
@@ -1145,15 +1198,12 @@ class CelciousReportExport {
           decoration: pw.BoxDecoration(color: subBgPdf),
           children: [
             pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(
-                horizontal: 6,
-                vertical: 6,
-              ),
+              padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 6),
               child: pw.Text(
                 'Total',
                 textAlign: pw.TextAlign.center,
                 style: pw.TextStyle(
-                  fontSize: 8.8,
+                  fontSize: 8.4,
                   fontWeight: pw.FontWeight.bold,
                   color: navyPdf,
                 ),
@@ -1163,17 +1213,15 @@ class CelciousReportExport {
             pw.SizedBox(),
             pw.SizedBox(),
             pw.SizedBox(),
+            pw.SizedBox(),
             pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(
-                horizontal: 6,
-                vertical: 6,
-              ),
+              padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 6),
               child: pw.Text(
                 emptyZero ? 'Rp.' : formatRupiah(total),
                 textAlign:
                     emptyZero ? pw.TextAlign.left : pw.TextAlign.right,
                 style: pw.TextStyle(
-                  fontSize: 8.8,
+                  fontSize: 8.4,
                   fontWeight: pw.FontWeight.bold,
                   color: navyPdf,
                 ),
@@ -1198,12 +1246,13 @@ class CelciousReportExport {
           pw.Table(
             border: pw.TableBorder.all(color: borderPdf, width: 0.7),
             columnWidths: const {
-              0: pw.FixedColumnWidth(30),
-              1: pw.FlexColumnWidth(2.1),
-              2: pw.FixedColumnWidth(46),
-              3: pw.FlexColumnWidth(2.0),
-              4: pw.FlexColumnWidth(1.5),
-              5: pw.FlexColumnWidth(1.9),
+              0: pw.FixedColumnWidth(32),
+              1: pw.FixedColumnWidth(40),
+              2: pw.FixedColumnWidth(68),
+              3: pw.FlexColumnWidth(2.6),
+              4: pw.FixedColumnWidth(34),
+              5: pw.FixedColumnWidth(50),
+              6: pw.FlexColumnWidth(1.5),
             },
             children: tableRows,
           ),
@@ -1293,208 +1342,185 @@ class CelciousReportExport {
     final borderPdf = PdfColor.fromInt(0xFF8EA4B8);
     final subBgPdf = PdfColor.fromInt(0xFFEDF4FA);
 
-    pw.Widget buildShiftPdfTable({
-      required String title,
-      required List<CelciousCashDrawerShiftRow> rows,
-      required num total,
-    }) {
-      final tableRows = <pw.TableRow>[
-        pw.TableRow(
-          decoration: pw.BoxDecoration(color: navyPdf),
-          children: [
-            for (final h in const [
-              'No',
-              'Tanggal',
-              'Jam',
-              'Nama Kasir',
-              'Keterangan',
-              'Nominal',
-            ])
-              pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(
-                  horizontal: 6,
-                  vertical: 6,
-                ),
-                child: pw.Text(
-                  h,
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(
-                    color: PdfColors.white,
-                    fontSize: 8.5,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ];
-
-      if (rows.isEmpty) {
-        for (var i = 0; i < 6; i++) {
-          tableRows.add(
-            pw.TableRow(
-              children: [
-                for (var c = 0; c < 6; c++)
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 6,
-                    ),
-                    child: pw.Text(
-                      c == 5 ? 'Rp.' : '',
-                      style: pw.TextStyle(fontSize: 8.5, color: mutedPdf),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        }
-      } else {
-        for (final item in rows) {
-          tableRows.add(
-            pw.TableRow(
-              children: [
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 5,
-                  ),
-                  child: pw.Text(
-                    '${item.no}',
-                    textAlign: pw.TextAlign.center,
-                    style: const pw.TextStyle(fontSize: 8.5),
-                  ),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 5,
-                  ),
-                  child: pw.Text(
-                    item.tanggal,
-                    textAlign: pw.TextAlign.center,
-                    style: const pw.TextStyle(fontSize: 8.5),
-                  ),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 5,
-                  ),
-                  child: pw.Text(
-                    item.jam,
-                    textAlign: pw.TextAlign.center,
-                    style: const pw.TextStyle(fontSize: 8.5),
-                  ),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 5,
-                  ),
-                  child: pw.Text(
-                    item.namaKasir,
-                    style: const pw.TextStyle(fontSize: 8.5),
-                  ),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 5,
-                  ),
-                  child: pw.Text(
-                    item.keterangan,
-                    style: const pw.TextStyle(fontSize: 8.5),
-                  ),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 5,
-                  ),
-                  child: pw.Text(
-                    item.nominalText,
-                    textAlign: pw.TextAlign.right,
-                    style: const pw.TextStyle(fontSize: 8.5),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-      }
-
-      final emptyZero = rows.isEmpty && total == 0;
-      tableRows.add(
-        pw.TableRow(
-          decoration: pw.BoxDecoration(color: subBgPdf),
-          children: [
+    final kasRows = r.allRows;
+    final tableRows = <pw.TableRow>[
+      pw.TableRow(
+        decoration: pw.BoxDecoration(color: navyPdf),
+        children: [
+          for (final h in const [
+            'No',
+            'Waktu',
+            'Nama Kasir',
+            'Keterangan',
+            'Pemasukan',
+            'Pengeluaran',
+            'Saldo',
+          ])
             pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(
-                horizontal: 6,
-                vertical: 6,
-              ),
+              padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 6),
               child: pw.Text(
-                'Total',
+                h,
                 textAlign: pw.TextAlign.center,
                 style: pw.TextStyle(
-                  fontSize: 8.8,
+                  color: PdfColors.white,
+                  fontSize: 8.2,
                   fontWeight: pw.FontWeight.bold,
-                  color: navyPdf,
                 ),
               ),
             ),
-            pw.SizedBox(),
-            pw.SizedBox(),
-            pw.SizedBox(),
-            pw.SizedBox(),
-            pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(
-                horizontal: 6,
-                vertical: 6,
-              ),
-              child: pw.Text(
-                emptyZero ? 'Rp.' : formatRupiah(total),
-                textAlign:
-                    emptyZero ? pw.TextAlign.left : pw.TextAlign.right,
-                style: pw.TextStyle(
-                  fontSize: 8.8,
-                  fontWeight: pw.FontWeight.bold,
-                  color: navyPdf,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
+        ],
+      ),
+    ];
 
-      return pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
+    if (kasRows.isEmpty) {
+      for (var i = 0; i < 4; i++) {
+        tableRows.add(
+          pw.TableRow(
+            children: [
+              for (var c = 0; c < 7; c++)
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+                  child: pw.Text(
+                    c >= 4 ? 'Rp.' : '',
+                    style: pw.TextStyle(fontSize: 8.2, color: mutedPdf),
+                  ),
+                ),
+            ],
+          ),
+        );
+      }
+    } else {
+      for (final item in kasRows) {
+        tableRows.add(
+          pw.TableRow(
+            children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                child: pw.Text(
+                  '${item.no}',
+                  textAlign: pw.TextAlign.center,
+                  style: const pw.TextStyle(fontSize: 8.2),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                child: pw.Text(
+                  '${item.tanggal} ${item.jam}'.trim(),
+                  textAlign: pw.TextAlign.center,
+                  style: const pw.TextStyle(fontSize: 8.0),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                child: pw.Text(
+                  item.namaKasir,
+                  style: const pw.TextStyle(fontSize: 8.2),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                child: pw.Text(
+                  item.keterangan,
+                  style: const pw.TextStyle(fontSize: 8.2),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                child: pw.Text(
+                  item.pemasukan != null ? formatRupiah(item.pemasukan!) : '-',
+                  textAlign: pw.TextAlign.right,
+                  style: const pw.TextStyle(fontSize: 8.2),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                child: pw.Text(
+                  item.pengeluaran != null ? formatRupiah(item.pengeluaran!) : '-',
+                  textAlign: pw.TextAlign.right,
+                  style: const pw.TextStyle(fontSize: 8.2),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                child: pw.Text(
+                  formatRupiah(item.saldo),
+                  textAlign: pw.TextAlign.right,
+                  style: pw.TextStyle(
+                    fontSize: 8.2,
+                    fontWeight: pw.FontWeight.bold,
+                    color: navyPdf,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
+    tableRows.add(
+      pw.TableRow(
+        decoration: pw.BoxDecoration(color: subBgPdf),
         children: [
-          pw.Text(
-            title,
-            style: pw.TextStyle(
-              fontSize: 9.8,
-              fontWeight: pw.FontWeight.bold,
-              color: navyPdf,
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+            child: pw.Text(
+              'Total',
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(
+                fontSize: 8.4,
+                fontWeight: pw.FontWeight.bold,
+                color: navyPdf,
+              ),
             ),
           ),
-          pw.SizedBox(height: 6),
-          pw.Table(
-            border: pw.TableBorder.all(color: borderPdf, width: 0.7),
-            columnWidths: const {
-              0: pw.FixedColumnWidth(30),
-              1: pw.FixedColumnWidth(66),
-              2: pw.FixedColumnWidth(44),
-              3: pw.FlexColumnWidth(1.6),
-              4: pw.FlexColumnWidth(2.4),
-              5: pw.FlexColumnWidth(1.8),
-            },
-            children: tableRows,
+          pw.SizedBox(),
+          pw.SizedBox(),
+          pw.SizedBox(),
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+            child: pw.Text(
+              formatRupiah(r.totalPemasukan),
+              textAlign: pw.TextAlign.right,
+              style: pw.TextStyle(
+                fontSize: 8.4,
+                fontWeight: pw.FontWeight.bold,
+                color: navyPdf,
+              ),
+            ),
+          ),
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+            child: pw.Text(
+              formatRupiah(r.totalPengeluaran),
+              textAlign: pw.TextAlign.right,
+              style: pw.TextStyle(
+                fontSize: 8.4,
+                fontWeight: pw.FontWeight.bold,
+                color: navyPdf,
+              ),
+            ),
+          ),
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+            child: pw.Text(
+              formatRupiah(r.saldoAkhir),
+              textAlign: pw.TextAlign.right,
+              style: pw.TextStyle(
+                fontSize: 8.4,
+                fontWeight: pw.FontWeight.bold,
+                color: navyPdf,
+              ),
+            ),
           ),
         ],
-      );
-    }
+      ),
+    );
+
+    final selisih = r.selisihKas;
+    final selisihText = selisih == 0
+        ? 'Rp. 0 (Balance / Tepat)'
+        : '${selisih > 0 ? '+ ' : ''}${formatRupiah(selisih)}';
 
     doc.addPage(
       pw.MultiPage(
@@ -1536,48 +1562,70 @@ class CelciousReportExport {
               ],
             ),
           ),
-          pw.SizedBox(height: 10),
-          pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: pw.BoxDecoration(
-              color: subBgPdf,
-              border: pw.Border.all(color: borderPdf, width: 0.7),
+          pw.SizedBox(height: 12),
+          pw.Text(
+            'Modal Awal : ${formatRupiah(r.openingCash)}',
+            style: pw.TextStyle(
+              fontSize: 9.5,
+              fontWeight: pw.FontWeight.bold,
+              color: navyPdf,
             ),
-            child: pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text(
-                  'Kas Awal : ${formatRupiah(r.openingCash)}',
-                  style: pw.TextStyle(
-                    fontSize: 9,
-                    fontWeight: pw.FontWeight.bold,
-                    color: navyPdf,
-                  ),
-                ),
-                pw.Text(
-                  'Kas Saat Ini : ${formatRupiah(r.currentCash)}',
-                  style: pw.TextStyle(
-                    fontSize: 9,
-                    fontWeight: pw.FontWeight.bold,
-                    color: navyPdf,
-                  ),
-                ),
-              ],
-            ),
+          ),
+          pw.SizedBox(height: 8),
+          pw.Table(
+            border: pw.TableBorder.all(color: borderPdf, width: 0.7),
+            columnWidths: const {
+              0: pw.FixedColumnWidth(28),
+              1: pw.FixedColumnWidth(72),
+              2: pw.FlexColumnWidth(1.3),
+              3: pw.FlexColumnWidth(2.1),
+              4: pw.FlexColumnWidth(1.4),
+              5: pw.FlexColumnWidth(1.4),
+              6: pw.FlexColumnWidth(1.5),
+            },
+            children: tableRows,
           ),
           pw.SizedBox(height: 14),
-          buildShiftPdfTable(
-            title: '1. Sift Pagi ( Pukul 11:00 - 17:00 ) : ${r.kasirSiang}',
-            rows: r.siangRows,
-            total: r.totalSiang,
+          pw.Row(
+            children: [
+              pw.SizedBox(
+                width: 125,
+                child: pw.Text(
+                  'Uang Kas Di Laci',
+                  style: pw.TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: pw.FontWeight.bold,
+                    color: navyPdf,
+                  ),
+                ),
+              ),
+              pw.Text(
+                ':  ${formatRupiah(r.currentCash)}',
+                style: pw.TextStyle(fontSize: 9.5, color: navyPdf),
+              ),
+            ],
           ),
-          pw.SizedBox(height: 16),
-          buildShiftPdfTable(
-            title: '2. Sift Malam ( Pukul 18:00 - 00:00 ) : ${r.kasirMalam}',
-            rows: r.malamRows,
-            total: r.totalMalam,
+          pw.SizedBox(height: 4),
+          pw.Row(
+            children: [
+              pw.SizedBox(
+                width: 125,
+                child: pw.Text(
+                  'Selisih Kas',
+                  style: pw.TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: pw.FontWeight.bold,
+                    color: navyPdf,
+                  ),
+                ),
+              ),
+              pw.Text(
+                ':  $selisihText',
+                style: pw.TextStyle(fontSize: 9.5, color: navyPdf),
+              ),
+            ],
           ),
-          pw.SizedBox(height: 28),
+          pw.SizedBox(height: 26),
           _pdfSignatureBlock(
             locationDate: r.locationDate,
             ownerName: r.ownerName,

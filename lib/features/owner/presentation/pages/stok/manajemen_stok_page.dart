@@ -125,7 +125,6 @@ class _ManajemenStokPageState extends State<ManajemenStokPage>
     {'title': 'Stok Keluar', 'icon': Icons.indeterminate_check_box_rounded},
     {'title': 'Resep Produk', 'icon': Icons.menu_book_rounded},
     {'title': 'Riwayat Stok', 'icon': Icons.history_rounded},
-    {'title': 'Laporan', 'icon': Icons.analytics_rounded},
   ];
 
   @override
@@ -167,7 +166,6 @@ class _ManajemenStokPageState extends State<ManajemenStokPage>
                   _StokKeluarView(onSuccess: () => setState(() {})),
                   const _ResepProdukView(),
                   const _RiwayatStokView(),
-                  const _LaporanStokView(),
                 ],
               ),
             ),
@@ -3305,14 +3303,17 @@ class _RiwayatStokViewState extends State<_RiwayatStokView> {
 
 enum _PeriodeStok { hariIni, tujuhHari, bulanIni, semua }
 
-class _LaporanStokView extends StatefulWidget {
-  const _LaporanStokView();
+/// Tampilan Laporan Manajemen Stok, Analisis Penjualan Produk & Waste
+/// (ditampilkan di halaman Kelola Laporan Owner).
+class LaporanStokEmbeddedView extends StatefulWidget {
+  const LaporanStokEmbeddedView({super.key});
 
   @override
-  State<_LaporanStokView> createState() => _LaporanStokViewState();
+  State<LaporanStokEmbeddedView> createState() =>
+      _LaporanStokEmbeddedViewState();
 }
 
-class _LaporanStokViewState extends State<_LaporanStokView> {
+class _LaporanStokEmbeddedViewState extends State<LaporanStokEmbeddedView> {
   Map<String, dynamic> _laporan = {};
   bool _loading = true;
   bool _exporting = false;

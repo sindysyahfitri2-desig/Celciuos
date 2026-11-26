@@ -642,155 +642,11 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
   }
 
   // ============================================================
-  // POPUP KONFIRMASI BAYAR
+  // POPUP KONFIRMASI PESANAN SELESAI
   // ============================================================
 
-  void konfirmasiBayar(Map<String, dynamic> data, int index) {
-    if (index < 0 || index >= pesanan.length) return;
-
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withOpacity(.35),
-      builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 24,
-          ),
-          child: Container(
-            width: 340,
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 22),
-            decoration: BoxDecoration(
-              color: navy,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Apakah anda yakin pesanan\nsudah keluar semua?',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    height: 1.05,
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(17),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        data['nama'].toString(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: const Color(0xff102b40),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-
-                      const SizedBox(height: 1),
-
-                      Text(
-                        data['jumlah'].toString(),
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 15),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: 38,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pop(dialogContext);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: red,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                          ),
-                          child: Text(
-                            'Tidak',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(width: 14),
-
-                    Expanded(
-                      child: SizedBox(
-                        height: 38,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pop(dialogContext);
-                            tampilkanDetailPesanan(index);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: green,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                          ),
-                          child: Text(
-                            'Ya',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   void konfirmasiPesananSelesai(Map<String, dynamic> data, int index) {
-    if (index < 0 || data['selesai'] == true) return;
+    if (index < 0 || index >= pesanan.length || data['selesai'] == true) return;
 
     final sudahLunas =
         (data['bayar']?.toString().trim().toLowerCase() ?? '') == 'lunas';
@@ -858,63 +714,160 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
       builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: navy,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
           ),
-          title: const Text(
-            'Konfirmasi Pesanan Selesai',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            'Pembayaran sudah lunas. Apakah pesanan ${data['nama']} sudah selesai disiapkan dan diserahkan ke pelanggan?',
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text(
-                'Belum',
-                style: TextStyle(color: Colors.white70),
-              ),
+          child: Container(
+            width: 340,
+            padding: const EdgeInsets.fromLTRB(24, 18, 24, 22),
+            decoration: BoxDecoration(
+              color: navy,
+              borderRadius: BorderRadius.circular(18),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: green,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () async {
-                final id = data['id']?.toString();
-                try {
-                  final idTrx = data['idTransaksi'];
-                  if (idTrx != null) {
-                    await ApiService.patch('transaksi/$idTrx/selesai', {});
-                  }
-                  if (id != null) {
-                    await TransactionStore.completeUnfinishedOrder(id);
-                  }
-                  if (!mounted) return;
-                  setState(() {
-                    pesanan.removeAt(index);
-                  });
-                  Navigator.pop(dialogContext);
-                  widget.onKeLaporan?.call();
-                } catch (error) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Gagal menyelesaikan pesanan: $error'),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Apakah anda yakin pesanan\nsudah keluar semua?',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    height: 1.15,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(17),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        data['nama'].toString(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xff102b40),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        data['jumlah'].toString(),
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 38,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: red,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                          ),
+                          child: const Text(
+                            'Tidak',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  );
-                }
-              },
-              child: const Text('Ya, Selesai'),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: SizedBox(
+                        height: 38,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final id = data['id']?.toString();
+                            try {
+                              final idTrx = data['idTransaksi'];
+                              if (idTrx != null) {
+                                await ApiService.patch(
+                                  'transaksi/$idTrx/selesai',
+                                  {},
+                                );
+                              }
+                              if (id != null) {
+                                await TransactionStore.completeUnfinishedOrder(
+                                  id,
+                                );
+                              }
+                              if (!mounted) return;
+                              setState(() {
+                                pesanan.removeAt(index);
+                              });
+                              if (dialogContext.mounted) {
+                                Navigator.pop(dialogContext);
+                              }
+                              widget.onKeLaporan?.call();
+                            } catch (error) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Gagal menyelesaikan pesanan: $error',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: green,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                          ),
+                          child: const Text(
+                            'Ya',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -1510,7 +1463,7 @@ class _PesananBelumSelesaiPageState extends State<PesananBelumSelesaiPage> {
           : 65,
       child: ElevatedButton(
         onPressed: () {
-          konfirmasiBayar(data, index);
+          tampilkanDetailPesanan(index);
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: navy,

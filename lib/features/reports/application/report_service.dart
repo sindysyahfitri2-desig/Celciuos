@@ -203,6 +203,18 @@ class ReportService {
         0,
         (s, d) => s + (int.tryParse(d['jumlah'].toString()) ?? 0),
       );
+      final pesananItems = detail
+          .map((d) {
+            final nama = ((d['produk'] as Map?)?['nama_produk'] ??
+                    d['nama_produk'] ??
+                    'Menu')
+                .toString()
+                .trim();
+            final q = int.tryParse('${d['jumlah'] ?? 1}') ?? 1;
+            return q > 1 ? '$nama ($q)' : nama;
+          })
+          .where((s) => s.isNotEmpty)
+          .toList();
       final kode = t['kode']?.toString();
       return <String, String>{
         'id': (kode != null && kode.isNotEmpty)
@@ -213,6 +225,7 @@ class ReportService {
         'shiftId': t['id_shift_bayar']?.toString() ?? '',
         'kasir':
             (t['pengguna'] as Map?)?['nama']?.toString() ?? cashierFallback,
+        'pesanan': pesananItems.isEmpty ? '-' : pesananItems.join(', '),
         'jumlah': '$jumlah',
         'pembayaran':
             (t['metode_pembayaran'] as Map?)?['nama_metode']?.toString() ?? '-',

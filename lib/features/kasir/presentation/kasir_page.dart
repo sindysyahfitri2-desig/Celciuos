@@ -922,7 +922,8 @@ class _kasirPageState extends State<kasirPage> {
     setState(() {
       _cartController.clear();
       showCheckout = false;
-      showJenisPesanan = false;
+      showJenisPesanan = true;
+      jenisPesanan = null;
     });
   }
 

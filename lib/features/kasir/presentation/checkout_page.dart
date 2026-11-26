@@ -61,9 +61,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
   String jenisDiskon = 'Rp'; // Pilihan: 'Rp' atau '%'.
   Uint8List? _buktiPembayaranBytes; // Bytes agar aman di Chrome/Web.
 
-  // Mode transaksi.
-  String selectedPayment =
-      ''; // Belum memilih mode: tombol Langsung Bayar tampil redup.
+  // Mode transaksi: putih polos = Simpan (bayar nanti), border navy = Langsung Bayar.
+  String selectedPayment = '';
 
   bool _menyimpanPesanan = false;
   bool _memulaiPembayaran = false;
@@ -182,53 +181,53 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         ),
                         child: Row(
                           children: [
-                            InkWell(
-                              onTap: _mustCompletePayment
-                                  ? null
-                                  : widget.onBack,
-                              borderRadius: BorderRadius.circular(20),
-                              child: Container(
-                                width: isMobile ? 36 : 38,
-                                height: isMobile ? 36 : 38,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(19),
-                                ),
-                                child: const Icon(
-                                  Icons.arrow_back_rounded,
-                                  color: _navy,
-                                  size: 21,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            // Judul berbentuk pill putih seperti desain.
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 16 : 22,
-                                vertical: isMobile ? 6 : 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
+                            // Satu tombol menyatu: ikon back + "Tambah Menu" -> kembali ke halaman menu
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _mustCompletePayment
+                                    ? null
+                                    : widget.onBack,
                                 borderRadius: BorderRadius.circular(27),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: _navy.withValues(alpha: 0.10),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
+                                child: Ink(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isMobile ? 14 : 18,
+                                    vertical: isMobile ? 7 : 9,
                                   ),
-                                ],
-                              ),
-                              child: Text(
-                                'Tambah Menu',
-                                style: TextStyle(
-                                  color: _navy,
-                                  fontSize: isMobile
-                                      ? 15
-                                      : isTablet
-                                      ? 16
-                                      : 17,
-                                  fontWeight: FontWeight.bold,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(27),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: _navy.withValues(alpha: 0.10),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.arrow_back_rounded,
+                                        color: _navy,
+                                        size: isMobile ? 19 : 21,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Tambah Menu',
+                                        style: TextStyle(
+                                          color: _navy,
+                                          fontSize: isMobile
+                                              ? 15
+                                              : isTablet
+                                              ? 16
+                                              : 17,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -697,18 +696,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // - border biru  : sedang dipilih
   // ==========================================================
 
-  // Langsung Bayar / Bayar Nanti.
-  // Awalnya REDUP. Ketuk sekali -> langsung aktif (Langsung Bayar, border biru).
-  // Setelah aktif, ketuk lagi untuk membuka dropdown pilihan mode.
+  // Langsung Bayar (label selalu "Langsung Bayar", tetap putih cerah tidak abu-abu).
+  // Border biru aktif saat mode Langsung Bayar; ketuk lagi untuk mode Simpan (tanpa tulisan Bayar Nanti).
   Widget _modePembayaranControl({double fontSize = 14, double height = 44}) {
     return CompositedTransformTarget(
       link: _modeLink,
       child: Container(
         key: _modeKey,
         child: _Pill(
-          label: selectedPayment.isEmpty ? 'Langsung Bayar' : selectedPayment,
-          selected: selectedPayment.isNotEmpty,
-          dim: selectedPayment.isEmpty,
+          label: 'Langsung Bayar',
+          selected: langsungBayar,
+          dim: false,
           onTap: _pilihModePembayaran,
           enabled: !widget.openPaymentImmediately,
           height: height,
@@ -718,8 +716,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  // Pembayaran (Cash / QRIS). Redup jika mode belum "Langsung Bayar".
-  // Saat aktif, daftar pilihan muncul sebagai dropdown di atas tombol.
+  // Pembayaran (Cash / QRIS). Tetap putih bersih (tidak abu-abu gelap).
   Widget _tombolPembayaran({required double height, required double fontSize}) {
     return CompositedTransformTarget(
       link: _bayarLink,
@@ -728,7 +725,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         child: _Pill(
           label: metodePembayaran.isEmpty ? 'Pembayaran' : metodePembayaran,
           selected: metodePembayaran.isNotEmpty && langsungBayar,
-          dim: !langsungBayar,
+          dim: false,
           onTap: () {
             if (!langsungBayar) {
               ScaffoldMessenger.of(context)
@@ -774,11 +771,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // ==========================================================
 
   void _pilihModePembayaran() {
-    // Tombol tetap bertuliskan "Langsung Bayar".
-    // Ketuk hanya untuk menampilkan/menyembunyikan border pilihan, tanpa dropdown.
+    // Tombol tetap bertuliskan "Langsung Bayar" (tanpa tulisan Bayar Nanti).
+    // Ketuk untuk menyalakan/mematikan border biru aktif (mode Bayar vs Simpan).
     setState(() {
-      selectedPayment = selectedPayment.isEmpty ? 'Langsung Bayar' : '';
-      if (selectedPayment.isEmpty) metodePembayaran = '';
+      selectedPayment = langsungBayar ? '' : 'Langsung Bayar';
+      if (!langsungBayar) metodePembayaran = '';
     });
   }
 
@@ -865,9 +862,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
         insetPadding: const EdgeInsets.symmetric(horizontal: 20),
         child: _dialogDenganX(
           dialogContext: dialogContext,
+          bisaTutup: false,
           child: Container(
             width: 340,
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
             decoration: BoxDecoration(
               color: const Color.fromARGB(255, 255, 255, 255),
               borderRadius: BorderRadius.circular(22),
@@ -908,24 +906,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   child: Divider(height: 1),
                 ),
                 _barisRincian('Total bayar', totalAkhir, bold: true),
-                const SizedBox(height: 14),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: SizedBox(
-                    width: 110,
-                    height: 38,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(dialogContext),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _navy,
-                        foregroundColor: Colors.white,
-                        elevation: 5,
-                        shape: const StadiumBorder(),
-                      ),
-                      child: const Text('Tutup'),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -1937,7 +1917,7 @@ class _PillState extends State<_Pill> {
               // Border selalu 2px (transparan jika tidak dipilih) agar ukuran tidak bergeser.
               border: Border.all(
                 color: aktifBorder
-                    ? _CheckoutPageState._biruBorder
+                    ? _CheckoutPageState._navy
                     : Colors.transparent,
                 width: 2,
               ),
